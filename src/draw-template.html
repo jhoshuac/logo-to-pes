@@ -131,7 +131,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .mono3 input { width: 100%; font: 700 20px var(--font-body); text-align: center; text-transform: uppercase; padding: 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink); }
 .warnline { color: var(--bad); font-weight: 700; }
 details summary { cursor: pointer; font-weight: 700; }
-#impbox[hidden] { display: none; }
+#impbox[hidden], #impInsideRow[hidden] { display: none; }
 .impcolors { display: flex; flex-wrap: wrap; gap: 8px; }
 .ichip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 5px 12px 5px 6px; font: 700 13px var(--font-body); cursor: pointer; }
 .ichip small { font-weight: 500; color: var(--muted); }
@@ -232,6 +232,7 @@ details summary { cursor: pointer; font-weight: 700; }
         </div>
         <p class="hint" data-t="impHint">Tap a color to sew it or leave it out. Left-out colors show the fabric.</p>
         <div class="impcolors" id="impColors"></div>
+        <label class="check" id="impInsideRow" hidden><input type="checkbox" id="impInside"> <span id="impInsideLbl">Keep the background color where it's inside the design</span></label>
         <label class="check"><input type="checkbox" id="impBold" checked> <span data-t="impBold">Thicken thin lines so they sew (at least 1 mm)</span></label>
         <p class="hint" data-t="impSize">While the picture is selected, the − and + buttons above resize it from the original picture, so details stay sharp. Press Done when it's in place.</p>
       </section>
@@ -405,6 +406,7 @@ const T = {
     impHint: 'Tap a color to sew it or leave it out. Left-out colors show the fabric.',
     impSewn: 'sewn', impOff: 'left out', impBg: 'background, left out',
     impBold: 'Thicken thin lines so they sew (at least 1 mm)',
+    impInside: n => `Keep ${n} where it's inside the design (sparkles, highlights)`,
     impSize: "While the picture is selected, the − and + buttons above resize it from the original picture, so details stay sharp. Press Done when it's in place.",
     fromFile: name => `From ${name}`,
     select: 'Select', selDone: 'Done', selDelete: 'Delete', selHint: 'Drag inside the dashed box to move it.',
@@ -467,6 +469,7 @@ const T = {
     impHint: 'Toca un color para bordarlo o dejarlo fuera. Los colores que quedan fuera muestran la tela.',
     impSewn: 'se borda', impOff: 'fuera', impBg: 'fondo, fuera',
     impBold: 'Engrosar líneas finas para que se borden (mínimo 1 mm)',
+    impInside: n => `Mantener ${n} donde está dentro del diseño (destellos, brillos)`,
     impSize: 'Mientras la imagen está seleccionada, los botones − y + de arriba le cambian el tamaño desde la imagen original, así los detalles quedan nítidos. Pulsa Listo cuando esté en su lugar.',
     fromFile: name => `De ${name}`,
     select: 'Seleccionar', selDone: 'Listo', selDelete: 'Borrar', selHint: 'Arrastra dentro del recuadro para moverlo.',
@@ -684,7 +687,7 @@ function commitSel() {
   st.sel = null;
   if (q.img) {
     pctx.drawImage(q.img, Math.round(q.x), Math.round(q.y));
-    if (q.imp) q.imp.colors.forEach(c => { if (c.stitch) st.used.add(c.thread); });
+    if (q.imp) impSewn(q.imp).forEach(c => { if (c.stitch) st.used.add(c.thread); });
     changed();
   }
   drawOverlay();
@@ -1676,11 +1679,11 @@ function importImage(im) {
   const a = document.createElement('canvas'); a.width = aw; a.height = ah;
   const actx = a.getContext('2d', { willReadFrequently: true }); actx.drawImage(im, 0, 0, aw, ah);
   const data = actx.getImageData(0, 0, aw, ah).data;
-  const an = Emb.analyzeColors(data, aw, ah, 8);
+  const an = Emb.analyzeColors(data, aw, ah, 12);
   const [hw, hh] = HOOPS[st.hoop];
   let wmm = hw * 0.8, hmm = wmm * nh / nw;
   if (hmm > hh * 0.8) { hmm = hh * 0.8; wmm = hmm * nw / nh; }
-  const imp = { im, nw, nh, an, sample: { data, w: aw, h: ah }, k: 'auto', bold: true, w: wmm * PXMM, h: hmm * PXMM };
+  const imp = { im, nw, nh, an, sample: { data, w: aw, h: ah }, k: 'auto', bold: true, inside: false, bgMain: -1, w: wmm * PXMM, h: hmm * PXMM };
   impColors(imp);
   closeText(true); commitSel(); st.layerSel = -1;
   snapshot();
@@ -1699,6 +1702,7 @@ function impColors(imp) {
   const snap = c => Math.max(...c) < 50 ? 0x000000 : (Math.min(...c) > 225 ? 0xffffff : rgbInt(c));
   // shades of the background (everything but the main background colour) fold into it when left out
   imp.colors = r.centers.map((c, i) => ({ rgb: c, stitch: !bgs.has(i), thread: snap(c), bg: bgs.has(i), merge: bgs.has(i) && i !== bgl[0], share: r.counts[i] }));
+  imp.bgMain = bgl.length ? bgl[0] : -1;
   if (!imp.colors.some(c => c.stitch)) imp.colors.forEach(c => { c.stitch = true; c.bg = false; });
 }
 function renderImport(q) {
@@ -1713,10 +1717,13 @@ function renderImport(q) {
   ctx.drawImage(imp.im, -w0 / 2, -h0 / 2, w0, h0);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   const blur = Math.max(0, Math.min(3, Math.round(w0 / imp.nw * 0.5)));
-  const layer = Emb.logoToLayer(ctx.getImageData(0, 0, W, H).data, W, H, 1 / PXMM, imp.colors, blur, null, { boldMM: imp.bold ? 1.0 : 0 });
+  const layer = Emb.logoToLayer(ctx.getImageData(0, 0, W, H).data, W, H, 1 / PXMM, impSewn(imp), blur, keepsInside(imp) ? { edgeOf: imp.bgMain } : null, { boldMM: imp.bold ? 1.0 : 0 });
   ctx.putImageData(new ImageData(layer, W, H), 0, 0);
   return c;
 }
+/* "keep the background colour inside the design": sew it, except where it touches the picture's edge */
+const keepsInside = imp => imp.inside && imp.bgMain >= 0 && !imp.colors[imp.bgMain].stitch;
+const impSewn = imp => keepsInside(imp) ? imp.colors.map((c, i) => i === imp.bgMain ? { ...c, stitch: true } : c) : imp.colors;
 function rerenderImport() {
   const q = st.sel; if (!q || !q.imp) return;
   const cx = q.x + q.w / 2, cy = q.y + q.h / 2;
@@ -1729,7 +1736,7 @@ function renderImpPanel() {
   const imp = q.imp, an = imp.an;
   const sel = $('impK'); sel.innerHTML = '';
   const opts = [['auto', t('impAuto', an.suggested)]];
-  for (let k = 1; k <= 8; k++) if (an.results[k]) opts.push([String(k), String(k)]);
+  for (let k = 1; k <= 12; k++) if (an.results[k]) opts.push([String(k), String(k)]);
   for (const [v, l] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = l; sel.appendChild(o); }
   sel.value = String(imp.k);
   const box = $('impColors'); box.innerHTML = '';
@@ -1746,12 +1753,16 @@ function renderImpPanel() {
     box.appendChild(b);
   });
   $('impBold').checked = imp.bold;
+  const showIn = imp.bgMain >= 0 && !imp.colors[imp.bgMain].stitch;
+  $('impInsideRow').hidden = !showIn;
+  if (showIn) { $('impInside').checked = imp.inside; $('impInsideLbl').textContent = t('impInside', Emb.brotherName(imp.colors[imp.bgMain].thread)); }
 }
 $('impK').onchange = e => {
   const q = st.sel; if (!q || !q.imp) return;
   q.imp.k = e.target.value === 'auto' ? 'auto' : +e.target.value;
   impColors(q.imp); renderImpPanel(); rerenderImport();
 };
+$('impInside').onchange = e => { const q = st.sel; if (!q || !q.imp) return; q.imp.inside = e.target.checked; rerenderImport(); };
 $('impBold').onchange = e => { const q = st.sel; if (!q || !q.imp) return; q.imp.bold = e.target.checked; rerenderImport(); };
 $('addImage').onclick = () => $('imgfile').click();
 $('imgfile').onchange = e => {

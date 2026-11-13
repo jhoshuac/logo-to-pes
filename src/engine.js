@@ -842,17 +842,33 @@ function kmeans(samples, k, iters, rnd) {
 function analyzeColors(rgba, w, h, kMax) {
   kMax = kMax || 6;
   const step = Math.max(1, Math.floor(Math.sqrt((w * h) / 40000)));
-  const s = [];
+  // colours are learned from flat parts of the picture only: soft edges between two colours
+  // (anti-aliasing around outlines) would otherwise grab colours of their own
+  const flatAt = (x, y) => {
+    const i = (y * w + x) * 4;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const xx = x + dx, yy = y + dy;
+      if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+      const j = (yy * w + xx) * 4;
+      if (rgba[j + 3] < 128) return false;
+      if (Math.abs(rgba[i] - rgba[j]) + Math.abs(rgba[i + 1] - rgba[j + 1]) + Math.abs(rgba[i + 2] - rgba[j + 2]) > 48) return false;
+    }
+    return true;
+  };
+  const s = [], sAll = [];
   let transparent = 0, total = 0;
   for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
     const i = (y * w + x) * 4; total++;
     if (rgba[i + 3] < 128) { transparent++; continue; }
-    s.push(rgba[i], rgba[i + 1], rgba[i + 2]);
+    sAll.push(rgba[i], rgba[i + 1], rgba[i + 2]);
+    if (flatAt(x, y)) s.push(rgba[i], rgba[i + 1], rgba[i + 2]);
   }
-  const samples = Float64Array.from(s);
+  const samples = Float64Array.from(s.length >= 0.3 * sAll.length && s.length >= 300 ? s : sAll);
   const n = samples.length / 3;
-  const results = {};
+  const N = w * h;
+  const results = {}, border = {};
   let suggested = 1;
+  const dist = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
   for (let k = 1; k <= kMax; k++) {
     if (n < k) break;
     const r = kmeans(samples, k, 14, lcg(7 + k));
@@ -860,44 +876,59 @@ function analyzeColors(rgba, w, h, kMax) {
     const keep = r.counts.map((c, i) => i).filter(i => r.counts[i] > 0);
     r.centers = keep.map(i => r.centers[i]); r.counts = keep.map(i => r.counts[i]);
     results[k] = r;
+    const C = r.centers, m = C.length;
+    // every pixel -> nearest colour, for the edge count and the shape tests below
+    const lab = new Int16Array(N), cnt = new Array(m).fill(0);
+    for (let i = 0; i < N; i++) {
+      if (rgba[i * 4 + 3] < 128) { lab[i] = -1; continue; }
+      let b = 0, bd = Infinity;
+      for (let j = 0; j < m; j++) { const d = (rgba[i * 4] - C[j][0]) ** 2 + (rgba[i * 4 + 1] - C[j][1]) ** 2 + (rgba[i * 4 + 2] - C[j][2]) ** 2; if (d < bd) { bd = d; b = j; } }
+      lab[i] = b; cnt[b]++;
+    }
+    // which colour owns the image border (likely the fabric / background)
+    const bc = new Array(m).fill(0);
+    let bt = 0;
+    const visit = i => { if (lab[i] < 0) bt++; else bc[lab[i]]++; };
+    for (let x = 0; x < w; x++) { visit(x); visit((h - 1) * w + x); }
+    for (let y = 1; y < h - 1; y++) { visit(y * w); visit(y * w + w - 1); }
+    const bTotal = 2 * w + 2 * (h - 2);
+    border[k] = { counts: bc, transparent: bt, total: bTotal };
     if (k === 1) continue;
-    let ok = r.centers.length === k;
-    const C = r.centers;
-    for (let i = 0; i < C.length && ok; i++) {
-      // tiny colours are usually noise, but a clearly different one (small text, an eye) counts from 0.8%
+    let bgi = -1;
+    if (bt < bTotal * 0.5) { const mx = Math.max(...bc); if (mx > bTotal * 0.3) bgi = bc.indexOf(mx); }
+    // shares are measured against the design itself, not the background around it
+    let fgN = 0;
+    for (let j = 0; j < m; j++) if (j !== bgi) fgN += cnt[j];
+    fgN = Math.max(1, fgN);
+    // how solid each colour is: the share of its pixels whose 4 neighbours are the same colour.
+    // Soft edges (anti-aliasing) are 1-2 px slivers and score near 0.
+    const core = new Array(m).fill(0);
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x, L = lab[i];
+      if (L >= 0 && lab[i - 1] === L && lab[i + 1] === L && lab[i - w] === L && lab[i + w] === L) core[L]++;
+    }
+    let ok = m === k;
+    for (let i = 0; i < m && ok; i++) {
+      for (let j = i + 1; j < m && ok; j++) if (dist(C[i], C[j]) < 40) ok = false;
+      if (i === bgi || !ok) continue;
+      // tiny colours are usually noise, but a clearly different one (small text, an eye) counts from less
       let near = Infinity;
-      for (let j = 0; j < C.length; j++) if (j !== i) near = Math.min(near, Math.hypot(C[i][0] - C[j][0], C[i][1] - C[j][1], C[i][2] - C[j][2]));
-      if (r.counts[i] / n < (near > 90 ? 0.008 : 0.015)) ok = false;
-      for (let j = i + 1; j < C.length && ok; j++) if (Math.hypot(C[i][0] - C[j][0], C[i][1] - C[j][1], C[i][2] - C[j][2]) < 40) ok = false;
-      // blend test: a colour sitting on the line between two others is anti-aliasing
-      for (let a = 0; a < C.length && ok; a++) for (let b = a + 1; b < C.length && ok; b++) {
+      for (let j = 0; j < m; j++) if (j !== i) near = Math.min(near, dist(C[i], C[j]));
+      if (cnt[i] / fgN < (near > 90 ? 0.006 : 0.02) || cnt[i] < 12) { ok = false; break; }
+      // blend test: a thin colour sitting on the line between two others is anti-aliasing
+      const solid = core[i] / Math.max(1, cnt[i]);
+      if (solid >= 0.15) continue;
+      for (let a = 0; a < m && ok; a++) for (let b = a + 1; b < m && ok; b++) {
         if (a === i || b === i) continue;
         const ab = [C[b][0] - C[a][0], C[b][1] - C[a][1], C[b][2] - C[a][2]];
         const ai = [C[i][0] - C[a][0], C[i][1] - C[a][1], C[i][2] - C[a][2]];
         const L2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2 || 1;
         const t = (ab[0] * ai[0] + ab[1] * ai[1] + ab[2] * ai[2]) / L2;
         const px = ai[0] - t * ab[0], py = ai[1] - t * ab[1], pz = ai[2] - t * ab[2];
-        if (t > 0.1 && t < 0.9 && Math.hypot(px, py, pz) < Math.max(30, 0.25 * Math.sqrt(L2)) && r.counts[i] / n < 0.12) ok = false;
+        if (t > 0.1 && t < 0.9 && Math.hypot(px, py, pz) < Math.max(30, 0.25 * Math.sqrt(L2))) ok = false;
       }
     }
     if (ok) suggested = k;
-  }
-  // which colour owns the image border (likely the fabric / background)
-  const border = {};
-  for (const k in results) {
-    const C = results[k].centers;
-    const cnt = new Array(C.length).fill(0);
-    let bt = 0;
-    const visit = (x, y) => {
-      const i = (y * w + x) * 4;
-      if (rgba[i + 3] < 128) { bt++; return; }
-      let b = 0, bd = Infinity;
-      C.forEach((c, j) => { const d = (rgba[i] - c[0]) ** 2 + (rgba[i + 1] - c[1]) ** 2 + (rgba[i + 2] - c[2]) ** 2; if (d < bd) { bd = d; b = j; } });
-      cnt[b]++;
-    };
-    for (let x = 0; x < w; x++) { visit(x, 0); visit(x, h - 1); }
-    for (let y = 1; y < h - 1; y++) { visit(0, y); visit(w - 1, y); }
-    border[k] = { counts: cnt, transparent: bt, total: 2 * w + 2 * (h - 2) };
   }
   return { results, suggested: Math.max(1, suggested), border, transparentShare: transparent / Math.max(1, total) };
 }
@@ -967,6 +998,17 @@ function applyRemovals(labels, W, H, opts) {
     let best = -1, bc = 0;
     for (const [L, c] of cnt) if (c > bc) { bc = c; best = L; }
     if (best >= 0 && bc >= 0.3 * border.length) { edgeLabel = best; flood(border.filter(i => labels[i] === best), best); }
+  }
+  // opts.edgeOf: remove that colour where it touches the picture's edge (the canvas border or a
+  // transparent area around a rotated picture), keeping it where it sits inside the design
+  if (opts.edgeOf != null && opts.edgeOf >= 0) {
+    const L = opts.edgeOf, seeds = [];
+    for (let i = 0; i < N; i++) {
+      if (labels[i] !== L) continue;
+      const x = i % W, y = (i / W) | 0;
+      if (x === 0 || y === 0 || x === W - 1 || y === H - 1 || labels[i - 1] === -1 || labels[i + 1] === -1 || labels[i - W] === -1 || labels[i + W] === -1) seeds.push(i);
+    }
+    flood(seeds, L);
   }
   for (const [u, v] of opts.seeds || []) {
     const x = Math.max(0, Math.min(W - 1, Math.round(u * (W - 1)))), y = Math.max(0, Math.min(H - 1, Math.round(v * (H - 1))));
@@ -1046,8 +1088,14 @@ function backgroundSet(an, k, rgba, w, h) {
     for (let j = 0; j < n; j++) { const d = (rgba[i * 4] - C[j][0]) ** 2 + (rgba[i * 4 + 1] - C[j][1]) ** 2 + (rgba[i * 4 + 2] - C[j][2]) ** 2; if (d < bd) { bd = d; bi = j; } }
     lab[i] = bi;
   }
-  const area = new Array(n).fill(0);
+  const area = new Array(n).fill(0), core = new Array(n).fill(0);
   for (let i = 0; i < N; i++) if (lab[i] >= 0) area[lab[i]]++;
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x, L = lab[i];
+    if (L >= 0 && lab[i - 1] === L && lab[i + 1] === L && lab[i - w] === L && lab[i + w] === L) core[L]++;
+  }
+  // soft edges are slivers: almost none of their pixels are surrounded by the same colour
+  const sliver = j => core[j] / Math.max(1, area[j]) < 0.15;
   const rad = Math.max(3, Math.round(Math.max(w, h) / 70));
   // a near shade of the background (lighting, gradient) is background wherever it is
   for (let j = 0; j < n; j++) if (!set.has(j) && similar(j) && Math.hypot(C[j][0] - C[bg][0], C[j][1] - C[bg][1], C[j][2] - C[bg][2]) < 70) set.add(j);
@@ -1070,7 +1118,7 @@ function backgroundSet(an, k, rgba, w, h) {
   for (let pass = 0, more = true; pass < 4 && more; pass++) {
     more = false;
     for (let j = 0; j < n; j++) {
-      const isBlend = blend(j);
+      const isBlend = sliver(j) && blend(j);
       if (set.has(j) || !(similar(j) || isBlend) || !area[j] || area[j] > 0.6 * area[bg]) continue;
       const fg = new Uint8Array(N), bgm = new Uint8Array(N), M = new Uint8Array(N);
       for (let i = 0; i < N; i++) {

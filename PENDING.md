@@ -33,3 +33,4 @@ Features found in embroidery programs (Brother PE-Design, Hatch, Embrilliance, I
 - Zoom in the editor (up to 3200%), with the Stitches view redrawn sharp at every level so single stitches and needle points are visible
 - Background removal also takes the background's shades (drop shadows, glows, soft edges), on both pages
 - Thicken thin lines (under 1 mm) so they sew, on both pages; a Picture panel in the editor to choose which colors of an imported picture are sewn, with sharp resizing from the original
+- Better automatic colors for colorful logos: colors are learned from flat areas only (no soft edges), measured against the design rather than the whole picture, up to 12 colors

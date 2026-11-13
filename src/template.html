@@ -439,7 +439,7 @@ function analyze() {
   const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(im, 0, 0, w, h);
   const sample = ctx.getImageData(0, 0, w, h).data;
-  state.analysis = Emb.analyzeColors(sample, w, h, 8);
+  state.analysis = Emb.analyzeColors(sample, w, h, 12);
   state.analysis.sample = { data: sample, w, h };
   state.kChoice = 'auto';
   setColorsForK();
@@ -516,7 +516,7 @@ function renderKSelect() {
   sel.disabled = !state.analysis;
   if (!state.analysis) return;
   const opts = [['auto', t('auto', state.analysis.suggested)]];
-  for (let k = 1; k <= 8; k++) if (state.analysis.results[k]) opts.push([String(k), String(k)]);
+  for (let k = 1; k <= 12; k++) if (state.analysis.results[k]) opts.push([String(k), String(k)]);
   sel.innerHTML = '';
   for (const [v, l] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = l; sel.appendChild(o); }
   sel.value = state.kChoice;
