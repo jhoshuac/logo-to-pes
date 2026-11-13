@@ -11,22 +11,28 @@ Turn a flat logo into a `.pes` embroidery file for Brother and Baby Lock machine
 1. Choose a logo image (PNG or JPG). Flat logos with a few solid colors work best.
 2. Pick your hoop and the size of the design.
 3. For each color, choose **Stitch** or **Fabric** (Fabric means the fabric shows through and that color is skipped). Change the thread colors if you like. The page shows the name your machine will use for each color.
-4. Check the stitch preview, then press **Download .pes**.
-5. Copy the `.pes` file to a USB stick and load it on the machine.
+4. Set the **stitch density**. The default is 3.3 lines per mm (rows 0.30 mm apart). If the fabric shows through the stitches, move it toward Denser.
+5. Check the stitch preview, then press **Download .pes**.
+6. Copy the `.pes` file to a USB stick and load it on the machine.
+
+Every visit starts blank. Nothing you upload or draw is saved.
 
 Sew a test on scrap fabric with stabilizer before the real garment.
 
 ## Draw your own design
 
-The drawing page works like a simple paint program sized to the hoop: brush, eraser, line, box, circle, fill and text, in Brother thread colors, with a 10 mm grid. Press **Make stitches** to see the stitches, then **Download .pes**. Lines thinner than 1 mm and letters under 5 mm tall are hard to sew. The drawing is kept in your browser between visits.
+The drawing page works like a simple paint program sized to the hoop: brush, eraser, line, box, circle, fill and text, in Brother thread colors, with a 10 mm grid. Set the stitch density, press **Make stitches** to see the stitches, then **Download .pes**. Lines thinner than 1 mm and letters under 5 mm tall are hard to sew. Every visit starts with a blank page, so download the `.pes` before closing it.
 
 ## Cómo usarlo (Español)
 
 1. Elige la imagen del logo (PNG o JPG). Funcionan mejor los logos planos con pocos colores sólidos.
 2. Elige el bastidor y el tamaño del diseño.
 3. Para cada color, elige **Bordar** o **Tela** (Tela significa que se ve la tela y ese color no se borda).
-4. Revisa la vista previa y pulsa **Descargar .pes**.
-5. Copia el archivo `.pes` a una memoria USB y cárgalo en la máquina.
+4. Ajusta la **densidad de puntada**. Si la tela se ve entre las puntadas, muévela hacia Más densa.
+5. Revisa la vista previa y pulsa **Descargar .pes**.
+6. Copia el archivo `.pes` a una memoria USB y cárgalo en la máquina.
+
+Cada visita empieza en blanco. No se guarda nada de lo que subes o dibujas.
 
 Para dibujar tu propio diseño, abre https://jhoshuac.github.io/logo-to-pes/draw/ (pincel, borrador, línea, caja, círculo, relleno y texto). Pulsa **Crear puntadas** y luego **Descargar .pes**.
 

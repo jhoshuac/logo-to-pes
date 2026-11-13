@@ -325,9 +325,10 @@ function underlayPath(xy, w) {
     return [p[0] + r.N[i][0] * off, p[1] + r.N[i][1] * off];
   });
 }
-function satinPath(xy, w, pull) {
+function satinPath(xy, w, pull, base) {
   let wmax = 0; for (const v of w) wmax = Math.max(wmax, v);
-  const spacing = wmax < 1.3 ? 0.45 : 0.4;
+  base = base || 0.4;                       // peak-to-peak distance between zigzags, mm
+  const spacing = wmax < 1.3 ? base * 1.1 : base;
   const r = resample(xy, w, spacing / 2);
   return r.P.map((p, i) => {
     const side = i % 2 ? 1 : -1;
@@ -415,7 +416,7 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       const list = adj.get(f.u);
       if (f.i >= list.length) {
         stack.pop();
-        if (f.back) out.push(...satinPath(f.back.xy, f.back.w, opt.pull));
+        if (f.back) out.push(...satinPath(f.back.xy, f.back.w, opt.pull, opt.satinSpacing));
         continue;
       }
       const ei = list[f.i++];
@@ -428,7 +429,7 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       out.push(...underlayPath(fxy, fw));
       const back = { xy: fxy.slice().reverse(), w: fw.slice().reverse() };
       if (!vis.has(v)) { vis.add(v); stack.push({ u: v, i: 0, back }); }
-      else out.push(...satinPath(back.xy, back.w, opt.pull));
+      else out.push(...satinPath(back.xy, back.w, opt.pull, opt.satinSpacing));
     }
     return out;
   }
@@ -980,7 +981,7 @@ function digitize(p, progress) {
     b.travel = { mask: tm, W, H, mmpx };
     let st0 = b.cmds.length;
     if (nCount) {
-      const blocks = networkBlocks(narrowSk, D, W, H, mmpx, { pruneMM: 1.2, minW: 0.9, maxW: p.satinMax, extraW: 0, pull: 0.2 });
+      const blocks = networkBlocks(narrowSk, D, W, H, mmpx, { pruneMM: 1.2, minW: 0.9, maxW: p.satinMax, extraW: 0, pull: 0.2, satinSpacing: p.satinSpacing || 0.4 });
       const r = orderNetworks(blocks, cur);
       for (const s of r.seqs) b.points(s);
       if (r.seqs.length) cur = b.cur;
