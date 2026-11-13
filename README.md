@@ -21,7 +21,7 @@ Sew a test on scrap fabric with stabilizer before the real garment.
 
 ## Draw your own design
 
-The drawing page works like a simple paint program sized to the hoop: brush, eraser, line, box, circle, fill and text, in Brother thread colors, with a 10 mm grid. Set the stitch density, press **Make stitches** to see the stitches, then **Download .pes**. Lines thinner than 1 mm and letters under 5 mm tall are hard to sew. Every visit starts with a blank page, so download the `.pes` before closing it.
+The drawing page works like a simple paint program sized to the hoop: select, brush, eraser, line, box, circle, fill and text, in Brother thread colors, with a 10 mm grid. To move something, use **Select**: drag a box around it, then drag inside the box. New text stays selected after you press Enter, so you can drag it right away. Arrow keys nudge a selection and Delete removes it. Set the stitch density, press **Make stitches** to see the stitches, then **Download .pes**. Lines thinner than 1 mm and letters under 5 mm tall are hard to sew. Every visit starts with a blank page, so download the `.pes` before closing it.
 
 ## Cómo usarlo (Español)
 
@@ -34,7 +34,7 @@ The drawing page works like a simple paint program sized to the hoop: brush, era
 
 Cada visita empieza en blanco. No se guarda nada de lo que subes o dibujas.
 
-Para dibujar tu propio diseño, abre https://jhoshuac.github.io/logo-to-pes/draw/ (pincel, borrador, línea, caja, círculo, relleno y texto). Pulsa **Crear puntadas** y luego **Descargar .pes**.
+Para dibujar tu propio diseño, abre https://jhoshuac.github.io/logo-to-pes/draw/ (seleccionar, pincel, borrador, línea, caja, círculo, relleno y texto). Para mover algo, usa **Seleccionar**: arrastra un recuadro alrededor y luego arrastra dentro del recuadro. Pulsa **Crear puntadas** y luego **Descargar .pes**.
 
 ## How it works
 
