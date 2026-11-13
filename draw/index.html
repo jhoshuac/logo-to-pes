@@ -68,10 +68,21 @@ header p { margin: 6px 0 0; color: var(--muted); max-width: 64ch; }
 .check { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; color: var(--muted); }
 .stagebox { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; justify-items: center; }
 .hoop { border: 10px solid var(--line); border-radius: 18px; padding: 6px; background: var(--line); }
-.stage { position: relative; touch-action: none; border-radius: 8px; overflow: hidden; }
+.vpwrap { position: relative; }
+.vp { overflow: auto; border-radius: 8px; overscroll-behavior: contain; touch-action: none; }
+.stage { position: relative; touch-action: none; overflow: hidden; }
 .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stage canvas.px { image-rendering: pixelated; }
+.screen { position: absolute; left: 0; top: 0; pointer-events: none; border-radius: 8px; }
 #paint { cursor: crosshair; }
-#stitch, #overlay, #under { pointer-events: none; }
+#under { pointer-events: none; }
+.vp.zoomed.sview .stage { cursor: grab; }
+.vp.spacepan #paint { cursor: grab !important; }
+.vp.panning, .vp.panning * { cursor: grabbing !important; }
+.zoombar { display: inline-flex; align-items: center; gap: 6px; }
+.zoombar .mini { width: 34px; height: 30px; font-size: 18px; font-weight: 700; }
+.zoombar .zbtn { width: auto; padding: 0 10px; font-size: 13px; }
+#zoomPct { min-width: 4.2em; text-align: center; font-size: 14px; }
 .textin { position: absolute; z-index: 5; font: 700 18px var(--font-body); border: 2px dashed var(--accent); background: rgba(255,255,255,.9); color: #111; padding: 2px 6px; border-radius: 4px; min-width: 120px; }
 .hint { color: var(--muted); font-size: 14px; margin: 0; }
 label { font-weight: 700; font-size: 14px; }
@@ -168,6 +179,12 @@ details summary { cursor: pointer; font-weight: 700; }
           <button type="button" id="v-stitch" aria-pressed="false" data-t="vStitch">Stitches</button>
         </div>
 
+        <div class="zoombar" role="group" aria-label="Zoom">
+          <button class="mini" type="button" id="zoomOut" title="Zoom out" aria-label="Zoom out">−</button>
+          <span class="num" id="zoomPct" aria-live="polite">100%</span>
+          <button class="mini" type="button" id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+          <button class="mini zbtn" type="button" id="zoomFit" data-t="zoomFit">Fit</button>
+        </div>
         <label class="check"><input type="checkbox" id="grid" checked> <span data-t="grid">Grid, 10 mm squares</span></label>
       </div>
       <div class="selbar" id="selbar" hidden>
@@ -184,15 +201,20 @@ details summary { cursor: pointer; font-weight: 700; }
         </div>
       <div class="stagebox">
         <div class="hoop">
-          <div class="stage" id="stage">
-            <canvas id="under"></canvas>
-            <canvas id="paint" aria-label="Drawing area"></canvas>
-            <canvas id="overlay"></canvas>
-            <canvas id="stitch" hidden></canvas>
+          <div class="vpwrap">
+            <div class="vp" id="vp">
+              <div class="stage" id="stage">
+                <canvas id="under"></canvas>
+                <canvas id="paint" aria-label="Drawing area"></canvas>
+              </div>
+            </div>
+            <canvas class="screen" id="stitchView" hidden></canvas>
+            <canvas class="screen" id="overlay"></canvas>
           </div>
         </div>
       </div>
       <p class="hint" id="toolHint"></p>
+      <p class="hint" id="zoomHint"></p>
     </div>
 
     <div style="display:grid;gap:14px">
@@ -1832,6 +1854,11 @@ const T = {
     noBgFound: "No solid background found around the drawing. Use Erase area and tap what you don't want.", badImage: "That file couldn't be opened as an image. Try a PNG or JPG.", densityTitle: 'Stitch density', lighter: 'Lighter', denser: 'Denser, covers more',
     densityHint: 'If the fabric shows through, move this toward Denser.', densityV: (v, mm) => `${v} lines/mm (${mm} mm)`, brush: 'Brush', eraser: 'Eraser', line: 'Line', rect: 'Box', ellipse: 'Circle', fill: 'Fill', text: 'Text',
     undo: 'Undo', redo: 'Redo', clear: 'Clear all', cleared: 'Cleared. Press Undo to bring it back.', vDraw: 'Drawing', vStitch: 'Stitches', grid: 'Grid, 10 mm squares',
+    zoomFit: 'Fit', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
+    zhMouseDraw: 'Zoom: pinch the trackpad, or Ctrl + scroll wheel. To move around, hold Space and drag, or use the scroll bars.',
+    zhMouseStitch: 'Zoom: pinch the trackpad, or Ctrl + scroll wheel. Drag to move around.',
+    zhTouchDraw: 'Zoom: pinch with two fingers. Drag with two fingers to move around.',
+    zhTouchStitch: 'Zoom: pinch with two fingers. Drag to move around.',
     colors: 'Thread color', custom: 'or pick any color:', machineName: n => `Machine calls it: ${n}`,
     sizeTitle: 'Size and shapes', lineWidth: 'Line width', textSize: 'Letter height', shapeMode: 'Boxes and circles:', outline: 'Outline', filled: 'Filled',
     hoop: 'Hoop', fabric: 'Fabric color', stTitle: 'Stitch file', make: 'Make stitches', busy: 'Making stitches…',
@@ -1884,6 +1911,11 @@ const T = {
     noBgFound: 'No se encontró un fondo sólido alrededor del dibujo. Usa Borrar zona y toca lo que no quieras.', badImage: 'No se pudo abrir ese archivo como imagen. Prueba con un PNG o JPG.', densityTitle: 'Densidad de puntada', lighter: 'Más ligera', denser: 'Más densa, cubre más',
     densityHint: 'Si la tela se ve entre las puntadas, mueve esto hacia Más densa.', densityV: (v, mm) => `${v} líneas/mm (${mm} mm)`, brush: 'Pincel', eraser: 'Borrador', line: 'Línea', rect: 'Caja', ellipse: 'Círculo', fill: 'Rellenar', text: 'Texto',
     undo: 'Deshacer', redo: 'Rehacer', clear: 'Borrar todo', cleared: 'Todo borrado. Pulsa Deshacer para recuperarlo.', vDraw: 'Dibujo', vStitch: 'Puntadas', grid: 'Cuadrícula de 10 mm',
+    zoomFit: 'Ajustar', zoomIn: 'Acercar', zoomOut: 'Alejar',
+    zhMouseDraw: 'Zoom: pellizca el trackpad, o Ctrl + rueda del ratón. Para moverte, mantén la barra espaciadora y arrastra, o usa las barras de desplazamiento.',
+    zhMouseStitch: 'Zoom: pellizca el trackpad, o Ctrl + rueda del ratón. Arrastra para moverte.',
+    zhTouchDraw: 'Zoom: pellizca con dos dedos. Arrastra con dos dedos para moverte.',
+    zhTouchStitch: 'Zoom: pellizca con dos dedos. Arrastra para moverte.',
     colors: 'Color de hilo', custom: 'o elige cualquier color:', machineName: n => `La máquina lo llama: ${n}`,
     sizeTitle: 'Tamaño y formas', lineWidth: 'Grosor de línea', textSize: 'Altura de letra', shapeMode: 'Cajas y círculos:', outline: 'Contorno', filled: 'Relleno',
     hoop: 'Bastidor', fabric: 'Color de tela', stTitle: 'Archivo de bordado', make: 'Crear puntadas', busy: 'Creando puntadas…',
@@ -1921,8 +1953,10 @@ const st = {
   fabricKey: 'cotton', basting: false, font: 'block', tshape: 'straight', curve: 70, layers: [], layerSel: -1,
   used: new Set(), undo: [], redo: [], result: null, stale: true, busy: false, order: null, view: 'draw', jobId: 0
 };
-const paint = $('paint'), overlay = $('overlay'), stitchCv = $('stitch'), stage = $('stage');
+const paint = $('paint'), overlay = $('overlay'), stitchView = $('stitchView'), stage = $('stage'), vp = $('vp');
 const pctx = paint.getContext('2d', { willReadFrequently: true });
+const ZMAX = 32, ZSTEPS = [1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32];
+let zoom = 1, fitW = 300, fitH = 300;
 const octx = overlay.getContext('2d');
 const under = $('under'), uctx = under.getContext('2d');
 
@@ -1932,7 +1966,8 @@ function setHoop(key, keepDrawing) {
   let old = null;
   if (keepDrawing && paint.width) { old = document.createElement('canvas'); old.width = paint.width; old.height = paint.height; old.getContext('2d').drawImage(paint, 0, 0); }
   st.hoop = key;
-  for (const c of [under, paint, overlay, stitchCv]) { c.width = w * PXMM; c.height = h * PXMM; }
+  for (const c of [under, paint]) { c.width = w * PXMM; c.height = h * PXMM; }
+  zoom = 1;
   if (old) {
     const dx = Math.round((paint.width - old.width) / 2), dy = Math.round((paint.height - old.height) / 2);
     pctx.drawImage(old, dx, dy);
@@ -1943,30 +1978,104 @@ function setHoop(key, keepDrawing) {
 }
 function fitStage() {
   const [w, h] = HOOPS[st.hoop];
-  const box = stage.parentElement.parentElement.getBoundingClientRect();
+  const box = vp.closest('.stagebox').getBoundingClientRect();
   const maxW = Math.max(220, box.width - 2 * 14 - 2 * 16);
   const maxH = Math.max(260, window.innerHeight * 0.74);
   const sc = Math.min(maxW / w, maxH / h);
-  stage.style.width = Math.floor(w * sc) + 'px'; stage.style.height = Math.floor(h * sc) + 'px';
+  // remember which part of the hoop is in the middle so a resize keeps it there
+  const cx = vp.clientWidth / 2, cy = vp.clientHeight / 2;
+  const u = vp.clientWidth ? (vp.scrollLeft + cx) / (fitW * zoom) : 0.5, v = vp.clientHeight ? (vp.scrollTop + cy) / (fitH * zoom) : 0.5;
+  fitW = Math.floor(w * sc); fitH = Math.floor(h * sc);
+  vp.style.width = fitW + 'px'; vp.style.height = fitH + 'px';
   stage.style.background = st.fabric;
+  setZoom(zoom, null, null, u, v);
 }
-window.addEventListener('resize', () => { fitStage(); if (st.view === 'stitch') drawStitches(); });
+window.addEventListener('resize', () => fitStage());
+
+/* ---------------- zoom and pan
+   The drawing canvases are scaled with CSS inside a scrolling viewport. The
+   overlay and the stitch preview are viewport-sized canvases redrawn for the
+   current zoom, so lines and stitches stay sharp at any magnification. */
+function setZoom(z, cx, cy, u, v) {
+  z = Math.min(ZMAX, Math.max(1, z));
+  if (Math.abs(z - 1) < 0.02) z = 1;
+  if (cx == null) { cx = (vp.clientWidth || fitW) / 2; cy = (vp.clientHeight || fitH) / 2; }
+  if (u == null) { u = (vp.scrollLeft + cx) / (fitW * zoom); v = (vp.scrollTop + cy) / (fitH * zoom); }
+  zoom = z;
+  stage.style.width = fitW * z + 'px'; stage.style.height = fitH * z + 'px';
+  vp.scrollLeft = u * fitW * z - cx; vp.scrollTop = v * fitH * z - cy;
+  const px = fitW * z * (window.devicePixelRatio || 1) / paint.width > 2.5;
+  paint.classList.toggle('px', px); under.classList.toggle('px', px);
+  $('zoomPct').textContent = Math.round(z * 100) + '%';
+  $('zoomOut').disabled = z <= 1; $('zoomIn').disabled = z >= ZMAX; $('zoomFit').disabled = z <= 1;
+  vp.classList.toggle('zoomed', z > 1);
+  render();
+}
+function zoomStep(dir, cx, cy) {
+  const next = dir > 0 ? ZSTEPS.find(q => q > zoom * 1.01) : [...ZSTEPS].reverse().find(q => q < zoom / 1.01);
+  setZoom(next || (dir > 0 ? ZMAX : 1), cx, cy);
+}
+$('zoomIn').onclick = () => zoomStep(1);
+$('zoomOut').onclick = () => zoomStep(-1);
+$('zoomFit').onclick = () => setZoom(1);
+let rq = 0;
+function render() {
+  if (rq) return;
+  rq = requestAnimationFrame(() => { rq = 0; drawOverlay(); if (st.view === 'stitch') drawStitches(); });
+}
+vp.addEventListener('scroll', render, { passive: true });
+function syncScreen(cv) {                 // size a screen canvas to the visible part of the viewport
+  const dpr = window.devicePixelRatio || 1, w = vp.clientWidth, h = vp.clientHeight;
+  const W = Math.max(1, Math.round(w * dpr)), H = Math.max(1, Math.round(h * dpr));
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  cv.style.width = w + 'px'; cv.style.height = h + 'px';
+  return dpr;
+}
+function cssPerMM() { return fitW * zoom / HOOPS[st.hoop][0]; }
+function vpPoint(clientX, clientY) {
+  const r = vp.getBoundingClientRect();
+  return [clientX - r.left - vp.clientLeft, clientY - r.top - vp.clientTop];
+}
+function drawScaleBar(ctx, m, w, h) {      // m = screen px per mm
+  const L = [0.5, 1, 2, 5, 10, 20, 50, 100].find(q => q * m >= 56) || 100;
+  const len = L * m, label = (L < 1 ? L.toFixed(1) : L) + ' mm';
+  ctx.save();
+  ctx.font = '700 12px ' + getComputedStyle(document.body).fontFamily;
+  const tw = ctx.measureText(label).width, bw = Math.max(len, tw) + 20, x = 10, y = h - 40;
+  ctx.fillStyle = 'rgba(255,255,255,0.88)'; ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, bw, 30, 6) : ctx.rect(x, y, bw, 30); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#111'; ctx.textBaseline = 'top'; ctx.fillText(label, x + 10, y + 4);
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 2; ctx.beginPath();
+  ctx.moveTo(x + 10, y + 20); ctx.lineTo(x + 10, y + 25); ctx.lineTo(x + 10 + len, y + 25); ctx.lineTo(x + 10 + len, y + 20); ctx.stroke();
+  ctx.restore();
+}
 
 /* ---------------- overlay: grid, brush cursor, rubber band */
 let hover = null, rubber = null;
+let ou = 1;                                 // one screen pixel, in drawing pixels
 function drawOverlay() {
+  const dpr = syncScreen(overlay);
+  octx.setTransform(1, 0, 0, 1, 0, 0);
   octx.clearRect(0, 0, overlay.width, overlay.height);
+  const s = fitW * zoom / paint.width;       // screen px per drawing px
+  ou = 1 / s;
+  octx.setTransform(dpr * s, 0, 0, dpr * s, -dpr * vp.scrollLeft, -dpr * vp.scrollTop);
+  octx.imageSmoothingEnabled = !paint.classList.contains('px');
   if (st.grid && st.view === 'draw') {
-    const lum = luminance(hexToRgb(st.fabric));
-    octx.strokeStyle = lum > 0.5 ? 'rgba(0,0,0,0.13)' : 'rgba(255,255,255,0.18)';
-    octx.lineWidth = 1;
-    octx.beginPath();
-    for (let x = 10 * PXMM; x < overlay.width; x += 10 * PXMM) { octx.moveTo(x + 0.5, 0); octx.lineTo(x + 0.5, overlay.height); }
-    for (let y = 10 * PXMM; y < overlay.height; y += 10 * PXMM) { octx.moveTo(0, y + 0.5); octx.lineTo(overlay.width, y + 0.5); }
-    octx.stroke();
+    const lum = luminance(hexToRgb(st.fabric)), W = paint.width, H = paint.height;
+    const x0 = vp.scrollLeft * ou, x1 = (vp.scrollLeft + vp.clientWidth) * ou, y0 = vp.scrollTop * ou, y1 = (vp.scrollTop + vp.clientHeight) * ou;
+    const lines = (step, alpha) => {
+      octx.strokeStyle = lum > 0.5 ? `rgba(0,0,0,${alpha})` : `rgba(255,255,255,${alpha * 1.4})`;
+      octx.lineWidth = ou; octx.beginPath();
+      for (let x = Math.max(step, Math.ceil(x0 / step) * step); x <= Math.min(W - 1, x1); x += step) { octx.moveTo(x, Math.max(0, y0)); octx.lineTo(x, Math.min(H, y1)); }
+      for (let y = Math.max(step, Math.ceil(y0 / step) * step); y <= Math.min(H - 1, y1); y += step) { octx.moveTo(Math.max(0, x0), y); octx.lineTo(Math.min(W, x1), y); }
+      octx.stroke();
+    };
+    if (s * PXMM >= 14) lines(PXMM, 0.06);      // 1 mm lines once they are far enough apart
+    lines(10 * PXMM, 0.13);
     octx.strokeStyle = lum > 0.5 ? 'rgba(210,59,51,0.45)' : 'rgba(255,122,112,0.5)';
-    const cx = overlay.width / 2, cy = overlay.height / 2;
-    octx.beginPath(); octx.moveTo(cx - 12, cy); octx.lineTo(cx + 12, cy); octx.moveTo(cx, cy - 12); octx.lineTo(cx, cy + 12); octx.stroke();
+    const cx = W / 2, cy = H / 2, a = 12 * ou;
+    octx.beginPath(); octx.moveTo(cx - a, cy); octx.lineTo(cx + a, cy); octx.moveTo(cx, cy - a); octx.lineTo(cx, cy + a); octx.stroke();
   }
   if (rubber && rubber.tool === 'select') dashedRect(octx, Math.min(rubber.a[0], rubber.b[0]), Math.min(rubber.a[1], rubber.b[1]), Math.abs(rubber.b[0] - rubber.a[0]), Math.abs(rubber.b[1] - rubber.a[1]));
   else if (rubber) drawShape(octx, rubber.tool, rubber.a, rubber.b, true);
@@ -1980,16 +2089,17 @@ function drawOverlay() {
   if (st.sel) $('selSize').textContent = `${(st.sel.w / PXMM).toFixed(1)} × ${(st.sel.h / PXMM).toFixed(1)} mm`;
   else if (L) { const b = layerBox(L); $('selSize').textContent = `${(b[2] - b[0]).toFixed(1)} × ${(b[3] - b[1]).toFixed(1)} mm` + (Math.abs(L.scale - 1) > 0.001 ? ` · ${Math.round(L.scale * 100)}%` : ''); }
   if (hover && (st.tool === 'brush' || st.tool === 'eraser') && st.view === 'draw') {
-    octx.strokeStyle = 'rgba(0,0,0,0.6)'; octx.lineWidth = 1.5;
+    octx.strokeStyle = 'rgba(0,0,0,0.6)'; octx.lineWidth = 1.5 * ou;
     octx.beginPath(); octx.arc(hover[0], hover[1], st.size * PXMM / 2, 0, Math.PI * 2); octx.stroke();
-    octx.strokeStyle = 'rgba(255,255,255,0.8)'; octx.lineWidth = 0.75; octx.stroke();
+    octx.strokeStyle = 'rgba(255,255,255,0.8)'; octx.lineWidth = 0.75 * ou; octx.stroke();
   }
+  if (st.view === 'draw' && zoom > 1) { octx.setTransform(dpr, 0, 0, dpr, 0, 0); drawScaleBar(octx, cssPerMM(), vp.clientWidth, vp.clientHeight); }
 }
 
 function dashedRect(ctx, x, y, w, h) {
-  ctx.save(); ctx.lineWidth = 2;
-  ctx.setLineDash([8, 6]); ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.strokeRect(x + 0.5, y + 0.5, w, h);
-  ctx.lineDashOffset = 7; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeRect(x + 0.5, y + 0.5, w, h);
+  ctx.save(); ctx.lineWidth = 2 * ou;
+  ctx.setLineDash([8 * ou, 6 * ou]); ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.strokeRect(x, y, w, h);
+  ctx.lineDashOffset = 7 * ou; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeRect(x, y, w, h);
   ctx.restore();
 }
 
@@ -2086,8 +2196,9 @@ paint.addEventListener('pointerdown', e => {
   }
   if (st.sel) commitSel();
   if (st.tool === 'select') { paint.setPointerCapture(e.pointerId); drag = { mode: 'select', a: p }; return; }
-  if (st.tool === 'fill') { snapshot(); floodFill(Math.floor(p[0]), Math.floor(p[1])); st.used.add(st.color); changed(); return; }
-  if (st.tool === 'wand') { eraseArea(Math.floor(p[0]), Math.floor(p[1])); return; }
+  // on touch screens, wait for the finger to lift so a two-finger pinch never fills or erases by accident
+  if ((st.tool === 'fill' || st.tool === 'wand') && e.pointerType === 'touch') { tapWait = { id: e.pointerId, p }; return; }
+  if (st.tool === 'fill' || st.tool === 'wand') { tapTool(p); return; }
   if (st.tool === 'text') { openText(p, e); return; }
   paint.setPointerCapture(e.pointerId);
   snapshot();
@@ -2147,6 +2258,97 @@ function endDrag(e) {
 }
 paint.addEventListener('pointerup', endDrag);
 paint.addEventListener('pointercancel', endDrag);
+let tapWait = null;
+function tapTool(p) {
+  if (st.tool === 'fill') { snapshot(); floodFill(Math.floor(p[0]), Math.floor(p[1])); st.used.add(st.color); changed(); }
+  else if (st.tool === 'wand') eraseArea(Math.floor(p[0]), Math.floor(p[1]));
+}
+paint.addEventListener('pointerup', e => { if (tapWait && tapWait.id === e.pointerId) { const p = tapWait.p; tapWait = null; tapTool(p); } });
+/* a second finger turns the touch into a pinch: undo whatever the first finger started */
+function cancelDrag() {
+  tapWait = null;
+  if (textBox && !textBox.inp.value) closeText(false);
+  if (!drag) return;
+  if (drag.mode === 'move') { st.sel.x = drag.ox; st.sel.y = drag.oy; }
+  else if (drag.mode === 'layer') { const L = st.layers[st.layerSel]; if (L) { L.x = drag.ox; L.y = drag.oy; drawLayers(); } }
+  else if (drag.mode !== 'select') { const s0 = st.undo.pop(); if (s0) restoreState(s0); updateUndo(); }
+  rubber = null; drag = null; drawOverlay();
+}
+
+/* pinch, Ctrl + wheel, and drag to move around */
+const touches = new Map();
+let pinch = null, pan = null, spaceDown = false, gz = null;
+function pinchNow() {
+  const [a, b] = [...touches.values()];
+  const [cx, cy] = vpPoint((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+  return { cx, cy, d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1 };
+}
+vp.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && document.activeElement && document.activeElement.matches('button')) document.activeElement.blur();
+  if (e.pointerType === 'touch') {
+    touches.set(e.pointerId, [e.clientX, e.clientY]);
+    if (touches.size === 2 && !pinch) {
+      cancelDrag(); pan = null; vp.classList.remove('panning');
+      const q = pinchNow();
+      pinch = { z: zoom, d: q.d, u: (vp.scrollLeft + q.cx) / (fitW * zoom), v: (vp.scrollTop + q.cy) / (fitH * zoom) };
+    }
+    if (pinch) { e.stopPropagation(); e.preventDefault(); return; }
+  }
+  const wantPan = st.view === 'stitch' ? e.button === 0 : (e.button === 1 || (spaceDown && e.button === 0));
+  if (wantPan) {
+    e.stopPropagation(); e.preventDefault();
+    pan = { id: e.pointerId, x: e.clientX, y: e.clientY, sl: vp.scrollLeft, st: vp.scrollTop };
+    try { vp.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
+    vp.classList.add('panning');
+  }
+}, true);
+vp.addEventListener('pointermove', e => {
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pinch) {
+    if (!touches.has(e.pointerId)) return;
+    e.stopPropagation();
+    if (touches.size >= 2) { const q = pinchNow(); setZoom(pinch.z * q.d / pinch.d, q.cx, q.cy, pinch.u, pinch.v); }
+    return;
+  }
+  if (pan && e.pointerId === pan.id) {
+    e.stopPropagation();
+    vp.scrollLeft = pan.sl - (e.clientX - pan.x); vp.scrollTop = pan.st - (e.clientY - pan.y);
+  }
+}, true);
+function pointerGone(e) {
+  touches.delete(e.pointerId);
+  if (pinch) { e.stopPropagation(); if (!touches.size) pinch = null; return; }
+  if (pan && e.pointerId === pan.id) { e.stopPropagation(); pan = null; vp.classList.remove('panning'); }
+}
+vp.addEventListener('pointerup', pointerGone, true);
+vp.addEventListener('pointercancel', pointerGone, true);
+vp.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });   // no auto-scroll on middle click
+vp.addEventListener('wheel', e => {
+  if (!(e.ctrlKey || e.metaKey)) return;     // plain wheel scrolls as usual
+  e.preventDefault();
+  const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+  const [cx, cy] = vpPoint(e.clientX, e.clientY);
+  setZoom(zoom * Math.exp(-Math.max(-300, Math.min(300, d)) * 0.0022), cx, cy);
+}, { passive: false });
+// Safari trackpad pinch
+vp.addEventListener('gesturestart', e => { e.preventDefault(); if (touches.size) return; const [cx, cy] = vpPoint(e.clientX, e.clientY); gz = { z: zoom, cx, cy }; });
+vp.addEventListener('gesturechange', e => { e.preventDefault(); if (gz && !touches.size) setZoom(gz.z * e.scale, gz.cx, gz.cy); });
+vp.addEventListener('gestureend', e => { e.preventDefault(); gz = null; });
+// hold Space with the pointer over the hoop to drag the view around (works whatever has keyboard focus)
+let overVp = false;
+vp.addEventListener('pointerenter', e => { if (e.pointerType !== 'touch') overVp = true; });
+vp.addEventListener('pointerleave', () => { overVp = false; });
+document.addEventListener('keydown', e => {
+  if (e.key !== ' ' || textBox || e.ctrlKey || e.metaKey || e.altKey || e.target.matches('input, select, textarea')) return;
+  if (!overVp && !spaceDown && e.target.closest('button, a, summary, label, [role="button"]')) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (!spaceDown) { spaceDown = true; vp.classList.add('spacepan'); }
+}, true);
+document.addEventListener('keyup', e => {
+  if (e.key !== ' ' || !spaceDown) return;
+  e.preventDefault(); spaceDown = false; vp.classList.remove('spacepan');
+}, true);
+window.addEventListener('blur', () => { spaceDown = false; vp.classList.remove('spacepan'); });
 paint.addEventListener('pointerleave', () => { hover = null; if (!drag) drawOverlay(); });
 
 /* ---------------- erase connected areas (Erase area tool, Remove background) */
@@ -2564,7 +2766,7 @@ $('tsize').oninput = e => { st.tsize = +e.target.value; $('tsizeV').textContent 
 $('m-outline').onclick = () => { st.filled = false; $('m-outline').setAttribute('aria-pressed', true); $('m-filled').setAttribute('aria-pressed', false); };
 $('m-filled').onclick = () => { st.filled = true; $('m-outline').setAttribute('aria-pressed', false); $('m-filled').setAttribute('aria-pressed', true); };
 $('hoop').onchange = e => { commitSel(); snapshot(); setHoop(e.target.value, true); st.undo = []; st.redo = []; updateUndo(); changed(); };
-$('fabric').oninput = e => { st.fabric = e.target.value; stage.style.background = st.fabric; drawOverlay(); if (st.view === 'stitch') drawStitches(); };
+$('fabric').oninput = e => { st.fabric = e.target.value; stage.style.background = st.fabric; render(); };
 $('grid').onchange = e => { st.grid = e.target.checked; drawOverlay(); };
 function showDensity() { $('densityV').textContent = t('densityV', st.lines.toLocaleString(lang === 'es' ? 'es-CO' : 'en-US', { minimumFractionDigits: 1 }), (1 / st.lines).toFixed(2)); }
 $('density').oninput = e => { st.lines = +e.target.value; showDensity(); if (st.result && !st.stale) { st.stale = true; markStale(); } };
@@ -2598,6 +2800,11 @@ document.addEventListener('keydown', e => {
     const arrows = { arrowleft: [-step, 0], arrowright: [step, 0], arrowup: [0, -step], arrowdown: [0, step] };
     if (arrows[k]) { e.preventDefault(); nudgeSel(...arrows[k]); return; }
   }
+  if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (k === '+' || k === '=') { e.preventDefault(); zoomStep(1); return; }
+    if (k === '-' || k === '_') { e.preventDefault(); zoomStep(-1); return; }
+    if (k === '0') { e.preventDefault(); setZoom(1); return; }
+  }
   const map = { s: 'select', b: 'brush', e: 'eraser', w: 'wand', l: 'line', r: 'rect', o: 'ellipse', f: 'fill', t: 'text' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey && map[k]) setTool(map[k]);
 });
@@ -2608,11 +2815,17 @@ $('v-stitch').onclick = () => { if (st.stale) makeStitches(); else setView('stit
 function setView(v) {
   st.view = v;
   $('v-draw').setAttribute('aria-pressed', v === 'draw'); $('v-stitch').setAttribute('aria-pressed', v === 'stitch');
-  stitchCv.hidden = v !== 'stitch';
+  stitchView.hidden = v !== 'stitch';
   paint.style.visibility = v === 'stitch' ? 'hidden' : 'visible';
   under.style.visibility = v === 'stitch' ? 'hidden' : 'visible';
+  vp.classList.toggle('sview', v === 'stitch');
+  showZoomHint();
   if (v === 'stitch') drawStitches();
   drawOverlay();
+}
+function showZoomHint() {
+  const touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+  $('zoomHint').textContent = t((touch ? 'zhTouch' : 'zhMouse') + (st.view === 'stitch' ? 'Stitch' : 'Draw'));
 }
 
 /* ---------------- stitches */
@@ -2723,25 +2936,103 @@ function renderResults() {
     k += g.n;
   }
 }
-function drawStitches() {
-  const r = st.result, ctx = stitchCv.getContext('2d');
-  ctx.fillStyle = st.fabric; ctx.fillRect(0, 0, stitchCv.width, stitchCv.height);
-  if (!r || !r.cmds.length) return;
-  const k = PXMM / 10, ox = r.offset[0] * PXMM, oy = r.offset[1] * PXMM;
-  const blocks = []; let path = new Path2D(), last = null, ci = 0;
+/* Stitch preview. The design is split into small runs of stitches with a
+   bounding box each, so only what is on screen gets drawn. Zoomed out, each
+   colour is drawn as one outlined path; zoomed in, every stitch is drawn on
+   its own as a shaded thread, with needle points once they are big enough. */
+const STITCH_RUN = 64;
+let stitchModelCache = null;
+function stitchModel(r) {
+  if (stitchModelCache && stitchModelCache.r === r) return stitchModelCache;
+  const ox = r.offset[0], oy = r.offset[1];
+  const blocks = []; let blk = { ci: 0, runs: [] }, run = null, last = null;
   for (const [x, y, c] of r.cmds) {
-    const px = ox + x * k, py = oy + y * k;
-    if (c === Emb.STITCH) { if (last) { path.moveTo(last[0], last[1]); path.lineTo(px, py); } last = [px, py]; }
-    else if (c === Emb.JUMP) last = [px, py];
-    else if (c === Emb.COLOR_CHANGE) { blocks.push([path, ci++]); path = new Path2D(); }
+    const px = ox + x / 10, py = oy + y / 10;
+    if (c === Emb.STITCH) {
+      if (last) {
+        if (!run || run.n >= STITCH_RUN) { run = { seg: new Float32Array(STITCH_RUN * 4), n: 0, x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, path: null }; blk.runs.push(run); }
+        run.seg.set([last[0], last[1], px, py], run.n * 4); run.n++;
+        run.x0 = Math.min(run.x0, last[0], px); run.x1 = Math.max(run.x1, last[0], px);
+        run.y0 = Math.min(run.y0, last[1], py); run.y1 = Math.max(run.y1, last[1], py);
+      }
+      last = [px, py];
+    } else if (c === Emb.JUMP) { last = [px, py]; run = null; }
+    else if (c === Emb.COLOR_CHANGE) { blocks.push(blk); blk = { ci: blk.ci + 1, runs: [] }; run = null; }
   }
-  blocks.push([path, ci]);
-  ctx.lineCap = 'round';
-  for (const [p, i] of blocks) {
-    const col = r.threads[i], rgb = [(col >> 16) & 255, (col >> 8) & 255, col & 255];
-    ctx.strokeStyle = `rgb(${rgb.map(v => Math.round(v * 0.58)).join(',')})`; ctx.lineWidth = 0.46 * PXMM; ctx.stroke(p);
-    ctx.strokeStyle = `rgb(${rgb.join(',')})`; ctx.lineWidth = 0.32 * PXMM; ctx.stroke(p);
+  blocks.push(blk);
+  const colors = r.threads.map(col => {
+    const rgb = [(col >> 16) & 255, (col >> 8) & 255, col & 255];
+    const f = k => `rgb(${rgb.map(v => Math.round(v * k)).join(',')})`;
+    return { dark: f(0.58), base: f(1), shade: f(0.8), light: `rgb(${rgb.map(v => Math.round(v + (255 - v) * 0.5)).join(',')})`, hole: `rgba(0,0,0,0.5)` };
+  });
+  return (stitchModelCache = { r, blocks, colors });
+}
+function runPath(run) {
+  if (!run.path) {
+    const p = new Path2D(), a = run.seg;
+    for (let i = 0; i < run.n; i++) { const j = i * 4; p.moveTo(a[j], a[j + 1]); p.lineTo(a[j + 2], a[j + 3]); }
+    run.path = p;
   }
+  return run.path;
+}
+function drawStitches() {
+  if (st.view !== 'stitch') return;
+  const dpr = syncScreen(stitchView), ctx = stitchView.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = st.fabric; ctx.fillRect(0, 0, stitchView.width, stitchView.height);
+  const r = st.result, m = cssPerMM();
+  if (r && r.cmds.length) {
+    const M = stitchModel(r);
+    ctx.setTransform(dpr * m, 0, 0, dpr * m, -dpr * vp.scrollLeft, -dpr * vp.scrollTop);
+    const pad = 0.5, vx0 = vp.scrollLeft / m - pad, vy0 = vp.scrollTop / m - pad;
+    const vx1 = (vp.scrollLeft + vp.clientWidth) / m + pad, vy1 = (vp.scrollTop + vp.clientHeight) / m + pad;
+    const vis = []; let count = 0;
+    for (const b of M.blocks) {
+      const runs = b.runs.filter(q => q.x1 >= vx0 && q.x0 <= vx1 && q.y1 >= vy0 && q.y0 <= vy1);
+      if (runs.length) { vis.push([b, runs]); for (const q of runs) count += q.n; }
+    }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (m < 16 || count > 9000) {
+      for (const [b, runs] of vis) {
+        const col = M.colors[b.ci];
+        ctx.strokeStyle = col.dark; ctx.lineWidth = 0.46; for (const q of runs) ctx.stroke(runPath(q));
+        ctx.strokeStyle = col.base; ctx.lineWidth = 0.32; for (const q of runs) ctx.stroke(runPath(q));
+      }
+    } else {
+      const holes = m >= 28, hr = Math.max(0.035, 1.2 / m);
+      for (const [b, runs] of vis) {
+        const col = M.colors[b.ci];
+        for (const q of runs) {
+          const a = q.seg;
+          for (let i = 0; i < q.n; i++) {
+            const j = i * 4, x0 = a[j], y0 = a[j + 1], x1 = a[j + 2], y1 = a[j + 3];
+            const len = Math.hypot(x1 - x0, y1 - y0);
+            ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+            ctx.strokeStyle = col.dark; ctx.lineWidth = 0.44; ctx.stroke();
+            ctx.strokeStyle = col.shade; ctx.lineWidth = 0.34; ctx.stroke();
+            if (len > 0.05) {
+              // light from the top left: a thin highlight on that side of the thread
+              let nx = -(y1 - y0) / len, ny = (x1 - x0) / len;
+              if (nx + ny > 0) { nx = -nx; ny = -ny; }
+              const o = 0.06;
+              ctx.strokeStyle = col.base; ctx.lineWidth = 0.2;
+              ctx.beginPath(); ctx.moveTo(x0 + nx * 0.03, y0 + ny * 0.03); ctx.lineTo(x1 + nx * 0.03, y1 + ny * 0.03); ctx.stroke();
+              ctx.strokeStyle = col.light; ctx.lineWidth = 0.07;
+              ctx.beginPath(); ctx.moveTo(x0 + nx * o, y0 + ny * o); ctx.lineTo(x1 + nx * o, y1 + ny * o); ctx.stroke();
+            }
+          }
+          if (holes) {
+            ctx.fillStyle = col.hole; ctx.beginPath();
+            for (let i = 0; i < q.n; i++) { const j = i * 4; ctx.moveTo(a[j + 2] + hr, a[j + 3]); ctx.arc(a[j + 2], a[j + 3], hr, 0, Math.PI * 2); }
+            if (q.n) { ctx.moveTo(a[0] + hr, a[1]); ctx.arc(a[0], a[1], hr, 0, Math.PI * 2); }
+            ctx.fill();
+          }
+        }
+      }
+    }
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawScaleBar(ctx, m, vp.clientWidth, vp.clientHeight);
 }
 
 /* ---------------- download */
@@ -2770,9 +3061,9 @@ function applyLang() {
   document.title = t('title');
   $('toolHint').textContent = T[lang].hints[st.tool];
   $('curName').textContent = t('machineName', Emb.brotherName(st.color));
-  showDensity(); showFont(); showCurve();
+  showDensity(); showFont(); showCurve(); showZoomHint();
   $('fabricTip').textContent = t('tip_' + st.fabricKey);
-  for (const [id, k] of [['rotL', 'rotL'], ['rotR', 'rotR'], ['flipH', 'flipH'], ['flipV', 'flipV'], ['selSmaller', 'smaller'], ['selBigger', 'bigger']]) { $(id).title = t(k); $(id).setAttribute('aria-label', t(k)); }
+  for (const [id, k] of [['rotL', 'rotL'], ['rotR', 'rotR'], ['flipH', 'flipH'], ['flipV', 'flipV'], ['selSmaller', 'smaller'], ['selBigger', 'bigger'], ['zoomIn', 'zoomIn'], ['zoomOut', 'zoomOut']]) { $(id).title = t(k); $(id).setAttribute('aria-label', t(k)); }
   if (st.busy) setStatus('busy', t('busy'));
   else if (!st.result) setStatus('idle', t('idle'));
   else if (st.stale) setStatus('idle', t('stale'));

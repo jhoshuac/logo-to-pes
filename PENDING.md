@@ -30,3 +30,4 @@ Features found in embroidery programs (Brother PE-Design, Hatch, Embrilliance, I
 - Curved text (arch up / arch down), 4 fonts with minimum sizes, and 3-letter monograms
 - Rotate, flip and resize a selection in the editor
 - Open an existing .pes in the editor: its stitches are kept exactly, it can be moved, rotated, flipped and resized a little (80–120%), and text or drawings can be added before saving one combined .pes
+- Zoom in the editor (up to 3200%), with the Stitches view redrawn sharp at every level so single stitches and needle points are visible
