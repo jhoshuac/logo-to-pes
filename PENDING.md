@@ -31,3 +31,5 @@ Features found in embroidery programs (Brother PE-Design, Hatch, Embrilliance, I
 - Rotate, flip and resize a selection in the editor
 - Open an existing .pes in the editor: its stitches are kept exactly, it can be moved, rotated, flipped and resized a little (80–120%), and text or drawings can be added before saving one combined .pes
 - Zoom in the editor (up to 3200%), with the Stitches view redrawn sharp at every level so single stitches and needle points are visible
+- Background removal also takes the background's shades (drop shadows, glows, soft edges), on both pages
+- Thicken thin lines (under 1 mm) so they sew, on both pages; a Picture panel in the editor to choose which colors of an imported picture are sewn, with sharp resizing from the original
