@@ -49,6 +49,8 @@ h2 { font-size: 15px; font-weight: 800; font-variation-settings: "CASL" 0.6; let
 .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 20px 40px; display: grid; gap: 18px; }
 header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 20px; padding-bottom: 14px; border-bottom: 2px dashed var(--accent); }
 header p { margin: 8px 0 0; color: var(--muted); max-width: 62ch; }
+.nav { color: var(--accent); font-weight: 700; text-decoration: none; }
+.nav:hover { text-decoration: underline; }
 .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); }
 .lang button { border: 0; background: transparent; color: var(--muted); font: 700 13px var(--font-body); padding: 6px 12px; cursor: pointer; }
 .lang button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
@@ -121,9 +123,12 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
       <h1 data-t="title">Logo to PES</h1>
       <p data-t="tagline">Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.</p>
     </div>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <a class="nav" href="./draw/" data-t="navDraw">Draw your own design</a>
     <div class="lang" role="group" aria-label="Language">
       <button id="lang-en" type="button" aria-pressed="true">EN</button>
       <button id="lang-es" type="button" aria-pressed="false">ES</button>
+    </div>
     </div>
   </header>
 
@@ -238,7 +243,7 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
 const EXAMPLE = "EXAMPLE_DATA_URI";
 const T = {
   en: {
-    title: 'Logo to PES', tagline: 'Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.',
+    title: 'Logo to PES', tagline: 'Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.', navDraw: 'Draw your own design',
     logo: 'Logo', choose: 'Choose an image', dropHint: 'or drop a PNG or JPG here',
     logoHint: "Flat logos with a few solid colors work best. Photos and color gradients won't stitch well.",
     example: 'Example: dove and globe logo', size: 'Size', hoop: 'Hoop', width: 'Width', height: 'Height', fit: 'Fit to hoop',
@@ -260,7 +265,7 @@ const T = {
     badImage: "That file couldn't be opened as an image. Try a PNG or JPG.", failed: 'Something went wrong making stitches. Try a simpler image or fewer colors.'
   },
   es: {
-    title: 'Logo a PES', tagline: 'Convierte un logo de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.',
+    title: 'Logo a PES', tagline: 'Convierte un logo de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.', navDraw: 'Dibuja tu propio diseño',
     logo: 'Logo', choose: 'Elegir imagen', dropHint: 'o suelta aquí un PNG o JPG',
     logoHint: 'Funcionan mejor los logos planos con pocos colores sólidos. Las fotos y los degradados no se bordan bien.',
     example: 'Ejemplo: logo de paloma y mundo', size: 'Tamaño', hoop: 'Bastidor', width: 'Ancho', height: 'Alto', fit: 'Ajustar al bastidor',

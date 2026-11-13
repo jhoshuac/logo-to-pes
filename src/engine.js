@@ -1058,7 +1058,7 @@ function finish(b, threads, summary) {
     if (c[0] > maxx) maxx = c[0]; if (c[1] > maxy) maxy = c[1];
     if (c[2] === STITCH) stitches++; else if (c[2] === COLOR_CHANGE) colorChanges++; else if (c[2] === JUMP) jumps++;
   }
-  return { cmds, threads, width: maxx / 10, height: maxy / 10, stitches, colorChanges, trims: b.trims, jumps, summary };
+  return { cmds, threads, width: maxx / 10, height: maxy / 10, stitches, colorChanges, trims: b.trims, jumps, summary, offset: [minx, miny] };
 }
 
 /* ------------------------------------------------------------ PES / PEC writer
