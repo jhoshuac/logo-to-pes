@@ -11,9 +11,10 @@ Turn a flat logo into a `.pes` embroidery file for Brother and Baby Lock machine
 1. Choose a logo image (PNG or JPG). Flat logos with a few solid colors work best.
 2. Pick your hoop and the size of the design.
 3. For each color, choose **Stitch** or **Fabric** (Fabric means the fabric shows through and that color is skipped). Change the thread colors if you like. The page shows the name your machine will use for each color.
-4. Set the **stitch density**. The default is 3.3 lines per mm (rows 0.30 mm apart). If the fabric shows through the stitches, move it toward Denser.
-5. Check the stitch preview, then press **Download .pes**. To change the logo first (add text, erase or move parts), press **Edit this logo in the drawing editor**.
-6. Copy the `.pes` file to a USB stick and load it on the machine.
+4. Under **Background**, choose whether to remove the background (the default), remove it but keep that color where it appears inside the logo, or keep it and stitch it like a patch. **Tap to remove** lets you tap any area in the preview to take it out; **Restore removed areas** brings them back.
+5. Set the **stitch density**. The default is 3.3 lines per mm (rows 0.30 mm apart). If the fabric shows through the stitches, move it toward Denser.
+6. Check the stitch preview, then press **Download .pes**. To change the logo first (add text, erase or move parts), press **Edit this logo in the drawing editor**.
+7. Copy the `.pes` file to a USB stick and load it on the machine.
 
 Every visit starts blank. Nothing you upload or draw is saved.
 
@@ -21,7 +22,7 @@ Sew a test on scrap fabric with stabilizer before the real garment.
 
 ## Draw your own design
 
-The drawing page works like a simple paint program sized to the hoop: select, brush, eraser, line, box, circle, fill and text, in Brother thread colors, with a 10 mm grid. To move something, use **Select**: drag a box around it, then drag inside the box. New text stays selected after you press Enter, so you can drag it right away. **Image** brings a picture or logo into the drawing in thread colors. Arrow keys nudge a selection and Delete removes it. Set the stitch density, press **Make stitches** to see the stitches, then **Download .pes**. Lines thinner than 1 mm and letters under 5 mm tall are hard to sew. Every visit starts with a blank page, so download the `.pes` before closing it.
+The drawing page works like a simple paint program sized to the hoop: select, brush, eraser, line, box, circle, fill and text, in Brother thread colors, with a 10 mm grid. To move something, use **Select**: drag a box around it, then drag inside the box. New text stays selected after you press Enter, so you can drag it right away. **Image** brings a picture or logo into the drawing in thread colors. **Remove background** clears the background around the selection (or around the whole drawing), and **Erase area** removes whatever connected area you tap. Arrow keys nudge a selection and Delete removes it. Set the stitch density, press **Make stitches** to see the stitches, then **Download .pes**. Lines thinner than 1 mm and letters under 5 mm tall are hard to sew. Every visit starts with a blank page, so download the `.pes` before closing it.
 
 ## Cómo usarlo (Español)
 

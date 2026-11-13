@@ -930,10 +930,47 @@ function labelImage(rgba, W, H, mmpx, C, blurPx) {
   return labels;
 }
 
+/* Remove areas: the background that touches the picture's edge (opts.removeEdge) and any
+   areas the person tapped (opts.seeds, as [u, v] fractions of width and height).
+   A removed area is the whole connected patch of one colour; it becomes transparent. */
+function applyRemovals(labels, W, H, opts) {
+  if (!opts) return -1;
+  const N = W * H, q = new Int32Array(N);
+  const flood = (seeds, L) => {
+    let h = 0, t = 0;
+    for (const i of seeds) if (labels[i] === L) { labels[i] = -1; q[t++] = i; }
+    while (h < t) {
+      const i = q[h++], x = i % W, y = (i / W) | 0;
+      if (x > 0 && labels[i - 1] === L) { labels[i - 1] = -1; q[t++] = i - 1; }
+      if (x < W - 1 && labels[i + 1] === L) { labels[i + 1] = -1; q[t++] = i + 1; }
+      if (y > 0 && labels[i - W] === L) { labels[i - W] = -1; q[t++] = i - W; }
+      if (y < H - 1 && labels[i + W] === L) { labels[i + W] = -1; q[t++] = i + W; }
+    }
+  };
+  let edgeLabel = -1;
+  if (opts.removeEdge) {
+    const border = [];
+    for (let x = 0; x < W; x++) { border.push(x, (H - 1) * W + x); }
+    for (let y = 1; y < H - 1; y++) { border.push(y * W, y * W + W - 1); }
+    const cnt = new Map();
+    for (const i of border) if (labels[i] >= 0) cnt.set(labels[i], (cnt.get(labels[i]) || 0) + 1);
+    let best = -1, bc = 0;
+    for (const [L, c] of cnt) if (c > bc) { bc = c; best = L; }
+    if (best >= 0 && bc >= 0.3 * border.length) { edgeLabel = best; flood(border.filter(i => labels[i] === best), best); }
+  }
+  for (const [u, v] of opts.seeds || []) {
+    const x = Math.max(0, Math.min(W - 1, Math.round(u * (W - 1)))), y = Math.max(0, Math.min(H - 1, Math.round(v * (H - 1))));
+    const i = y * W + x;
+    if (labels[i] >= 0) flood([i], labels[i]);
+  }
+  return edgeLabel;
+}
+
 /* A logo as a flat, editable layer: stitched colours become their thread colour,
    fabric colours and transparent areas become transparent. Returns RGBA bytes. */
-function logoToLayer(rgba, W, H, mmpx, colors, blurPx) {
+function logoToLayer(rgba, W, H, mmpx, colors, blurPx, removal) {
   const labels = labelImage(rgba, W, H, mmpx, colors.map(c => c.rgb), blurPx);
+  applyRemovals(labels, W, H, removal);
   const out = new Uint8ClampedArray(W * H * 4);
   for (let i = 0; i < W * H; i++) {
     const c = labels[i] >= 0 ? colors[labels[i]] : null;
@@ -949,6 +986,7 @@ function digitize(p, progress) {
   const N = W * H;
   say('colors');
   const labels = labelImage(p.rgba, W, H, mmpx, p.colors.map(c => c.rgb), p.blurPx);
+  applyRemovals(labels, W, H, { removeEdge: !!p.removeEdge, seeds: p.removeSeeds || [] });
 
   const stitched = new Set(p.order.filter(j => p.colors[j].stitch));
   // 4. keep narrow gaps of fabric open (>= ~1 mm) so the stitches don't close them up

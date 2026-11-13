@@ -80,6 +80,18 @@ button { font-family: var(--font-body); }
 .drop img[src=""], .drop img:not([src]) { visibility: hidden; }
 .drop img { width: 76px; height: 76px; object-fit: contain; background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0 / 12px 12px; border-radius: 6px; }
 .drop strong { display: block; }
+.bgbox { display: grid; gap: 8px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.bgbox[hidden] { display: none; }
+.radio { display: grid; grid-template-columns: 20px 1fr; gap: 2px 8px; align-items: start; font-size: 14px; cursor: pointer; }
+.radio input { margin: 3px 0 0; accent-color: var(--accent); width: 16px; height: 16px; }
+.radio small { grid-column: 2; color: var(--muted); font-size: 13px; }
+.btn.tap { display: inline-flex; align-items: center; gap: 8px; }
+.btn.tap svg { width: 18px; height: 18px; }
+.btn.tap[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.tapbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: var(--ink); color: var(--bg); border-radius: 8px; padding: 8px 12px; font-size: 14px; font-weight: 700; }
+.tapbar[hidden] { display: none; }
+.tapbar .btn { padding: 5px 10px; }
+canvas#stage.tapping { cursor: crosshair; }
 .colors { display: grid; gap: 8px; }
 .crow { display: grid; grid-template-columns: 22px 30px 1fr auto; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
 .crow.off { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--line) 45%, transparent) 6px 7px); }
@@ -158,6 +170,19 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
         </label>
         <input id="file" class="sr" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
         <p class="hint" data-t="logoHint">Flat logos with a few solid colors work best. Photos and color gradients won't stitch well.</p>
+        <div class="bgbox" id="bgbox" hidden>
+          <h2 id="bgTitle" data-t="bgTitle">Background</h2>
+          <div id="bgopts" role="radiogroup" aria-labelledby="bgTitle" style="display:grid;gap:8px">
+            <label class="radio"><input type="radio" name="bgmode" value="all" checked><span data-t="bgAll">Remove it</span><small data-t="bgAllHint">Also leaves out that color anywhere inside the logo.</small></label>
+            <label class="radio"><input type="radio" name="bgmode" value="edge"><span data-t="bgEdge">Remove it, keep that color inside the logo</span><small data-t="bgEdgeHint">Only the area touching the edges of the picture goes.</small></label>
+            <label class="radio"><input type="radio" name="bgmode" value="keep"><span data-t="bgKeep">Keep it and stitch it</span><small data-t="bgKeepHint">Sews the background too, like a patch.</small></label>
+          </div>
+          <p class="hint" id="nobg" data-t="noBg" hidden>No solid background found. Use Tap to remove to take out anything you don't want.</p>
+          <div class="row" style="align-items:center">
+            <button class="btn tap" id="tapRemove" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 15 9"/><path d="m14 4 1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/><path d="M19 12l.6 1.4L21 14l-1.4.6L19 16l-.6-1.4L17 14l1.4-.6z"/></svg><span data-t="tapRemove">Tap to remove</span></button>
+            <button class="btn" id="restoreAreas" type="button" hidden></button>
+          </div>
+        </div>
       </section>
 
       <section class="panel p-size" aria-labelledby="h-size">
@@ -225,6 +250,7 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
           <h2 data-t="preview">Stitch preview</h2>
           <span class="chip busy" id="status" role="status">…</span>
         </div>
+        <div class="tapbar" id="tapbar" hidden><span data-t="tapNow">Tap any part of the preview to remove it.</span><button class="btn" type="button" id="tapDone" data-t="tapDone">Done</button></div>
         <canvas id="stage" width="800" height="800" aria-label="Stitch preview"></canvas>
         <div class="readout">
           <div class="tile wide"><div class="v" id="r-size">–</div><div class="k" data-t="rSize">↕ height × ↔ width</div></div>
@@ -258,7 +284,11 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
 'use strict';
 const T = {
   en: {
-    title: 'Logo to PES', tagline: 'Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.', navDraw: 'Open the drawing editor', editLogo: 'Edit this logo in the drawing editor',
+    title: 'Logo to PES', tagline: 'Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.', navDraw: 'Open the drawing editor', bgTitle: 'Background', bgAll: 'Remove it', bgAllHint: 'Also leaves out that color anywhere inside the logo.',
+    bgEdge: 'Remove it, keep that color inside the logo', bgEdgeHint: 'Only the area touching the edges of the picture goes.',
+    bgKeep: 'Keep it and stitch it', bgKeepHint: 'Sews the background too, like a patch.',
+    noBg: "No solid background found. Use Tap to remove to take out anything you don't want.",
+    tapRemove: 'Tap to remove', tapNow: 'Tap any part of the preview to remove it.', tapDone: 'Done', restore: n => `Restore removed areas (${n})`, editLogo: 'Edit this logo in the drawing editor',
     editHint: 'Opens the logo in the editor in its thread colors, so you can add text, erase parts or move things around.', editFail: "The editor couldn't be opened. Try again.",
     logo: 'Logo', choose: 'Choose an image', dropHint: 'or drop a PNG or JPG here',
     logoHint: "Flat logos with a few solid colors work best. Photos and color gradients won't stitch well.",
@@ -266,7 +296,7 @@ const T = {
     densityV: (v, mm) => `${v} lines per mm (rows ${mm} mm apart)`,
     densityHint: 'If the fabric shows through the stitches, move this toward Denser. Dark fabric with light thread usually needs 3.3 or more.',
     noColors: 'Colors show up here after you choose a logo.', start: 'Choose a logo to start', emptyHoop: 'Your stitches will show here', hoop: 'Hoop', width: 'Width', height: 'Height', fit: 'Fit to hoop',
-    inches: (w, h) => `That's ${w} × ${h} inches.`,
+    inches: (w, h) => `That's ${w} × ${h} inches for the whole picture. The preview shows the size that actually gets stitched.`,
     colors: 'Thread colors', count: 'Colors in the logo', auto: n => `Auto (${n})`,
     colorsHint: 'Colors stitch from top to bottom. Set the background to Fabric if the fabric should show through.',
     stitch: 'Stitch', skip: 'Fabric', machineName: n => `Machine calls it: ${n}`, up: 'Stitch earlier', down: 'Stitch later', thread: 'Thread color',
@@ -284,7 +314,11 @@ const T = {
     badImage: "That file couldn't be opened as an image. Try a PNG or JPG.", failed: 'Something went wrong making stitches. Try a simpler image or fewer colors.'
   },
   es: {
-    title: 'Logo a PES', tagline: 'Convierte un logo de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.', navDraw: 'Abrir el editor de dibujo', editLogo: 'Editar este logo en el editor de dibujo',
+    title: 'Logo a PES', tagline: 'Convierte un logo de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.', navDraw: 'Abrir el editor de dibujo', bgTitle: 'Fondo', bgAll: 'Quitarlo', bgAllHint: 'También deja fuera ese color en cualquier parte dentro del logo.',
+    bgEdge: 'Quitarlo, pero dejar ese color dentro del logo', bgEdgeHint: 'Solo se quita la zona que toca los bordes de la imagen.',
+    bgKeep: 'Dejarlo y bordarlo', bgKeepHint: 'Borda también el fondo, como un parche.',
+    noBg: 'No se encontró un fondo sólido. Usa Tocar para quitar para sacar lo que no quieras.',
+    tapRemove: 'Tocar para quitar', tapNow: 'Toca cualquier parte de la vista previa para quitarla.', tapDone: 'Listo', restore: n => `Restaurar zonas quitadas (${n})`, editLogo: 'Editar este logo en el editor de dibujo',
     editHint: 'Abre el logo en el editor con sus colores de hilo, para agregar texto, borrar partes o mover cosas.', editFail: 'No se pudo abrir el editor. Inténtalo de nuevo.',
     logo: 'Logo', choose: 'Elegir imagen', dropHint: 'o suelta aquí un PNG o JPG',
     logoHint: 'Funcionan mejor los logos planos con pocos colores sólidos. Las fotos y los degradados no se bordan bien.',
@@ -292,7 +326,7 @@ const T = {
     densityV: (v, mm) => `${v} líneas por mm (filas a ${mm} mm)`,
     densityHint: 'Si la tela se ve entre las puntadas, mueve esto hacia Más densa. Tela oscura con hilo claro suele necesitar 3,3 o más.',
     noColors: 'Los colores aparecen aquí cuando eliges un logo.', start: 'Elige un logo para empezar', emptyHoop: 'Aquí verás tus puntadas', hoop: 'Bastidor', width: 'Ancho', height: 'Alto', fit: 'Ajustar al bastidor',
-    inches: (w, h) => `Son ${w} × ${h} pulgadas.`,
+    inches: (w, h) => `Son ${w} × ${h} pulgadas para toda la imagen. La vista previa muestra el tamaño que realmente se borda.`,
     colors: 'Colores de hilo', count: 'Colores en el logo', auto: n => `Auto (${n})`,
     colorsHint: 'Los colores se bordan de arriba hacia abajo. Marca el fondo como Tela si la tela debe verse.',
     stitch: 'Bordar', skip: 'Tela', machineName: n => `La máquina lo llama: ${n}`, up: 'Bordar antes', down: 'Bordar después', thread: 'Color del hilo',
@@ -319,7 +353,8 @@ const HOOPS = { '100x100': [100, 100, '4×4 in'], '130x180': [130, 180, '5×7 in
 const state = {
   img: null, name: 'logo', aspect: 1, analysis: null, kChoice: 'auto', colors: [], order: [],
   wmm: 90, hmm: 90, hoop: '100x100', angle: 45, lines: 3.3, satin: 4.5, fabric: '#efece6',
-  result: null, busy: false, jobId: 0, pending: false
+  result: null, busy: false, jobId: 0, pending: false,
+  bgIndex: -1, bgMode: 'all', seeds: [], tapMode: false, pv: null
 };
 
 /* ---------- language */
@@ -330,7 +365,7 @@ function applyLang() {
   $('lang-es').setAttribute('aria-pressed', lang === 'es');
   document.title = t('title');
   $('fname').textContent = state.fileLabel || '';
-  renderKSelect(); renderColors(); updateInches(); renderReadout(); showDensity();
+  renderKSelect(); renderColors(); updateInches(); renderReadout(); showDensity(); renderBg();
   if (!state.img) { setStatus('idle', t('start')); drawPreview(); }
   $('dlnote').textContent = downloadsCap === false ? t('dlNoteDirect') : t('dlNote');
 }
@@ -351,6 +386,7 @@ function loadImage(src, label) {
     state.aspect = im.naturalWidth / im.naturalHeight;
     $('thumb').src = src;
     $('fname').textContent = label;
+    state.seeds = []; state.bgMode = 'all'; setTap(false);
     analyze();
     fitToHoop();
     schedule(0);
@@ -383,13 +419,54 @@ function setColorsForK() {
   // near-black and near-white clusters (anti-aliased averages) default to true black / white thread
   const snap = c => Math.max(...c) < 50 ? 0x000000 : (Math.min(...c) > 225 ? 0xffffff : rgbInt(c));
   state.colors = r.centers.map((c, i) => ({ rgb: c, stitch: i !== bg, thread: snap(c), share: r.counts[i] }));
+  state.bgIndex = bg;
+  if (bg >= 0) state.colors[bg].stitch = state.bgMode !== 'all';
   // background first, then larger areas first
   const idx = r.centers.map((_, i) => i).filter(i => i !== bg).sort((a, b2) => r.counts[b2] - r.counts[a]);
   state.order = bg >= 0 ? [bg, ...idx] : idx;
   state.fabric = bg >= 0 ? hex(r.centers[bg]) : '#efece6';
   $('fabric').value = state.fabric;
-  renderColors();
+  renderColors(); renderBg();
 }
+/* ---------- background controls */
+function renderBg() {
+  $('bgbox').hidden = !state.img;
+  const has = state.bgIndex >= 0;
+  $('bgopts').hidden = !has; $('nobg').hidden = has;
+  document.querySelectorAll('input[name="bgmode"]').forEach(r => { r.checked = r.value === state.bgMode; });
+  const rb = $('restoreAreas'); rb.hidden = !state.seeds.length; rb.textContent = t('restore', state.seeds.length);
+}
+document.querySelectorAll('input[name="bgmode"]').forEach(r => r.addEventListener('change', () => {
+  state.bgMode = r.value;
+  if (state.bgIndex >= 0) {
+    const c = state.colors[state.bgIndex];
+    c.stitch = state.bgMode !== 'all';
+    if (!c.stitch) { state.fabric = hex(c.rgb); $('fabric').value = state.fabric; }
+    // a kept background is sewn first as the base; what's left of it inside the logo is detail, sewn last
+    const o = state.order.filter(j => j !== state.bgIndex);
+    state.order = state.bgMode === 'edge' ? [...o, state.bgIndex] : [state.bgIndex, ...o];
+  }
+  renderColors(); renderBg(); schedule();
+}));
+function setTap(on) {
+  state.tapMode = on;
+  $('tapRemove').setAttribute('aria-pressed', on);
+  $('tapbar').hidden = !on;
+  $('stage').classList.toggle('tapping', on);
+}
+$('tapRemove').onclick = () => setTap(!state.tapMode);
+$('tapDone').onclick = () => setTap(false);
+$('restoreAreas').onclick = () => { state.seeds = []; renderBg(); schedule(0); };
+$('stage').addEventListener('click', e => {
+  if (!state.tapMode || !state.result || !state.pv || !state.result.cmds.length) return;
+  const cv = $('stage'), rc = cv.getBoundingClientRect();
+  const px = (e.clientX - rc.left) * cv.width / rc.width, py = (e.clientY - rc.top) * cv.height / rc.height;
+  const mx = (px - state.pv.ox) / state.pv.s + state.result.offset[0];
+  const my = (py - state.pv.oy) / state.pv.s + state.result.offset[1];
+  const u = mx / state.wmm, v = my / state.hmm;
+  if (u < 0 || u > 1 || v < 0 || v > 1) return;
+  state.seeds.push([u, v]); renderBg(); schedule(0);
+});
 function renderKSelect() {
   const sel = $('kcount');
   sel.disabled = !state.analysis;
@@ -426,8 +503,8 @@ function renderColors() {
         <button type="button" data-a="up" aria-label="${t('up')}" ${pos === 0 ? 'disabled' : ''}>▲</button>
         <button type="button" data-a="down" aria-label="${t('down')}" ${pos === state.order.length - 1 ? 'disabled' : ''}>▼</button>
       </div>`;
-    row.querySelector('[data-a="on"]').onclick = () => { c.stitch = true; renderColors(); schedule(); };
-    row.querySelector('[data-a="off"]').onclick = () => { c.stitch = false; state.fabric = hex(c.rgb); $('fabric').value = state.fabric; renderColors(); schedule(); };
+    row.querySelector('[data-a="on"]').onclick = () => { c.stitch = true; if (ci === state.bgIndex && state.bgMode === 'all') state.bgMode = 'edge'; renderColors(); renderBg(); schedule(); };
+    row.querySelector('[data-a="off"]').onclick = () => { c.stitch = false; if (ci === state.bgIndex) state.bgMode = 'all'; state.fabric = hex(c.rgb); $('fabric').value = state.fabric; renderColors(); renderBg(); schedule(); };
     row.querySelector('[data-a="up"]').onclick = () => { const o = state.order; [o[pos - 1], o[pos]] = [o[pos], o[pos - 1]]; renderColors(); schedule(); };
     row.querySelector('[data-a="down"]').onclick = () => { const o = state.order; [o[pos + 1], o[pos]] = [o[pos], o[pos + 1]]; renderColors(); schedule(); };
     const inp = row.querySelector('input[type="color"]');
@@ -499,6 +576,7 @@ function buildParams() {
     rgba: data, W, H, mmpx, blurPx: Math.max(0, Math.min(3, Math.round(up * 0.5))),
     colors: state.colors.map(c => ({ rgb: c.rgb, stitch: c.stitch, thread: c.thread })),
     order: state.order.slice(), angle: state.angle, satinMax: state.satin,
+    removeEdge: state.bgMode !== 'keep', removeSeeds: state.seeds.slice(),
     density: 1 / state.lines, satinSpacing: Math.min(0.5, Math.max(0.25, 1 / state.lines + 0.05))
   };
 }
@@ -580,6 +658,7 @@ function drawPreview() {
   }
   if (!r || !r.cmds.length) return;
   const ox = fx + (hw - r.width) / 2 * s, oy = fy + (hh - r.height) / 2 * s;
+  state.pv = { ox, oy, s };
   const k = s / 10;                                 // commands are in 0.1 mm
   const blocks = [];
   let path = new Path2D(), last = null, ci = 0;
@@ -662,7 +741,8 @@ $('editLogo').onclick = () => {
   ctx.drawImage(state.img, 0, 0, W, H);
   const blur = Math.max(0, Math.min(3, Math.round(W / state.img.naturalWidth * 0.5)));
   const layer = Emb.logoToLayer(ctx.getImageData(0, 0, W, H).data, W, H, 1 / PX,
-    state.colors.map(cc => ({ rgb: cc.rgb, stitch: cc.stitch, thread: cc.thread })), blur);
+    state.colors.map(cc => ({ rgb: cc.rgb, stitch: cc.stitch, thread: cc.thread })), blur,
+    { removeEdge: state.bgMode !== 'keep', seeds: state.seeds });
   ctx.putImageData(new ImageData(layer, W, H), 0, 0);
   const used = state.order.filter(j => state.colors[j].stitch).map(j => state.colors[j].thread);
   try {
