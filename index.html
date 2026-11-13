@@ -1,0 +1,1900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logo to PES</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Recursive:slnt,wght,CASL,MONO@-15..0,300..900,0..1,0..1&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* layout: settings rail on the left, the hoop and its stitch preview on the right; stacks on phones */
+  --bg: #e9ecf0;          /* cool muslin */
+  --surface: #ffffff;
+  --ink: #18202e;
+  --muted: #5a6474;
+  --line: #d3d9e1;
+  --accent: #2346c8;      /* royal-blue thread */
+  --accent-ink: #ffffff;
+  --tack: #d23b33;        /* the machine's red frame line */
+  --good: #1f7a4d;
+  --good-bg: #e2f3ea;
+  --bad: #b3261e;
+  --bad-bg: #fbe6e4;
+  --font-display: "Recursive", "Trebuchet MS", sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --font-mono: "Recursive", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f131a; --surface: #171d27; --ink: #e7ebf1; --muted: #9aa4b3; --line: #2a3341;
+    --accent: #8ea6ff; --accent-ink: #0d1530; --tack: #ff7a70; --good: #6fd3a0; --good-bg: #133326; --bad: #ff8a80; --bad-bg: #3a1714;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f131a; --surface: #171d27; --ink: #e7ebf1; --muted: #9aa4b3; --line: #2a3341;
+  --accent: #8ea6ff; --accent-ink: #0d1530; --tack: #ff7a70; --good: #6fd3a0; --good-bg: #133326; --bad: #ff8a80; --bad-bg: #3a1714;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.45; }
+h1, h2 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 860; font-variation-settings: "CASL" 1, "slnt" 0; letter-spacing: -0.01em; line-height: 1.02; }
+h2 { font-size: 15px; font-weight: 800; font-variation-settings: "CASL" 0.6; letter-spacing: 0.02em; display: flex; align-items: center; gap: 10px; }
+.num { font-family: var(--font-mono); font-variation-settings: "MONO" 1, "CASL" 0; font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 22px 20px 40px; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 20px; padding-bottom: 14px; border-bottom: 2px dashed var(--accent); }
+header p { margin: 8px 0 0; color: var(--muted); max-width: 62ch; }
+.lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); }
+.lang button { border: 0; background: transparent; color: var(--muted); font: 700 13px var(--font-body); padding: 6px 12px; cursor: pointer; }
+.lang button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.main { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 18px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: 1fr; } .preview { order: -1; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+.rail { display: grid; gap: 14px; }
+.step { font-family: var(--font-mono); font-variation-settings: "MONO" 1; font-size: 12px; width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--ink); color: var(--bg); flex: none; }
+.hint { color: var(--muted); font-size: 14px; margin: 0; }
+label { font-weight: 700; font-size: 14px; }
+.field { display: grid; gap: 4px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+.row > .field { flex: 1 1 110px; }
+input[type="number"], select { width: 100%; font: 16px var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; }
+input[type="number"] { font-family: var(--font-mono); font-variation-settings: "MONO" 1; }
+button { font-family: var(--font-body); }
+.btn { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 7px; padding: 8px 12px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.btn:hover { border-color: var(--ink); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-size: 17px; padding: 12px 18px; }
+.btn.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 14px; display: grid; grid-template-columns: 76px 1fr; gap: 14px; align-items: center; cursor: pointer; transition: border-color .15s; }
+.drop.over, .drop:hover { border-color: var(--accent); }
+.drop img { width: 76px; height: 76px; object-fit: contain; background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0 / 12px 12px; border-radius: 6px; }
+.drop strong { display: block; }
+.colors { display: grid; gap: 8px; }
+.crow { display: grid; grid-template-columns: 22px 30px 1fr auto; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.crow.off { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--line) 45%, transparent) 6px 7px); }
+.swatch { width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--line); }
+.cmain { display: grid; gap: 4px; min-width: 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; width: max-content; }
+.seg button { border: 0; background: transparent; color: var(--muted); padding: 4px 10px; font-weight: 700; font-size: 13px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.thread { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.thread input[type="color"] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: none; cursor: pointer; }
+.move { display: grid; gap: 4px; }
+.move button { border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 30px; height: 24px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1; }
+.move button:disabled { opacity: .3; cursor: default; }
+details summary { cursor: pointer; font-weight: 700; font-family: var(--font-display); font-variation-settings: "CASL" .6; }
+details[open] summary { margin-bottom: 10px; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.preview { position: sticky; top: 12px; display: grid; gap: 12px; }
+.hoopbox { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 10px; }
+canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; display: block; border-radius: 8px; }
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.tile { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); }
+.tile.wide { grid-column: span 2; }
+.tile .v { font-family: var(--font-mono); font-variation-settings: "MONO" 1; font-size: 19px; white-space: nowrap; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.tile .k { font-size: 12px; color: var(--muted); }
+.statusline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between; }
+.chip { font-size: 13px; font-weight: 700; border-radius: 999px; padding: 4px 10px; display: inline-flex; gap: 6px; align-items: center; }
+.chip.good { color: var(--good); background: var(--good-bg); }
+.chip.bad { color: var(--bad); background: var(--bad-bg); }
+.chip.busy { color: var(--muted); background: var(--bg); border: 1px solid var(--line); }
+.chip.busy::before { content: ""; width: 9px; height: 9px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .chip.busy::before { animation: none; } }
+.dl { display: grid; gap: 8px; }
+.msg { font-size: 14px; margin: 0; min-height: 1.3em; }
+.msg.err { color: var(--bad); }
+.msg.ok { color: var(--good); }
+.tips { color: var(--muted); font-size: 14px; margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 data-t="title">Logo to PES</h1>
+      <p data-t="tagline">Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.</p>
+    </div>
+    <div class="lang" role="group" aria-label="Language">
+      <button id="lang-en" type="button" aria-pressed="true">EN</button>
+      <button id="lang-es" type="button" aria-pressed="false">ES</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="rail">
+      <section class="panel" aria-labelledby="h-logo">
+        <h2 id="h-logo"><span class="step">1</span><span data-t="logo">Logo</span></h2>
+        <label class="drop" id="drop" for="file">
+          <img id="thumb" alt="">
+          <span>
+            <strong data-t="choose">Choose an image</strong>
+            <span class="hint" data-t="dropHint">or drop a PNG or JPG here</span><br>
+            <span class="hint" id="fname"></span>
+          </span>
+        </label>
+        <input id="file" class="sr" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
+        <p class="hint" data-t="logoHint">Flat logos with a few solid colors work best. Photos and color gradients won't stitch well.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-size">
+        <h2 id="h-size"><span class="step">2</span><span data-t="size">Size</span></h2>
+        <div class="field">
+          <label for="hoop" data-t="hoop">Hoop</label>
+          <select id="hoop">
+            <option value="100x100">4 × 4 in (100 × 100 mm)</option>
+            <option value="130x180">5 × 7 in (130 × 180 mm)</option>
+            <option value="160x260">6 × 10 in (160 × 260 mm)</option>
+          </select>
+        </div>
+        <div class="row">
+          <div class="field"><label for="wmm"><span data-t="width">Width</span> (mm)</label><input id="wmm" type="number" min="10" max="400" step="0.5"></div>
+          <div class="field"><label for="hmm"><span data-t="height">Height</span> (mm)</label><input id="hmm" type="number" min="10" max="400" step="0.5"></div>
+          <button class="btn" id="fit" type="button" data-t="fit">Fit to hoop</button>
+        </div>
+        <p class="hint" id="inches"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-colors">
+        <h2 id="h-colors"><span class="step">3</span><span data-t="colors">Thread colors</span></h2>
+        <div class="field">
+          <label for="kcount" data-t="count">Colors in the logo</label>
+          <select id="kcount"></select>
+        </div>
+        <p class="hint" data-t="colorsHint">Colors stitch from top to bottom. Set the background to Fabric if the fabric should show through.</p>
+        <div class="colors" id="colors"></div>
+      </section>
+
+      <section class="panel">
+        <details>
+          <summary data-t="more">More stitch settings</summary>
+          <div style="display:grid;gap:12px">
+            <div class="field">
+              <label for="angle"><span data-t="angle">Fill direction</span>: <span class="num" id="angleV">45°</span></label>
+              <input id="angle" type="range" min="0" max="175" step="5" value="45">
+            </div>
+            <div class="field">
+              <label for="density" data-t="density">Fill density</label>
+              <select id="density">
+                <option value="0.45" data-t="light">Light</option>
+                <option value="0.4" selected data-t="normal">Normal</option>
+                <option value="0.35" data-t="dense">Dense</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="satin"><span data-t="satin">Narrow parts become satin up to</span>: <span class="num" id="satinV">4.5 mm</span></label>
+              <input id="satin" type="range" min="2.5" max="6" step="0.5" value="4.5">
+            </div>
+            <div class="field">
+              <label for="fabric" data-t="fabric">Preview fabric color</label>
+              <input id="fabric" type="color" value="#14285a" style="width:60px;height:32px;border:1px solid var(--line);border-radius:6px;padding:0;background:none">
+            </div>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <div class="preview">
+      <div class="hoopbox">
+        <div class="statusline">
+          <h2 data-t="preview">Stitch preview</h2>
+          <span class="chip busy" id="status" role="status">…</span>
+        </div>
+        <canvas id="stage" width="800" height="800" aria-label="Stitch preview"></canvas>
+        <div class="readout">
+          <div class="tile wide"><div class="v" id="r-size">–</div><div class="k" data-t="rSize">↕ height × ↔ width</div></div>
+          <div class="tile"><div class="v" id="r-st">–</div><div class="k" data-t="rSt">stitches</div></div>
+          <div class="tile"><div class="v" id="r-cc">–</div><div class="k" data-t="rCc">thread changes</div></div>
+          <div class="tile"><div class="v" id="r-tr">–</div><div class="k" data-t="rTr">jump threads to cut</div></div>
+          <div class="tile"><div class="v" id="r-min">–</div><div class="k" data-t="rMin">minutes to sew (about)</div></div>
+        </div>
+      </div>
+      <div class="panel dl">
+        <button class="btn primary" id="download" type="button" disabled data-t="download">Download .pes</button>
+        <p class="hint" id="dlnote" data-t="dlNote">You'll get a .zip. Open it and copy the .pes file inside to your USB stick.</p>
+        <p class="msg" id="dlmsg" role="status"></p>
+        <ul class="tips">
+          <li data-t="tip1">Sew a test on scrap fabric with stabilizer before the real garment.</li>
+          <li data-t="tip2">White thread looks faint on the machine's screen. That's normal.</li>
+          <li data-t="tip3">Your machine will stop at each thread change and show the color name listed above.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script id="engine-src">
+/* Stitch engine: flat logo image -> embroidery stitches -> Brother PES file.
+   Pure JavaScript, no DOM: runs in a Web Worker, on the page, or in Node. */
+(function (root) {
+'use strict';
+
+const STITCH = 0, JUMP = 1, TRIM = 2, END = 4, COLOR_CHANGE = 5;
+const INF = 1e20;
+
+/* ------------------------------------------------------------ distance transform */
+function dt1d(f, n, d, v, z) {
+  let k = 0;
+  v[0] = 0; z[0] = -Infinity; z[1] = Infinity;
+  for (let q = 1; q < n; q++) {
+    let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+    while (s <= z[k]) {
+      k--;
+      s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+    }
+    k++; v[k] = q; z[k] = s; z[k + 1] = Infinity;
+  }
+  k = 0;
+  for (let q = 0; q < n; q++) {
+    while (z[k + 1] < q) k++;
+    const dq = q - v[k];
+    d[q] = dq * dq + f[v[k]];
+  }
+}
+
+/* squared distance from every pixel to the nearest feature pixel (feat[i] = 1).
+   padFeature: treat the area outside the image as feature. */
+function sqDist(feat, W, H, padFeature) {
+  const W2 = W + 2, H2 = H + 2;
+  const g = new Float64Array(W2 * H2);
+  const pv = padFeature ? 0 : INF;
+  g.fill(pv);
+  for (let y = 0; y < H; y++) {
+    const ro = (y + 1) * W2 + 1, ri = y * W;
+    for (let x = 0; x < W; x++) g[ro + x] = feat[ri + x] ? 0 : INF;
+  }
+  const n = Math.max(W2, H2);
+  const f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
+  for (let x = 0; x < W2; x++) {
+    for (let y = 0; y < H2; y++) f[y] = g[y * W2 + x];
+    dt1d(f, H2, d, v, z);
+    for (let y = 0; y < H2; y++) g[y * W2 + x] = d[y];
+  }
+  for (let y = 0; y < H2; y++) {
+    const o = y * W2;
+    for (let x = 0; x < W2; x++) f[x] = g[o + x];
+    dt1d(f, W2, d, v, z);
+    for (let x = 0; x < W2; x++) g[o + x] = d[x];
+  }
+  const out = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) {
+    const ro = (y + 1) * W2 + 1, ri = y * W;
+    for (let x = 0; x < W; x++) out[ri + x] = g[ro + x];
+  }
+  return out;
+}
+function distIn(M, W, H) {           // distance (px) to nearest pixel outside M
+  const inv = new Uint8Array(W * H);
+  for (let i = 0; i < inv.length; i++) inv[i] = M[i] ? 0 : 1;
+  const d = sqDist(inv, W, H, true);
+  for (let i = 0; i < d.length; i++) d[i] = Math.sqrt(d[i]);
+  return d;
+}
+function distTo(M, W, H) {           // distance (px) to nearest pixel of M
+  const d = sqDist(M, W, H, false);
+  for (let i = 0; i < d.length; i++) d[i] = Math.sqrt(d[i]);
+  return d;
+}
+function thresh(d, fn) {
+  const o = new Uint8Array(d.length);
+  for (let i = 0; i < d.length; i++) o[i] = fn(d[i]) ? 1 : 0;
+  return o;
+}
+function erode(M, W, H, r) { const d = distIn(M, W, H); return thresh(d, v => v > r); }
+function dilate(M, W, H, r) { const d = distTo(M, W, H); return thresh(d, v => v <= r); }
+function openMask(M, W, H, r, dIn) {
+  const d = dIn || distIn(M, W, H);
+  const centers = thresh(d, v => v > r);
+  const o = dilate(centers, W, H, r);
+  for (let i = 0; i < o.length; i++) o[i] = o[i] & M[i];
+  return o;
+}
+function and(a, b) { const o = new Uint8Array(a.length); for (let i = 0; i < a.length; i++) o[i] = a[i] & b[i]; return o; }
+function or(a, b) { const o = new Uint8Array(a.length); for (let i = 0; i < a.length; i++) o[i] = a[i] | b[i]; return o; }
+function andNot(a, b) { const o = new Uint8Array(a.length); for (let i = 0; i < a.length; i++) o[i] = a[i] & (b[i] ? 0 : 1); return o; }
+
+function labelComponents(mask, W, H) {
+  const lab = new Int32Array(W * H), q = new Int32Array(W * H), comps = [];
+  let n = 0;
+  for (let i = 0; i < W * H; i++) {
+    if (!mask[i] || lab[i]) continue;
+    n++;
+    let h = 0, t = 0;
+    q[t++] = i; lab[i] = n;
+    const c = { id: n, count: 0, minx: W, miny: H, maxx: 0, maxy: 0 };
+    while (h < t) {
+      const p = q[h++];
+      c.count++;
+      const x = p % W, y = (p / W) | 0;
+      if (x < c.minx) c.minx = x; if (x > c.maxx) c.maxx = x;
+      if (y < c.miny) c.miny = y; if (y > c.maxy) c.maxy = y;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy; if (ny < 0 || ny >= H) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx; if (nx < 0 || nx >= W) continue;
+          const j = ny * W + nx;
+          if (mask[j] && !lab[j]) { lab[j] = n; q[t++] = j; }
+        }
+      }
+    }
+    comps.push(c);
+  }
+  return { lab, comps };
+}
+
+/* ------------------------------------------------------------ thinning (Zhang-Suen) */
+function thin(mask, W, H) {
+  const img = Uint8Array.from(mask);
+  for (let x = 0; x < W; x++) { img[x] = 0; img[(H - 1) * W + x] = 0; }
+  for (let y = 0; y < H; y++) { img[y * W] = 0; img[y * W + W - 1] = 0; }
+  const inQ = new Uint8Array(W * H);
+  let cand = [];
+  for (let i = 0; i < W * H; i++) {
+    if (!img[i]) continue;
+    if (!img[i - 1] || !img[i + 1] || !img[i - W] || !img[i + W]) { cand.push(i); inQ[i] = 1; }
+  }
+  for (let iter = 0; iter < 10000; iter++) {
+    let any = false;
+    for (let sub = 0; sub < 2; sub++) {
+      const del = [];
+      for (const p of cand) {
+        if (!img[p]) continue;
+        const p2 = img[p - W], p3 = img[p - W + 1], p4 = img[p + 1], p5 = img[p + W + 1],
+          p6 = img[p + W], p7 = img[p + W - 1], p8 = img[p - 1], p9 = img[p - W - 1];
+        const B = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
+        if (B < 2 || B > 6) continue;
+        const A = (!p2 && p3) + (!p3 && p4) + (!p4 && p5) + (!p5 && p6) + (!p6 && p7) + (!p7 && p8) + (!p8 && p9) + (!p9 && p2);
+        if (A !== 1) continue;
+        if (sub === 0) { if (p2 && p4 && p6) continue; if (p4 && p6 && p8) continue; }
+        else { if (p2 && p4 && p8) continue; if (p2 && p6 && p8) continue; }
+        del.push(p);
+      }
+      if (del.length) any = true;
+      for (const p of del) img[p] = 0;
+      const next = [];
+      for (const p of cand) { inQ[p] = 0; }
+      for (const p of cand) if (img[p] && !inQ[p]) { inQ[p] = 1; next.push(p); }
+      for (const p of del) {
+        const nb = [p - W - 1, p - W, p - W + 1, p - 1, p + 1, p + W - 1, p + W, p + W + 1];
+        for (const j of nb) if (img[j] && !inQ[j]) { inQ[j] = 1; next.push(j); }
+      }
+      cand = next;
+    }
+    if (!any) break;
+  }
+  // remove staircase corners so lines are exactly one pixel wide (8-connected)
+  for (let pass = 0; pass < 4; pass++) {
+    let changed = 0;
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+      const p = y * W + x;
+      if (!img[p]) continue;
+      const e = img[p + 1], ne = img[p - W + 1], n = img[p - W], nw = img[p - W - 1],
+        w = img[p - 1], sw = img[p + W - 1], s = img[p + W], se = img[p + W + 1];
+      if (!((n && e) || (e && s) || (s && w) || (w && n))) continue;
+      // Yokoi 8-connectivity number: 1 means removing p keeps its neighbours connected
+      const x1 = 1 - e, x2 = 1 - ne, x3 = 1 - n, x4 = 1 - nw, x5 = 1 - w, x6 = 1 - sw, x7 = 1 - s, x8 = 1 - se;
+      const c8 = (x1 - x1 * x2 * x3) + (x3 - x3 * x4 * x5) + (x5 - x5 * x6 * x7) + (x7 - x7 * x8 * x1);
+      if (c8 === 1) { img[p] = 0; changed++; }
+    }
+    if (!changed) break;
+  }
+  return img;
+}
+
+/* ------------------------------------------------------------ skeleton graph */
+function skeletonGraph(sk, W, H) {
+  const NB = [-W - 1, -W, -W + 1, -1, 1, W - 1, W, W + 1];
+  const deg = new Uint8Array(W * H);
+  const pts = [];
+  for (let i = 0; i < W * H; i++) {
+    if (!sk[i]) continue;
+    pts.push(i);
+    let c = 0;
+    for (const o of NB) if (sk[i + o]) c++;
+    deg[i] = c;
+  }
+  const nodeOf = new Int32Array(W * H).fill(-1);
+  const nodePos = [];
+  // cluster node pixels (deg != 2)
+  for (const i of pts) {
+    if (deg[i] === 2 || nodeOf[i] >= 0) continue;
+    const id = nodePos.length;
+    const stack = [i]; nodeOf[i] = id;
+    let sx = 0, sy = 0, n = 0;
+    while (stack.length) {
+      const p = stack.pop();
+      sx += p % W; sy += (p / W) | 0; n++;
+      for (const o of NB) {
+        const j = p + o;
+        if (sk[j] && deg[j] !== 2 && nodeOf[j] < 0) { nodeOf[j] = id; stack.push(j); }
+      }
+    }
+    nodePos.push([sx / n, sy / n]);
+  }
+  const visited = new Uint8Array(W * H);
+  const edges = [];
+  function trace(startPx, first) {
+    const startNode = nodeOf[startPx];
+    const path = [startPx, first];
+    visited[first] = 1;
+    let prev = startPx, cur = first;
+    for (;;) {
+      if (nodeOf[cur] >= 0) return [path, nodeOf[cur]];
+      let nxt = -1;
+      for (const o of NB) {
+        const q = cur + o;
+        if (!sk[q] || q === prev) continue;
+        if (visited[q] && nodeOf[q] < 0) continue;
+        if (nodeOf[q] >= 0 && nodeOf[q] === startNode && path.length < 3) continue;
+        nxt = q;
+        if (nodeOf[q] < 0) break;
+      }
+      if (nxt < 0) return [path, -1];
+      if (nodeOf[nxt] < 0) visited[nxt] = 1;
+      path.push(nxt);
+      prev = cur; cur = nxt;
+    }
+  }
+  for (const p of pts) {
+    if (nodeOf[p] < 0) continue;
+    for (const o of NB) {
+      const q = p + o;
+      if (!sk[q] || nodeOf[q] >= 0 || visited[q]) continue;
+      let [path, end] = trace(p, q);
+      if (end < 0) {
+        const last = path[path.length - 1];
+        end = nodePos.length; nodePos.push([last % W, (last / W) | 0]); nodeOf[last] = end;
+      }
+      edges.push([nodeOf[p], end, path]);
+    }
+  }
+  // pure cycles
+  for (const p of pts) {
+    if (visited[p] || nodeOf[p] >= 0) continue;
+    const id = nodePos.length; nodePos.push([p % W, (p / W) | 0]); nodeOf[p] = id;
+    for (const o of NB) {
+      const q = p + o;
+      if (sk[q] && !visited[q] && nodeOf[q] < 0) {
+        let [path, end] = trace(p, q);
+        if (end < 0) end = id;
+        edges.push([id, end, path]);
+        break;
+      }
+    }
+  }
+  return { nodePos, edges };
+}
+
+function pruneEdges(edges, minLenPx) {
+  for (let it = 0; it < 3; it++) {
+    const deg = new Map();
+    for (const [a, b] of edges) { deg.set(a, (deg.get(a) || 0) + 1); deg.set(b, (deg.get(b) || 0) + 1); }
+    const keep = edges.filter(([a, b, p]) => {
+      const da = deg.get(a), db = deg.get(b);
+      const leaf = (da === 1) !== (db === 1);
+      const iso = da === 1 && db === 1;
+      return !((leaf || iso) && p.length < minLenPx);
+    });
+    if (keep.length === edges.length) break;
+    edges = keep;
+  }
+  return edges;
+}
+
+/* ------------------------------------------------------------ geometry helpers (mm) */
+function hyp(a, b) { return Math.hypot(b[0] - a[0], b[1] - a[1]); }
+function runPath(pts, step) {
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const d = hyp(a, b);
+    const n = Math.max(1, Math.ceil(d / step));
+    for (let k = 1; k <= n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+  }
+  return out;
+}
+function interp(t, s, arr) {        // piecewise linear interpolation of arr at arclength t
+  // binary search
+  let lo = 0, hi = s.length - 1;
+  if (t <= s[0]) return arr[0];
+  if (t >= s[hi]) return arr[hi];
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (s[m] <= t) lo = m; else hi = m; }
+  const f = (t - s[lo]) / Math.max(1e-9, s[hi] - s[lo]);
+  return arr[lo] + (arr[hi] - arr[lo]) * f;
+}
+function resample(xy, w, step) {
+  const n0 = xy.length;
+  const s = new Float64Array(n0);
+  for (let i = 1; i < n0; i++) s[i] = s[i - 1] + hyp(xy[i - 1], xy[i]);
+  const L = s[n0 - 1];
+  const X = xy.map(p => p[0]), Y = xy.map(p => p[1]);
+  if (L < 1e-6) return { P: [xy[0]], W: [w[0]], N: [[0, 0]], L: 0 };
+  const n = Math.max(1, Math.round(L / step));
+  const P = [], WW = [], N = [];
+  const tw = 0.6;
+  for (let i = 0; i <= n; i++) {
+    const t = L * i / n;
+    P.push([interp(t, s, X), interp(t, s, Y)]);
+    WW.push(interp(t, s, w));
+    const t1 = Math.max(0, t - tw), t2 = Math.min(L, t + tw);
+    let dx = interp(t2, s, X) - interp(t1, s, X), dy = interp(t2, s, Y) - interp(t1, s, Y);
+    const dl = Math.hypot(dx, dy) || 1e-9;
+    dx /= dl; dy /= dl;
+    N.push([-dy, dx]);
+  }
+  return { P, W: WW, N, L };
+}
+function underlayPath(xy, w) {
+  const r = resample(xy, w, 1.0);
+  return r.P.map((p, i) => {
+    const off = Math.max(0, 0.3 * r.W[i] - 0.25) * (i % 2 ? 1 : -1);
+    return [p[0] + r.N[i][0] * off, p[1] + r.N[i][1] * off];
+  });
+}
+function satinPath(xy, w, pull) {
+  let wmax = 0; for (const v of w) wmax = Math.max(wmax, v);
+  const spacing = wmax < 1.3 ? 0.45 : 0.4;
+  const r = resample(xy, w, spacing / 2);
+  return r.P.map((p, i) => {
+    const side = i % 2 ? 1 : -1;
+    const h = (r.W[i] + pull) / 2 * side;
+    return [p[0] + r.N[i][0] * h, p[1] + r.N[i][1] * h];
+  });
+}
+function extendTip(xy, w, atEnd, dist) {
+  if (xy.length < 3 || dist <= 0) return [xy, w];
+  if (!atEnd) {
+    const [a, b] = extendTip(xy.slice().reverse(), w.slice().reverse(), true, dist);
+    return [a.reverse(), b.reverse()];
+  }
+  const j = Math.max(0, xy.length - 6);
+  let dx = xy[xy.length - 1][0] - xy[j][0], dy = xy[xy.length - 1][1] - xy[j][1];
+  const nd = Math.hypot(dx, dy);
+  if (nd < 1e-6) return [xy, w];
+  dx /= nd; dy /= nd;
+  const k = Math.max(2, Math.floor(dist / 0.1));
+  const last = xy[xy.length - 1], wl = w[w.length - 1];
+  const X = xy.slice(), WW = w.slice();
+  for (let i = 1; i <= k; i++) {
+    X.push([last[0] + dx * dist * i / k, last[1] + dy * dist * i / k]);
+    WW.push(wl * (1 - 0.75 * i / k));
+  }
+  return [X, WW];
+}
+
+/* ------------------------------------------------------------ satin network */
+function networkBlocks(sk, D, W, H, mmpx, opt) {
+  const { nodePos, edges: raw } = skeletonGraph(sk, W, H);
+  const edges = pruneEdges(raw, opt.pruneMM / mmpx);
+  const deg = new Map();
+  for (const [a, b] of edges) { deg.set(a, (deg.get(a) || 0) + 1); deg.set(b, (deg.get(b) || 0) + 1); }
+  const k = Math.max(1, Math.round(0.4 / mmpx)) | 1;
+  const E = edges.map(([a, b, path]) => {
+    let xy = path.map(p => [(p % W) * mmpx, ((p / W) | 0) * mmpx]);
+    let w = path.map(p => Math.max(0, 2 * D[p] - 1) * mmpx);
+    if (xy.length >= k) {           // moving-average smoothing
+      const h = k >> 1, n = xy.length;
+      const sx = [], sw = [];
+      for (let i = 0; i < n; i++) {
+        let ax = 0, ay = 0, aw = 0;
+        for (let j = -h; j <= h; j++) {
+          const q = Math.min(n - 1, Math.max(0, i + j));
+          ax += xy[q][0]; ay += xy[q][1]; aw += w[q];
+        }
+        sx.push([ax / k, ay / k]); sw.push(aw / k);
+      }
+      sx[0] = xy[0]; sx[n - 1] = xy[n - 1];
+      xy = sx; w = sw;
+    }
+    w = w.map(v => Math.min(opt.maxW + 0.3, Math.max(opt.minW, v + opt.extraW)));
+    if (deg.get(a) === 1) [xy, w] = extendTip(xy, w, false, w[0] / 2 * 0.8);
+    if (deg.get(b) === 1) [xy, w] = extendTip(xy, w, true, w[w.length - 1] / 2 * 0.8);
+    return { a, b, xy, w };
+  });
+  const adj = new Map();
+  E.forEach((e, i) => {
+    if (!adj.has(e.a)) adj.set(e.a, []);
+    adj.get(e.a).push(i);
+    if (e.b !== e.a) { if (!adj.has(e.b)) adj.set(e.b, []); adj.get(e.b).push(i); }
+  });
+  for (const [, list] of adj) list.sort((x, y) => E[y].xy.length - E[x].xy.length);
+  // components
+  const seen = new Set(), comps = [];
+  for (const n0 of adj.keys()) {
+    if (seen.has(n0)) continue;
+    const st = [n0], comp = []; seen.add(n0);
+    while (st.length) {
+      const u = st.pop(); comp.push(u);
+      for (const ei of adj.get(u)) {
+        const v = E[ei].a === u ? E[ei].b : E[ei].a;
+        if (!seen.has(v)) { seen.add(v); st.push(v); }
+      }
+    }
+    comps.push(comp);
+  }
+  const nodeXY = id => [nodePos[id][0] * mmpx, nodePos[id][1] * mmpx];
+  function stitchComp(start) {
+    const out = [], used = new Set(), vis = new Set([start]);
+    const stack = [{ u: start, i: 0, back: null }];
+    while (stack.length) {
+      const f = stack[stack.length - 1];
+      const list = adj.get(f.u);
+      if (f.i >= list.length) {
+        stack.pop();
+        if (f.back) out.push(...satinPath(f.back.xy, f.back.w, opt.pull));
+        continue;
+      }
+      const ei = list[f.i++];
+      if (used.has(ei)) continue;
+      used.add(ei);
+      const e = E[ei];
+      let v, fxy, fw;
+      if (e.a === f.u) { v = e.b; fxy = e.xy; fw = e.w; }
+      else { v = e.a; fxy = e.xy.slice().reverse(); fw = e.w.slice().reverse(); }
+      out.push(...underlayPath(fxy, fw));
+      const back = { xy: fxy.slice().reverse(), w: fw.slice().reverse() };
+      if (!vis.has(v)) { vis.add(v); stack.push({ u: v, i: 0, back }); }
+      else out.push(...satinPath(back.xy, back.w, opt.pull));
+    }
+    return out;
+  }
+  return comps.map(comp => {
+    const leaves = comp.filter(u => adj.get(u).length === 1);
+    return { cand: leaves.length ? leaves : comp, fn: stitchComp, nodeXY };
+  });
+}
+
+function orderNetworks(blocks, cur) {
+  const left = blocks.slice(), seqs = [];
+  while (left.length) {
+    let best = null;
+    left.forEach((b, bi) => {
+      for (const u of b.cand) {
+        const d = hyp(b.nodeXY(u), cur);
+        if (!best || d < best.d) best = { d, bi, u };
+      }
+    });
+    const b = left.splice(best.bi, 1)[0];
+    const s = b.fn(best.u);
+    if (s.length) { seqs.push(s); cur = s[s.length - 1]; }
+  }
+  return { seqs, cur };
+}
+
+/* ------------------------------------------------------------ fill (tatami) */
+function makeTravelGrid(comp, W, mmpx, mask, hiddenMask) {
+  const cell = Math.max(2, Math.round(0.5 / mmpx));
+  const gx0 = comp.minx, gy0 = comp.miny;
+  const GW = Math.floor((comp.maxx - comp.minx) / cell) + 1;
+  const GH = Math.floor((comp.maxy - comp.miny) / cell) + 1;
+  const inside = new Uint8Array(GW * GH), edge = new Uint8Array(GW * GH), filled = new Uint8Array(GW * GH), hidden = new Uint8Array(GW * GH);
+  for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+    const x = Math.min(comp.maxx, gx0 + i * cell + (cell >> 1)), y = Math.min(comp.maxy, gy0 + j * cell + (cell >> 1));
+    inside[j * GW + i] = mask[y * W + x] ? 1 : 0;
+    // cells under a colour stitched later: travel there is covered up afterwards
+    if (!inside[j * GW + i] && hiddenMask && hiddenMask[y * W + x]) { inside[j * GW + i] = 1; hidden[j * GW + i] = 1; }
+  }
+  for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+    const c = j * GW + i;
+    if (!inside[c]) continue;
+    if (hidden[c]) continue;
+    if (i === 0 || j === 0 || i === GW - 1 || j === GH - 1 || !inside[c - 1] || !inside[c + 1] || !inside[c - GW] || !inside[c + GW]) edge[c] = 1;
+  }
+  return { cell, gx0, gy0, GW, GH, inside, edge, filled, hidden, mmpx };
+}
+function gridCellOf(g, p) {
+  const i = Math.round((p[0] / g.mmpx - g.gx0 - (g.cell >> 1)) / g.cell);
+  const j = Math.round((p[1] / g.mmpx - g.gy0 - (g.cell >> 1)) / g.cell);
+  let best = -1, bd = Infinity;
+  for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) {
+    const ii = i + di, jj = j + dj;
+    if (ii < 0 || jj < 0 || ii >= g.GW || jj >= g.GH) continue;
+    const c = jj * g.GW + ii;
+    if (!g.inside[c]) continue;
+    const d = di * di + dj * dj;
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
+}
+function cellXY(g, c) {
+  const i = c % g.GW, j = (c / g.GW) | 0;
+  return [(g.gx0 + i * g.cell + (g.cell >> 1)) * g.mmpx, (g.gy0 + j * g.cell + (g.cell >> 1)) * g.mmpx];
+}
+function markFilled(g, a, b) {
+  const n = Math.max(1, Math.ceil(hyp(a, b) / (g.cell * g.mmpx * 0.5)));
+  for (let k = 0; k <= n; k++) {
+    const p = [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n];
+    const i = Math.floor(p[0] / g.mmpx - g.gx0) / g.cell | 0, j = Math.floor(p[1] / g.mmpx - g.gy0) / g.cell | 0;
+    if (i >= 0 && j >= 0 && i < g.GW && j < g.GH) g.filled[j * g.GW + i] = 1;
+  }
+}
+function dijkstra(g, s, t, penalizeFilled) {
+  const N = g.GW * g.GH;
+  const dist = new Float64Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1);
+  const heap = [];        // binary heap of [d, c]
+  const push = (d, c) => { heap.push([d, c]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  dist[s] = 0; push(0, s);
+  const D8 = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+  while (heap.length) {
+    const [d, c] = pop();
+    if (c === t) break;
+    if (d > dist[c]) continue;
+    const ci = c % g.GW, cj = (c / g.GW) | 0;
+    for (const [di, dj, w] of D8) {
+      const ii = ci + di, jj = cj + dj;
+      if (ii < 0 || jj < 0 || ii >= g.GW || jj >= g.GH) continue;
+      const n = jj * g.GW + ii;
+      if (!g.inside[n]) continue;
+      let cost = g.hidden[n] ? 0.9 : g.edge[n] ? 1.3 : 1;
+      if (penalizeFilled && g.filled[n] && !g.edge[n] && !g.hidden[n]) cost = 14;
+      const nd = d + w * cost;
+      if (nd < dist[n]) { dist[n] = nd; prev[n] = c; push(nd, n); }
+    }
+  }
+  if (!isFinite(dist[t])) return null;
+  const path = [];
+  for (let c = t; c >= 0; c = prev[c]) path.push(c);
+  return path.reverse();
+}
+function simplifyDP(pts, tol) {
+  if (pts.length < 3) return pts;
+  const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+  const st = [[0, pts.length - 1]];
+  while (st.length) {
+    const [a, b] = st.pop();
+    let md = 0, mi = -1;
+    const [x1, y1] = pts[a], [x2, y2] = pts[b];
+    const L = Math.hypot(x2 - x1, y2 - y1) || 1e-9;
+    for (let i = a + 1; i < b; i++) {
+      const d = Math.abs((x2 - x1) * (y1 - pts[i][1]) - (x1 - pts[i][0]) * (y2 - y1)) / L;
+      if (d > md) { md = d; mi = i; }
+    }
+    if (md > tol) { keep[mi] = 1; st.push([a, mi], [mi, b]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+
+function tatami(mask, W, H, comp, mmpx, angleDeg, spacingMM, stitchMM, cur, grid, visible) {
+  const out = [];
+  const a = angleDeg * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a), vx = -uy, vy = ux;
+  const corners = [[comp.minx, comp.miny], [comp.maxx + 1, comp.miny], [comp.minx, comp.maxy + 1], [comp.maxx + 1, comp.maxy + 1]];
+  let smin = Infinity, smax = -Infinity, tmin = Infinity, tmax = -Infinity;
+  for (const [x, y] of corners) {
+    const s = x * ux + y * uy, t = x * vx + y * vy;
+    smin = Math.min(smin, s); smax = Math.max(smax, s); tmin = Math.min(tmin, t); tmax = Math.max(tmax, t);
+  }
+  const sp = spacingMM / mmpx, minSeg = 0.4 / mmpx, step = 0.5;
+  const rows = [];
+  for (let t = tmin + sp * 0.5; t < tmax; t += sp) {
+    const segs = [];
+    let inside = false, s0 = 0;
+    for (let s = smin; s <= smax + step; s += step) {
+      const x = Math.round(s * ux + t * vx), y = Math.round(s * uy + t * vy);
+      const isIn = x >= 0 && y >= 0 && x < W && y < H && mask[y * W + x] === 1;
+      if (isIn && !inside) { inside = true; s0 = s - step / 2; }
+      else if (!isIn && inside) { inside = false; const s1 = s - step / 2; if (s1 - s0 >= minSeg) segs.push([s0, s1]); }
+    }
+    rows.push({ t, segs });
+  }
+  // sections: runs of rows where each row has one segment overlapping exactly one in the next
+  const sections = [];
+  let open = new Map(), prev = [];
+  const ovl = 1;
+  rows.forEach((row, r) => {
+    const nopen = new Map();
+    row.segs.forEach(([a0, b0], j) => {
+      const ov = [];
+      prev.forEach(([c, d], i) => { if (Math.min(b0, d) - Math.max(a0, c) > ovl) ov.push(i); });
+      if (ov.length === 1 && open.has(ov[0])) {
+        const i = ov[0];
+        const back = row.segs.filter(([aa, bb]) => Math.min(bb, prev[i][1]) - Math.max(aa, prev[i][0]) > ovl);
+        if (back.length === 1) {
+          const sid = open.get(i);
+          sections[sid].push([r, a0, b0]); nopen.set(j, sid); return;
+        }
+      }
+      const sid = sections.length; sections.push([[r, a0, b0]]); nopen.set(j, sid);
+    });
+    open = nopen; prev = row.segs;
+  });
+  const toMM = (s, t) => [(s * ux + t * vx) * mmpx, (s * uy + t * vy) * mmpx];
+  const L = stitchMM / mmpx, endGap = 0.6 / mmpx;
+  function rowPts(r, a0, b0, ltr) {
+    const t = rows[r].t;
+    const off = (r % 3) / 3 * L;
+    const xs = [a0];
+    let x = Math.floor((a0 - off) / L) * L + off;
+    while (x < b0) { if (x > a0 + endGap && x < b0 - endGap) xs.push(x); x += L; }
+    xs.push(b0);
+    if (!ltr) xs.reverse();
+    return xs.map(s => toMM(s, t));
+  }
+  function entries(sec) {
+    const res = [];
+    for (const top of [true, false]) for (const ltr of [true, false]) {
+      const [r, a0, b0] = top ? sec[0] : sec[sec.length - 1];
+      res.push({ top, ltr, st: toMM(ltr ? a0 : b0, rows[r].t) });
+    }
+    return res;
+  }
+  function emit(sec, top, ltr) {
+    const rr = top ? sec : sec.slice().reverse();
+    const pts = []; let d = ltr;
+    for (const [r, a0, b0] of rr) {
+      const rp = rowPts(r, a0, b0, d);
+      if (visible && grid) markFilled(grid, rp[0], rp[rp.length - 1]);
+      pts.push(...rp); d = !d;
+    }
+    return pts;
+  }
+  function travel(p, q) {
+    const dist = hyp(p, q);
+    if (dist < 0.05) return;
+    if (dist < 1.2) { out.push(['s', q]); return; }
+    if (grid) {
+      const cs = gridCellOf(grid, p), ct = gridCellOf(grid, q);
+      if (cs >= 0 && ct >= 0) {
+        const path = dijkstra(grid, cs, ct, visible);
+        if (path) {
+          const pts = simplifyDP([p, ...path.map(c => cellXY(grid, c)), q], 0.35);
+          for (const z of runPath(pts, 2.0).slice(1)) out.push(['s', z]);
+          return;
+        }
+      }
+    }
+    out.push(['j', q]);
+  }
+  const left = sections.map((_, i) => i);
+  if (!cur) cur = toMM(sections.length ? sections[0][0][1] : 0, rows.length ? rows[0].t : 0);
+  let first = true;
+  while (left.length) {
+    let best = null;
+    for (const si of left) for (const e of entries(sections[si])) {
+      const d = hyp(e.st, cur);
+      if (!best || d < best.d) best = { d, si, e };
+    }
+    left.splice(left.indexOf(best.si), 1);
+    if (first) { out.push(['j', best.e.st]); first = false; }
+    else travel(cur, best.e.st);
+    const pts = emit(sections[best.si], best.e.top, best.e.ltr);
+    for (const z of pts) out.push(['s', z]);
+    cur = pts[pts.length - 1];
+  }
+  return { seq: out, cur };
+}
+
+/* Moore-neighbour outer boundary of each component of mask (for an edge walk) */
+function outerContours(mask, W, H, minPx) {
+  const { lab, comps } = labelComponents(mask, W, H);
+  const res = [];
+  const dirs = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+  for (const c of comps) {
+    if (c.count < minPx) continue;
+    // start: first pixel scanning row-major
+    let sx = -1, sy = -1;
+    outer: for (let y = c.miny; y <= c.maxy; y++) for (let x = c.minx; x <= c.maxx; x++) if (lab[y * W + x] === c.id) { sx = x; sy = y; break outer; }
+    const pts = [[sx, sy]];
+    let x = sx, y = sy, dir = 7; // came from the left/top
+    const isIn = (xx, yy) => xx >= 0 && yy >= 0 && xx < W && yy < H && lab[yy * W + xx] === c.id;
+    for (let n = 0; n < 4 * c.count + 8; n++) {
+      let found = false;
+      const startDir = (dir + 6) % 8;
+      for (let k = 0; k < 8; k++) {
+        const d = (startDir + k) % 8;
+        const nx = x + dirs[d][0], ny = y + dirs[d][1];
+        if (isIn(nx, ny)) { x = nx; y = ny; dir = d; found = true; break; }
+      }
+      if (!found) break;
+      if (x === sx && y === sy) break;
+      pts.push([x, y]);
+    }
+    res.push(pts);
+  }
+  return res;
+}
+
+function fillComponent(fillMask, W0, H0, comp0, lab, mmpx, opt, cur0, laterMask) {
+  // work in a cropped window around this shape, then shift back
+  const m = 3;
+  const ox = comp0.minx - m, oy = comp0.miny - m;
+  const W = comp0.maxx - comp0.minx + 1 + 2 * m, H = comp0.maxy - comp0.miny + 1 + 2 * m;
+  const cm = new Uint8Array(W * H);
+  for (let y = comp0.miny; y <= comp0.maxy; y++) for (let x = comp0.minx; x <= comp0.maxx; x++) {
+    if (lab[y * W0 + x] === comp0.id) cm[(y - oy) * W + (x - ox)] = 1;
+  }
+  const lm = new Uint8Array(W * H);
+  if (laterMask) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const gx = x + ox, gy = y + oy;
+    if (gx >= 0 && gy >= 0 && gx < W0 && gy < H0 && laterMask[gy * W0 + gx]) lm[y * W + x] = 1;
+  }
+  const comp = { id: comp0.id, count: comp0.count, minx: m, miny: m, maxx: W - 1 - m, maxy: H - 1 - m };
+  const sx = ox * mmpx, sy = oy * mmpx;
+  const cur = cur0 ? [cur0[0] - sx, cur0[1] - sy] : null;
+  const r = fillLocal(cm, W, H, comp, mmpx, opt, cur, lm);
+  const shift = q => [q[0] + sx, q[1] + sy];
+  return { seq: r.seq.map(([k, q]) => [k, shift(q)]), cur: r.cur ? shift(r.cur) : cur0 };
+}
+function fillLocal(cm, W, H, comp, mmpx, opt, cur, lm) {
+  const seq = [];
+  const grid = makeTravelGrid(comp, W, mmpx, cm, lm);
+  const dIn = distIn(cm, W, H);
+  // 1. edge walk just inside the outline
+  const edgeMask = thresh(dIn, v => v > 0.4 / mmpx);
+  for (const c of outerContours(edgeMask, W, H, 1.0 / (mmpx * mmpx))) {
+    let pts = c.map(([x, y]) => [x * mmpx, y * mmpx]);
+    pts = simplifyDP(pts.concat([pts[0]]), 0.15);
+    if (pts.length < 3) continue;
+    let bi = 0, bd = Infinity;
+    pts.forEach((p, i) => { const d = cur ? hyp(p, cur) : 0; if (d < bd) { bd = d; bi = i; } });
+    const ring = pts.slice(bi, pts.length - 1).concat(pts.slice(0, bi + 1));
+    seq.push(['j', ring[0]]);
+    for (const z of runPath(ring, 2.0).slice(1)) seq.push(['s', z]);
+    cur = ring[ring.length - 1];
+  }
+  // 2. sparse underlay across the fill direction
+  const ul = thresh(dIn, v => v > 0.5 / mmpx);
+  let any = false; for (let i = 0; i < ul.length && !any; i++) if (ul[i]) any = true;
+  if (any) {
+    const r = tatami(ul, W, H, comp, mmpx, opt.angle + 90, 1.8, 3.0, cur, grid, false);
+    for (const it of r.seq) seq.push(it);
+    if (r.seq.length) cur = r.cur;
+  }
+  // 3. top fill
+  const r = tatami(cm, W, H, comp, mmpx, opt.angle, opt.density, opt.stitchLen, cur, grid, true);
+  for (const it of r.seq) seq.push(it);
+  return { seq, cur: r.seq.length ? r.cur : cur };
+}
+
+/* ------------------------------------------------------------ stitch builder */
+class Builder {
+  constructor() { this.cmds = []; this.cur = null; this.prev = null; this.needTie = true; this.trims = 0; this.hidden = 0; this.travel = null; }
+  abs(c, q) { this.cmds.push([q[0], q[1], c]); }
+  cmd(c) { this.abs(c, this.cur || [0, 0]); }
+  tie(q, toward) {
+    let v = [0.5, 0];
+    if (!toward && this.prev) toward = this.prev;
+    if (toward) {
+      const dx = toward[0] - q[0], dy = toward[1] - q[1], L = Math.hypot(dx, dy);
+      if (L > 1e-6) v = [dx / L * 0.5, dy / L * 0.5];
+    }
+    const b = [q[0] + v[0], q[1] + v[1]];
+    for (const z of [q, b, q, b, q]) this.abs(STITCH, z);
+  }
+  canTravel(q) {
+    // a straight run is fine if it stays inside this colour or under a colour stitched later
+    const t = this.travel;
+    if (!t || !this.cur || this.needTie) return false;
+    const L = hyp(q, this.cur);
+    if (L > 25) return false;
+    const n = Math.max(1, Math.ceil(L / (t.mmpx * 0.8)));
+    let exposed = 0;
+    for (let k = 0; k <= n; k++) {
+      const x = Math.round((this.cur[0] + (q[0] - this.cur[0]) * k / n) / t.mmpx);
+      const y = Math.round((this.cur[1] + (q[1] - this.cur[1]) * k / n) / t.mmpx);
+      if (x < 0 || y < 0 || x >= t.W || y >= t.H) return false;
+      const v = t.mask[y * t.W + x];
+      if (!v) return false;
+      if (v === 1) exposed += L / n;
+    }
+    return exposed <= 1.5;
+  }
+  jump(q) {
+    if (this.cur && hyp(q, this.cur) < 1.5) { this.stitch(q); return; }
+    if (this.canTravel(q)) { for (const z of runPath([this.cur, q], 2.5).slice(1)) this.stitch(z); this.hidden++; return; }
+    if (this.cur && !this.needTie) { this.tie(this.cur); this.cmd(TRIM); this.trims++; }
+    this.abs(JUMP, q);
+    this.cur = q; this.prev = null; this.needTie = true;
+  }
+  stitch(q) {
+    if (!this.cur) this.jump(q);
+    if (this.needTie) { this.needTie = false; this.tie(this.cur, q); }
+    if (hyp(q, this.cur) < 0.3) return;
+    for (const z of runPath([this.cur, q], 7.0).slice(1)) this.abs(STITCH, z);
+    this.prev = this.cur; this.cur = q;
+  }
+  seq(items) { for (const [k, q] of items) { if (k === 'j') this.jump(q); else this.stitch(q); } }
+  points(pts) { if (!pts.length) return; this.jump(pts[0]); for (let i = 1; i < pts.length; i++) this.stitch(pts[i]); }
+  colorChange() { if (this.cur) this.tie(this.cur); this.cmd(COLOR_CHANGE); this.needTie = true; }
+  end() { if (this.cur) this.tie(this.cur); this.cmd(TRIM); this.cmd(END); }
+}
+
+/* ------------------------------------------------------------ colours */
+function lcg(seed) { let s = seed >>> 0; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+function kmeans(samples, k, iters, rnd) {
+  const n = samples.length / 3;
+  const C = [];
+  let i0 = Math.floor(rnd() * n);
+  C.push([samples[i0 * 3], samples[i0 * 3 + 1], samples[i0 * 3 + 2]]);
+  const dmin = new Float64Array(n).fill(Infinity);
+  while (C.length < k) {
+    const c = C[C.length - 1];
+    let tot = 0;
+    for (let i = 0; i < n; i++) {
+      const d = (samples[i * 3] - c[0]) ** 2 + (samples[i * 3 + 1] - c[1]) ** 2 + (samples[i * 3 + 2] - c[2]) ** 2;
+      if (d < dmin[i]) dmin[i] = d;
+      tot += dmin[i];
+    }
+    let r = rnd() * tot, pick = n - 1;
+    for (let i = 0; i < n; i++) { r -= dmin[i]; if (r <= 0) { pick = i; break; } }
+    C.push([samples[pick * 3], samples[pick * 3 + 1], samples[pick * 3 + 2]]);
+  }
+  const asg = new Int32Array(n);
+  for (let it = 0; it < iters; it++) {
+    const sum = C.map(() => [0, 0, 0, 0]);
+    for (let i = 0; i < n; i++) {
+      let b = 0, bd = Infinity;
+      for (let j = 0; j < k; j++) {
+        const d = (samples[i * 3] - C[j][0]) ** 2 + (samples[i * 3 + 1] - C[j][1]) ** 2 + (samples[i * 3 + 2] - C[j][2]) ** 2;
+        if (d < bd) { bd = d; b = j; }
+      }
+      asg[i] = b;
+      sum[b][0] += samples[i * 3]; sum[b][1] += samples[i * 3 + 1]; sum[b][2] += samples[i * 3 + 2]; sum[b][3]++;
+    }
+    for (let j = 0; j < k; j++) if (sum[j][3]) C[j] = [sum[j][0] / sum[j][3], sum[j][1] / sum[j][3], sum[j][2] / sum[j][3]];
+  }
+  const counts = new Array(k).fill(0);
+  for (let i = 0; i < n; i++) counts[asg[i]]++;
+  return { centers: C, counts };
+}
+/* Find the logo's flat colours. rgba: Uint8ClampedArray, small analysis image. */
+function analyzeColors(rgba, w, h, kMax) {
+  kMax = kMax || 6;
+  const step = Math.max(1, Math.floor(Math.sqrt((w * h) / 40000)));
+  const s = [];
+  let transparent = 0, total = 0;
+  for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
+    const i = (y * w + x) * 4; total++;
+    if (rgba[i + 3] < 128) { transparent++; continue; }
+    s.push(rgba[i], rgba[i + 1], rgba[i + 2]);
+  }
+  const samples = Float64Array.from(s);
+  const n = samples.length / 3;
+  const results = {};
+  let suggested = 1;
+  for (let k = 1; k <= kMax; k++) {
+    if (n < k) break;
+    const r = kmeans(samples, k, 14, lcg(7 + k));
+    // drop empty clusters
+    const keep = r.counts.map((c, i) => i).filter(i => r.counts[i] > 0);
+    r.centers = keep.map(i => r.centers[i]); r.counts = keep.map(i => r.counts[i]);
+    results[k] = r;
+    if (k === 1) continue;
+    let ok = r.centers.length === k;
+    const C = r.centers;
+    for (let i = 0; i < C.length && ok; i++) {
+      if (r.counts[i] / n < 0.015) ok = false;
+      for (let j = i + 1; j < C.length && ok; j++) if (Math.hypot(C[i][0] - C[j][0], C[i][1] - C[j][1], C[i][2] - C[j][2]) < 40) ok = false;
+      // blend test: a colour sitting on the line between two others is anti-aliasing
+      for (let a = 0; a < C.length && ok; a++) for (let b = a + 1; b < C.length && ok; b++) {
+        if (a === i || b === i) continue;
+        const ab = [C[b][0] - C[a][0], C[b][1] - C[a][1], C[b][2] - C[a][2]];
+        const ai = [C[i][0] - C[a][0], C[i][1] - C[a][1], C[i][2] - C[a][2]];
+        const L2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2 || 1;
+        const t = (ab[0] * ai[0] + ab[1] * ai[1] + ab[2] * ai[2]) / L2;
+        const px = ai[0] - t * ab[0], py = ai[1] - t * ab[1], pz = ai[2] - t * ab[2];
+        if (t > 0.1 && t < 0.9 && Math.hypot(px, py, pz) < Math.max(30, 0.25 * Math.sqrt(L2)) && r.counts[i] / n < 0.12) ok = false;
+      }
+    }
+    if (ok) suggested = k;
+  }
+  // which colour owns the image border (likely the fabric / background)
+  const border = {};
+  for (const k in results) {
+    const C = results[k].centers;
+    const cnt = new Array(C.length).fill(0);
+    let bt = 0;
+    const visit = (x, y) => {
+      const i = (y * w + x) * 4;
+      if (rgba[i + 3] < 128) { bt++; return; }
+      let b = 0, bd = Infinity;
+      C.forEach((c, j) => { const d = (rgba[i] - c[0]) ** 2 + (rgba[i + 1] - c[1]) ** 2 + (rgba[i + 2] - c[2]) ** 2; if (d < bd) { bd = d; b = j; } });
+      cnt[b]++;
+    };
+    for (let x = 0; x < w; x++) { visit(x, 0); visit(x, h - 1); }
+    for (let y = 1; y < h - 1; y++) { visit(0, y); visit(w - 1, y); }
+    border[k] = { counts: cnt, transparent: bt, total: 2 * w + 2 * (h - 2) };
+  }
+  return { results, suggested: Math.max(1, suggested), border, transparentShare: transparent / Math.max(1, total) };
+}
+
+/* ------------------------------------------------------------ main: image -> commands */
+/* params: rgba (working size W x H, already resized), mmpx, colors: [{rgb:[r,g,b], stitch:bool, thread:int}]
+   order: array of colour indices in stitch order, angle, density (mm), satinMax (mm) */
+function digitize(p, progress) {
+  const { W, H, mmpx } = p;
+  const rgba = p.rgba;
+  const say = progress || (() => {});
+  const N = W * H;
+  // 1. light blur to smooth up-scaled edges
+  const blurR = p.blurPx | 0;
+  let img = new Float32Array(N * 3);
+  const alpha = new Uint8Array(N);
+  for (let i = 0; i < N; i++) { img[i * 3] = rgba[i * 4]; img[i * 3 + 1] = rgba[i * 4 + 1]; img[i * 3 + 2] = rgba[i * 4 + 2]; alpha[i] = rgba[i * 4 + 3] >= 128 ? 1 : 0; }
+  if (blurR > 0) img = boxBlur3(img, W, H, blurR);
+  // 2. nearest colour per pixel
+  say('colors');
+  const C = p.colors.map(c => c.rgb);
+  const labels = new Int16Array(N);
+  for (let i = 0; i < N; i++) {
+    if (!alpha[i]) { labels[i] = -1; continue; }
+    let b = 0, bd = Infinity;
+    for (let j = 0; j < C.length; j++) {
+      const d = (img[i * 3] - C[j][0]) ** 2 + (img[i * 3 + 1] - C[j][1]) ** 2 + (img[i * 3 + 2] - C[j][2]) ** 2;
+      if (d < bd) { bd = d; b = j; }
+    }
+    labels[i] = b;
+  }
+  // 3. clean fringes and specks, give their pixels to the nearest neighbour colour
+  const unassigned = new Uint8Array(N);
+  const fringeR = 0.2 / mmpx, minArea = 0.5 / (mmpx * mmpx);
+  for (let j = -1; j < C.length; j++) {
+    const M = new Uint8Array(N);
+    let cnt = 0;
+    for (let i = 0; i < N; i++) if (labels[i] === j) { M[i] = 1; cnt++; }
+    if (!cnt) continue;
+    const kept = openMask(M, W, H, fringeR);
+    const { lab, comps } = labelComponents(kept, W, H);
+    const small = new Set(comps.filter(c => c.count < minArea).map(c => c.id));
+    for (let i = 0; i < N; i++) if (M[i] && (!kept[i] || small.has(lab[i]))) unassigned[i] = 1;
+  }
+  propagateLabels(labels, unassigned, W, H);
+
+  const stitched = new Set(p.order.filter(j => p.colors[j].stitch));
+  // 4. keep narrow gaps of fabric open (>= ~1 mm) so the stitches don't close them up
+  const B = new Uint8Array(N);
+  let hasB = false;
+  for (let i = 0; i < N; i++) if (!stitched.has(labels[i])) { B[i] = 1; hasB = true; }
+  if (hasB) {
+    const narrow = andNot(B, openMask(B, W, H, 0.5 / mmpx));
+    const widen = dilate(narrow, W, H, 0.15 / mmpx);
+    for (let i = 0; i < N; i++) if (widen[i] && !B[i]) labels[i] = -1;
+  }
+
+  // 5. digitize each stitched colour
+  const b = new Builder();
+  const threads = [], used = [];
+  const order = p.order.filter(j => stitched.has(j));
+  let cur = [0, 0];
+  const summary = [];
+  order.forEach((j, oi) => {
+    say('color ' + (oi + 1) + '/' + order.length);
+    const M = new Uint8Array(N);
+    let cnt = 0;
+    for (let i = 0; i < N; i++) if (labels[i] === j) { M[i] = 1; cnt++; }
+    if (!cnt) return;
+    const later = new Uint8Array(N);
+    for (const k of order.slice(oi + 1)) for (let i = 0; i < N; i++) if (labels[i] === k) later[i] = 1;
+    const R = or(M, and(dilate(M, W, H, 0.25 / mmpx), later));
+    const D = distIn(R, W, H);
+    const half = p.satinMax / 2 / mmpx;
+    const thick = openMask(R, W, H, half, D);
+    const fillMask = and(dilate(thick, W, H, 0.3 / mmpx), R);
+    const inner = erode(thick, W, H, 0.4 / mmpx);
+    const sk = thin(R, W, H);
+    const narrowSk = new Uint8Array(N);
+    let nCount = 0;
+    for (let i = 0; i < N; i++) if (sk[i] && 2 * D[i] * mmpx < p.satinMax && !inner[i]) { narrowSk[i] = 1; nCount++; }
+
+    if (threads.length) b.colorChange();
+    threads.push(p.colors[j].thread);
+    used.push(j);
+    // travel map: 2 = under a later colour (hidden), 1 = this colour, 0 = not allowed
+    const tm = new Uint8Array(N);
+    const laterIn = erode(later, W, H, 0.15 / mmpx);
+    for (let i = 0; i < N; i++) tm[i] = laterIn[i] ? 2 : (R[i] ? 1 : 0);
+    b.travel = { mask: tm, W, H, mmpx };
+    let st0 = b.cmds.length;
+    if (nCount) {
+      const blocks = networkBlocks(narrowSk, D, W, H, mmpx, { pruneMM: 1.2, minW: 0.9, maxW: p.satinMax, extraW: 0, pull: 0.2 });
+      const r = orderNetworks(blocks, cur);
+      for (const s of r.seqs) b.points(s);
+      if (r.seqs.length) cur = b.cur;
+    }
+    const { lab, comps } = labelComponents(fillMask, W, H);
+    const left = comps.filter(c => c.count * mmpx * mmpx > 0.6);
+    while (left.length) {
+      left.sort((c1, c2) => boxDist(c1, cur, mmpx) - boxDist(c2, cur, mmpx));
+      const c = left.shift();
+      const r = fillComponent(fillMask, W, H, c, lab, mmpx, { angle: p.angle, density: p.density, stitchLen: 3.5 }, cur, laterIn);
+      b.seq(r.seq);
+      cur = b.cur || cur;
+    }
+    summary.push({ color: j, commands: b.cmds.length - st0 });
+  });
+  if (b.cmds.length) b.end();
+  const res = finish(b, threads, summary);
+  res.colorsUsed = used;
+  return res;
+}
+function boxDist(c, p, mmpx) {
+  const x = p[0] / mmpx, y = p[1] / mmpx;
+  const dx = Math.max(c.minx - x, 0, x - c.maxx), dy = Math.max(c.miny - y, 0, y - c.maxy);
+  return Math.hypot(dx, dy);
+}
+function boxBlur3(src, W, H, r) {
+  const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
+  const n = 2 * r + 1;
+  for (let y = 0; y < H; y++) for (let c = 0; c < 3; c++) {
+    let acc = 0;
+    for (let x = -r; x <= r; x++) acc += src[(y * W + Math.min(W - 1, Math.max(0, x))) * 3 + c];
+    for (let x = 0; x < W; x++) {
+      tmp[(y * W + x) * 3 + c] = acc / n;
+      const xo = Math.max(0, x - r), xi = Math.min(W - 1, x + r + 1);
+      acc += src[(y * W + xi) * 3 + c] - src[(y * W + xo) * 3 + c];
+    }
+  }
+  for (let x = 0; x < W; x++) for (let c = 0; c < 3; c++) {
+    let acc = 0;
+    for (let y = -r; y <= r; y++) acc += tmp[(Math.min(H - 1, Math.max(0, y)) * W + x) * 3 + c];
+    for (let y = 0; y < H; y++) {
+      out[(y * W + x) * 3 + c] = acc / n;
+      const yo = Math.max(0, y - r), yi = Math.min(H - 1, y + r + 1);
+      acc += tmp[(yi * W + x) * 3 + c] - tmp[(yo * W + x) * 3 + c];
+    }
+  }
+  return out;
+}
+function propagateLabels(labels, un, W, H) {
+  const N = W * H, q = new Int32Array(N);
+  let h = 0, t = 0;
+  for (let i = 0; i < N; i++) {
+    if (un[i]) continue;
+    const x = i % W, y = (i / W) | 0;
+    if ((x > 0 && un[i - 1]) || (x < W - 1 && un[i + 1]) || (y > 0 && un[i - W]) || (y < H - 1 && un[i + W])) q[t++] = i;
+  }
+  while (h < t) {
+    const i = q[h++];
+    const x = i % W, y = (i / W) | 0;
+    const nb = [];
+    if (x > 0) nb.push(i - 1); if (x < W - 1) nb.push(i + 1); if (y > 0) nb.push(i - W); if (y < H - 1) nb.push(i + W);
+    for (const j of nb) if (un[j]) { un[j] = 0; labels[j] = labels[i]; q[t++] = j; }
+  }
+}
+
+/* shift so every coordinate is >= 0 (Brother machines treat the start point as the
+   design's top-left corner), convert to 0.1 mm integers, count things */
+function finish(b, threads, summary) {
+  let minx = Infinity, miny = Infinity;
+  for (const c of b.cmds) { if (c[0] < minx) minx = c[0]; if (c[1] < miny) miny = c[1]; }
+  if (!isFinite(minx)) { minx = 0; miny = 0; }
+  const cmds = b.cmds.map(c => [Math.round((c[0] - minx) * 10), Math.round((c[1] - miny) * 10), c[2]]);
+  let maxx = 0, maxy = 0, stitches = 0, colorChanges = 0, jumps = 0;
+  for (const c of cmds) {
+    if (c[0] > maxx) maxx = c[0]; if (c[1] > maxy) maxy = c[1];
+    if (c[2] === STITCH) stitches++; else if (c[2] === COLOR_CHANGE) colorChanges++; else if (c[2] === JUMP) jumps++;
+  }
+  return { cmds, threads, width: maxx / 10, height: maxy / 10, stitches, colorChanges, trims: b.trims, jumps, summary };
+}
+
+/* ------------------------------------------------------------ PES / PEC writer
+   Port of pyembroidery's PES v1 + PEC writer (the format your Brother machine read). */
+const PEC_PALETTE = [null, 0x0e1f7c, 0x0a55a3, 0x008777, 0x4b6baf, 0xed171f, 0xd15c00, 0x913697, 0xe49acb, 0x915fac, 0x9ed67d, 0xe8a900, 0xfeba35, 0xffff00, 0x70bc1f, 0xba9800, 0xa8a8a8, 0x7d6f00, 0xffffb3, 0x4f5556, 0x000000, 0x0b3d91, 0x770176, 0x293133, 0x2a1301, 0xf64a8a, 0xb27624, 0xfcbbc5, 0xfe370f, 0xf0f0f0, 0x6a1c8a, 0xa8ddc4, 0x2584bb, 0xfeb343, 0xfff36b, 0xd0a660, 0xd15400, 0x66ba49, 0x134a46, 0x878787, 0xd8ccc6, 0x435607, 0xfdd9de, 0xf993bc, 0x003822, 0xb2afd4, 0x686ab0, 0xefe3b9, 0xf73866, 0xb54b64, 0x132b1a, 0xc70156, 0xfe9e32, 0xa8deeb, 0x00673e, 0x4e2990, 0x2f7e20, 0xffcccc, 0xffd911, 0x095ba6, 0xf0f970, 0xe3f35b, 0xff9900, 0xfff08d, 0xffc8c8];
+const PEC_NAMES = [null, 'Prussian Blue', 'Blue', 'Teal Green', 'Cornflower Blue', 'Red', 'Reddish Brown', 'Magenta', 'Light Lilac', 'Lilac', 'Mint Green', 'Deep Gold', 'Orange', 'Yellow', 'Lime Green', 'Brass', 'Silver', 'Russet Brown', 'Cream Brown', 'Pewter', 'Black', 'Ultramarine', 'Royal Purple', 'Dark Gray', 'Dark Brown', 'Deep Rose', 'Light Brown', 'Salmon Pink', 'Vermilion', 'White', 'Violet', 'Seacrest', 'Sky Blue', 'Pumpkin', 'Cream Yellow', 'Khaki', 'Clay Brown', 'Leaf Green', 'Peacock Blue', 'Gray', 'Warm Gray', 'Dark Olive', 'Flesh Pink', 'Pink', 'Deep Green', 'Lavender', 'Wisteria Violet', 'Beige', 'Carmine', 'Amber Red', 'Olive Green', 'Dark Fuchsia', 'Tangerine', 'Light Blue', 'Emerald Green', 'Purple', 'Moss Green', 'Flesh Pink', 'Harvest Gold', 'Electric Blue', 'Lemon Yellow', 'Fresh Green', 'Orange', 'Cream Yellow', 'Applique'];
+function colorDist(c1, c2) {
+  const r1 = (c1 >> 16) & 255, g1 = (c1 >> 8) & 255, b1 = c1 & 255;
+  const r2 = (c2 >> 16) & 255, g2 = (c2 >> 8) & 255, b2 = c2 & 255;
+  const rm = Math.round((r1 + r2) / 2);
+  const r = r1 - r2, g = g1 - g2, b = b1 - b2;
+  return (((512 + rm) * r * r) >> 8) + 4 * g * g + (((767 - rm) * b * b) >> 8);
+}
+function nearestIndex(color, values) {
+  let best = null, bd = Infinity;
+  values.forEach((t, i) => { if (t === null || t === undefined) return; const d = colorDist(color, t); if (d <= bd) { bd = d; best = i; } });
+  return best;
+}
+function brotherName(color) { return PEC_NAMES[nearestIndex(color, PEC_PALETTE)]; }
+
+class ByteWriter {
+  constructor() { this.buf = new Uint8Array(1 << 16); this.pos = 0; }
+  ensure(n) { if (this.pos + n > this.buf.length) { let L = this.buf.length; while (this.pos + n > L) L *= 2; const nb = new Uint8Array(L); nb.set(this.buf); this.buf = nb; } }
+  u8(v) { this.ensure(1); this.buf[this.pos++] = v & 255; }
+  bytes(arr) { this.ensure(arr.length); for (const v of arr) this.buf[this.pos++] = v & 255; }
+  u16(v) { this.u8(v); this.u8(v >> 8); }
+  u24(v) { this.u8(v); this.u8(v >> 8); this.u8(v >> 16); }
+  u32(v) { this.u8(v); this.u8(v >> 8); this.u8(v >> 16); this.u8(v >>> 24); }
+  f32(v) { const b = new Uint8Array(new Float32Array([v]).buffer); this.bytes(b); }
+  str(s) { for (let i = 0; i < s.length; i++) this.u8(s.charCodeAt(i)); }
+  patch16(at, v) { this.buf[at] = v & 255; this.buf[at + 1] = (v >> 8) & 255; }
+  patch24(at, v) { this.buf[at] = v & 255; this.buf[at + 1] = (v >> 8) & 255; this.buf[at + 2] = (v >> 16) & 255; }
+  patch32(at, v) { this.patch16(at, v & 0xffff); this.patch16(at + 2, (v >>> 16) & 0xffff); }
+  result() { return this.buf.slice(0, this.pos); }
+}
+const PEC_BLANK = [0, 0, 0, 0, 0, 0, 240, 255, 255, 255, 255, 15, 8, 0, 0, 0, 0, 16, 4, 0, 0, 0, 0, 32].concat(
+  [].concat(...Array(30).fill([2, 0, 0, 0, 0, 64])), [4, 0, 0, 0, 0, 32, 8, 0, 0, 0, 0, 16, 240, 255, 255, 255, 255, 15, 0, 0, 0, 0, 0, 0]);
+
+function bounds(cmds) {
+  let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+  for (const s of cmds) { if (s[0] > c) c = s[0]; if (s[0] < a) a = s[0]; if (s[1] > d) d = s[1]; if (s[1] < b) b = s[1]; }
+  return [a, b, c, d];
+}
+function drawScaled(ext, pts, g, stride, buffer) {
+  if (buffer === undefined) buffer = 5;
+  let dw = ext[2] - ext[0], dh = ext[3] - ext[1];
+  if (dw === 0) dw = 1; if (dh === 0) dh = 1;
+  const gw = stride * 8, gh = g.length / stride;
+  const scale = Math.min((gw - buffer) / dw, (gh - buffer) / dh);
+  const cx = (ext[2] + ext[0]) / 2, cy = (ext[3] + ext[1]) / 2;
+  const tx = -cx * scale + gw / 2, ty = -cy * scale + gh / 2;
+  for (const p of pts) {
+    const x = Math.floor(p[0] * scale + tx), y = Math.floor(p[1] * scale + ty);
+    let idx = y * stride + Math.trunc(x / 8);
+    if (idx < 0) idx += g.length;
+    if (idx < 0 || idx >= g.length) continue;
+    g[idx] |= 1 << (((x % 8) + 8) % 8);
+  }
+}
+function pecValue(w, v, long, flag) {
+  if (!long && -64 < v && v < 63) w.u8(v & 0x7f);
+  else { v &= 0x0fff; v |= 0x8000; v |= flag << 8; w.u8((v >> 8) & 255); w.u8(v & 255); }
+}
+function pecEncode(w, cmds) {
+  let colorTwo = true, jumping = true, init = true, xx = 0, yy = 0;
+  for (const [x, y, c] of cmds) {
+    const dx = x - xx, dy = y - yy;
+    xx += dx; yy += dy;
+    if (c === STITCH) {
+      if (jumping) { if (dx !== 0 && dy !== 0) { pecValue(w, 0); pecValue(w, 0); } jumping = false; }
+      pecValue(w, dx); pecValue(w, dy);
+    } else if (c === JUMP) {
+      jumping = true;
+      const flag = init ? 0x10 : 0x20;
+      pecValue(w, dx, true, flag); pecValue(w, dy, true, flag);
+    } else if (c === COLOR_CHANGE) {
+      if (jumping) { pecValue(w, 0); pecValue(w, 0); jumping = false; }
+      w.u8(0xfe); w.u8(0xb0); w.u8(colorTwo ? 2 : 1);
+      colorTwo = !colorTwo;
+    } else if (c === END) { w.u8(0xff); break; }
+    init = false;
+  }
+}
+function writePec(w, cmds, threads, name) {
+  const ext = bounds(cmds);
+  const label = ('LA:' + (name.slice(0, 8) + '                ').slice(0, Math.max(16, name.slice(0, 8).length)) + '\r');
+  w.str(label);
+  w.bytes([32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 0xff, 0x00]);
+  w.u8(6); w.u8(38);
+  // unique palette
+  const pal = PEC_PALETTE.slice();
+  const chart = new Array(PEC_PALETTE.length).fill(null);
+  const uniq = [];
+  for (const t of threads) if (!uniq.includes(t)) uniq.push(t);
+  for (const t of uniq) { const idx = nearestIndex(t, pal); if (idx === null) break; pal[idx] = null; chart[idx] = t; }
+  const list = threads.map(t => nearestIndex(t, chart));
+  const count = list.length;
+  if (count) { w.bytes(Array(12).fill(32)); w.bytes([count - 1].concat(list)); }
+  else w.bytes([0x20, 0x20, 0x20, 0x20, 0x64, 0x20, 0x00, 0x20, 0x00, 0x20, 0x20, 0x20, 0xff]);
+  for (let i = count; i < 463; i++) w.u8(0x20);
+  // stitch block
+  const start = w.pos;
+  w.bytes([0, 0]); w.u24(0); w.bytes([0x31, 0xff, 0xf0]);
+  w.u16(Math.round(ext[2] - ext[0])); w.u16(Math.round(ext[3] - ext[1]));
+  w.u16(0x1e0); w.u16(0x1b0);
+  pecEncode(w, cmds);
+  w.patch24(start + 2, w.pos - start);
+  // icons: whole design, then one per colour
+  const g = PEC_BLANK.slice();
+  for (const s of cmds) if (s[2] === STITCH) drawScaled(ext, [s], g, 6, 4);
+  w.bytes(g);
+  let block = [];
+  const flush = () => { const gg = PEC_BLANK.slice(); drawScaled(ext, block.filter(s => s[2] === STITCH), gg, 6); w.bytes(gg); block = []; };
+  cmds.forEach(s => { block.push(s); if (s[2] === COLOR_CHANGE) flush(); });
+  if (block.length) flush();
+  return list;
+}
+function writePES(cmds, threads, name) {
+  name = name || 'Untitled';
+  const w = new ByteWriter();
+  w.str('#PES0001');
+  const pecAt = w.pos; w.u32(0);
+  const ext = bounds(cmds);
+  const cx = (ext[2] + ext[0]) / 2, cy = (ext[3] + ext[1]) / 2;
+  const left = ext[0] - cx, top = ext[1] - cy, right = ext[2] - cx, bottom = ext[3] - cy;
+  w.u16(1); w.u16(1); w.u16(1);
+  w.u16(0xffff); w.u16(0);
+  // CEmbOne
+  w.u16(7); w.str('CEmbOne');
+  const width = right - left, height = bottom - top;
+  for (let i = 0; i < 8; i++) w.u16(0);
+  const tx = 350 + 1300 / 2 - width / 2, ty = 100 + height + 1800 / 2 - height / 2;
+  w.f32(1); w.f32(0); w.f32(0); w.f32(1); w.f32(tx); w.f32(ty);
+  w.u16(1); w.u16(0); w.u16(0); w.u16(Math.trunc(width)); w.u16(Math.trunc(height));
+  w.bytes([0, 0, 0, 0, 0, 0, 0, 0]);
+  const secAt = w.pos; w.u16(0);
+  w.u16(0xffff); w.u16(0);
+  // CSewSeg
+  w.u16(7); w.str('CSewSeg');
+  const adjX = left + cx, adjY = bottom + cy;
+  let colorIndex = 0;
+  let code = nearestIndex(threads[colorIndex++] ?? 0, PEC_PALETTE);
+  let sx = 0, sy = 0, section = 0, prevCode = -1, flag = -1;
+  const colorlog = [];
+  // command blocks: consecutive entries with the same command
+  const blocks = [];
+  for (const s of cmds) {
+    if (blocks.length && blocks[blocks.length - 1][0][2] === s[2]) blocks[blocks.length - 1].push(s);
+    else blocks.push([s]);
+  }
+  for (const blk of blocks) {
+    const c = blk[0][2];
+    let seg, f;
+    if (c === JUMP) { const last = blk[blk.length - 1]; seg = [[sx - adjX, sy - adjY], [last[0] - adjX, last[1] - adjY]]; f = 1; }
+    else if (c === COLOR_CHANGE) { code = nearestIndex(threads[colorIndex++] ?? 0, PEC_PALETTE); continue; }
+    else if (c === STITCH) { seg = blk.map(s => { sx = s[0]; sy = s[1]; return [s[0] - adjX, s[1] - adjY]; }); f = 0; }
+    else continue;
+    if (flag !== -1) w.u16(0x8003);
+    flag = f;
+    if (prevCode !== code) { colorlog.push([section, code]); prevCode = code; }
+    w.u16(f); w.u16(code); w.u16(seg.length);
+    for (const [x, y] of seg) { w.u16(Math.trunc(x)); w.u16(Math.trunc(y)); }
+    section++;
+  }
+  w.u16(colorlog.length);
+  for (const [s, c] of colorlog) { w.u16(s); w.u16(c); }
+  w.patch16(secAt, section);
+  w.u16(0); w.u16(0);
+  w.patch32(pecAt, w.pos);
+  writePec(w, cmds, threads, name);
+  return w.result();
+}
+
+/* ------------------------------------------------------------ zip (stored) */
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(data) { let c = 0xffffffff; for (let i = 0; i < data.length; i++) c = CRC_TABLE[(c ^ data[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+function makeZip(files) {
+  const w = new ByteWriter();
+  const d = new Date();
+  const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  const central = [];
+  for (const f of files) {
+    const crc = crc32(f.data), off = w.pos;
+    w.u32(0x04034b50); w.u16(20); w.u16(0); w.u16(0); w.u16(time); w.u16(date);
+    w.u32(crc); w.u32(f.data.length); w.u32(f.data.length); w.u16(f.name.length); w.u16(0);
+    w.str(f.name); w.bytes(f.data);
+    central.push({ f, crc, off });
+  }
+  const cdStart = w.pos;
+  for (const { f, crc, off } of central) {
+    w.u32(0x02014b50); w.u16(20); w.u16(20); w.u16(0); w.u16(0); w.u16(time); w.u16(date);
+    w.u32(crc); w.u32(f.data.length); w.u32(f.data.length); w.u16(f.name.length);
+    w.u16(0); w.u16(0); w.u16(0); w.u16(0); w.u32(0); w.u32(off); w.str(f.name);
+  }
+  const cdSize = w.pos - cdStart;
+  w.u32(0x06054b50); w.u16(0); w.u16(0); w.u16(files.length); w.u16(files.length); w.u32(cdSize); w.u32(cdStart); w.u16(0);
+  return w.result();
+}
+
+const Emb = { _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
+if (typeof module !== 'undefined' && module.exports) module.exports = Emb;
+root.Emb = Emb;
+
+/* worker entry */
+if (typeof WorkerGlobalScope !== 'undefined' && root instanceof WorkerGlobalScope) {
+  root.onmessage = (ev) => {
+    const m = ev.data;
+    try {
+      if (m.type === 'digitize') {
+        const res = digitize(m.params, (s) => root.postMessage({ type: 'progress', id: m.id, stage: s }));
+        root.postMessage({ type: 'done', id: m.id, result: res });
+      }
+    } catch (err) {
+      root.postMessage({ type: 'error', id: m.id, message: String(err && err.stack || err) });
+    }
+  };
+}
+})(typeof self !== 'undefined' ? self : globalThis);
+
+</script>
+<script>
+(() => {
+'use strict';
+const EXAMPLE = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QCyRXhpZgAATU0AKgAAAAgABQESAAMAAAABAAEAAAEaAAUAAAABAAAASgEbAAUAAAABAAAAUgEoAAMAAAABAAIAAIdpAAQAAAABAAAAWgAAAAAAAABIAAAAAQAAAEgAAAABAASShgAHAAAAGQAAAJCgAQADAAAAAQABAACgAgAEAAAAAQAAAOGgAwAEAAAAAQAAAOEAAAAAQVNDSUkAAAAyMjUsMjI1LDAsMC44NSwtMQD/4QpDaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLwA8P3hwYWNrZXQgYmVnaW49Iu+7vyIgaWQ9Ilc1TTBNcENlaGlIenJlU3pOVGN6a2M5ZCI/PiA8eDp4bXBtZXRhIHhtbG5zOng9ImFkb2JlOm5zOm1ldGEvIiB4OnhtcHRrPSJYTVAgQ29yZSA2LjAuMCI+IDxyZGY6UkRGIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3ludGF4LW5zIyI+IDxyZGY6RGVzY3JpcHRpb24gcmRmOmFib3V0PSIiIHhtbG5zOmV4aWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20vZXhpZi8xLjAvIiB4bWxuczp0aWZmPSJodHRwOi8vbnMuYWRvYmUuY29tL3RpZmYvMS4wLyIgZXhpZjpQaXhlbFlEaW1lbnNpb249IjIyNSIgZXhpZjpQaXhlbFhEaW1lbnNpb249IjIyNSIgZXhpZjpDb2xvclNwYWNlPSIxIiBleGlmOlVzZXJDb21tZW50PSIyMjUsMjI1LDAsMC44NSwtMSIgdGlmZjpYUmVzb2x1dGlvbj0iNzIvMSIgdGlmZjpSZXNvbHV0aW9uVW5pdD0iMiIgdGlmZjpPcmllbnRhdGlvbj0iMSIgdGlmZjpZUmVzb2x1dGlvbj0iNzIvMSIvPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDw/eHBhY2tldCBlbmQ9InciPz4A/8AAEQgA4QDhAwERAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAQEBAQEBAgEBAgMCAgIDBQMDAwMFBgUFBQUFBgcGBgYGBgYHBwcHBwcHBwgICAgICAoKCgoKCwsLCwsLCwsLC//bAEMBAgICAwMDBQMDBQwIBggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDP/dAAQAHf/aAAwDAQACEQMRAD8A/N+v7wP89woAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoA//9D836/vA/z3CgAoAKACgAoAsUAV6AK00/NZmvsjrdT8F+L9L8B6R8TtQgI0LXr+7sLW4wfmls0t3l7AYAuY8HPJJA5VsefSzTDVMT/Z/wDy9/iHsVcmxNPC/wBof8ujkoZ+a9Q8Ys0GZYoAKAK9ABQAUAWKACgCvQBYoAr0AFABQAUAFABQAUAFAH//0fznr+8D/PcKACgCvQAUAFAFigCvP2oNDktSvq5atU76VI/pK/al/Znk/wCHB/wj8c6Hb4ufCUtt4tn8jfzBrLzeYfXrewyH/davwLJs+q/68Yv2v/L32lP+v/BZ/Q+fZDS/1Hwnsv8Al17Oofza6PfelfvtKqfzxVpHWwd66jgLFBmFABQAUAFABQAUAFABQAUAFABQAUAV6ALFABQBXoA//9L856/vA/z3CgAoArz9qDQ7aT4Y+KpPhAPjxpsX2jQf7al0KeXj9xdpBHcIj/8AXaN2KYzny3/u8/Of29S/tf8Asqr/AM+/aU/+nh9R/q5V/sj+1aX8L2ns/wDr2ebw33Fe97U+d9kaVanKVrzrQa0j2P8AZX/ZG+JH7bHjXxT8PPhPdJHreg+G7jxDHbyDP2j7PLBELZGyAruZwV3EDg5IHI+I4o4jpZTSpVav/L2p7M/QOEuHKubVatKl/wA+/aH9qv7B3hLw/wDtN/8ABI7wb8I/HUPl2eqeDZPCl6ki4eNrVZNNkO1uY5Y3hbjAKOMdVr+ac+xVXDZ5VxdL/n57T/3If1Bk2FpYnI6WEq/8+/Zn8DXifwn4r+D/AMR9e+FHjiLyta8OX8+m3sY7SwOY3A+jKRX9VZNj6WJw1LF0v+Xp/KGfZXVwWJq4WqdbZzV9GfHVTRoMgoAKACgAoAK0AKACgAoAKzAK0AKzAKACgAoAKACgD//T/Oev70P89woAKAMXUutc51Uj94/+CG/hL4fftQ+CPjx+xP8AFtBcaZ4q0201GGEsA8bQu8clzEo5DxyPasGPAZY+u2vwbxVq1cFjsvzXCH9DeEtKljcDmGVYv+EfiR+0B8FPHX7LHx58Q/s+/EmMNqnhu7aITqhWO5gyfJuYs5+SVPmxk7WyjEMrAfpfDnEdPNsDSxdI/L+KOF6uU46rhapydnfV9bSPiKtINS60VR0j93P+Dau003/hqv4iap1vIPC6wx/9c3vLcv8Aqq1+D+L9X91hD+hvBul+9xZ/RV+xbcJ8Lvj58cf2VtTfbJYeI/8AhOdIjPAOm+JTJcSbQew1WHU8+22vyDH/ALylRxf/AHD/APBZ+yYD93Vq0v6/eH84X/BxR+xvL8J/jxpX7ZPg+3x4d8cKmnawIhgQ6lbxnyn4UAC5tkIxnhoGZjlxX614X59+6/s+qfkHihkP73+0KR+BOj65X7nSqn4FisKdL/an0rq9qcH1Uq/23/nFZ+1Nfqwf23/nFHtQ+rB/bf8AnFHtQ+rGlDqtae1M/ZGl53+f8mtvamXsix53+f8AJpGQVoAUAFABQAUAFABQAUAFABWYH//U/Oev70P89woAKAMXUutc1U6qR95f8Ea/jppfwQ/4KN+A9Q1KYW1t4uEnhO4myMn7eUa3iGeplvYrZPxzX5V4oYD6zlHtf+fR+x+FWP8Aq2b+y/5+n9MP/Bb7/gnNqn7X/wAHLb4yfB2we6+JPgWF2tLeDAa/sRukms8dXkB/eW4yTvBRQvmsw/G+COKP7Jx373+FVP2njfhelm2B/dfxaR/DJoOucV/UuFxXtD+UMfgPZnW3k9ehVPLpUj9g/wDg3m+I1r4M/wCCjFz4Wu5d3/CV+F7zToY+n71JILwnn0itpDX414tYX2mWUqv/AD6qH7d4S4r2eOrUv+nZ/UJ+3HLL+zf8Xvh1+3vpg8rSvDtyfCnjc/wnQdXkjjS5k5OBp+oLazs+MR27XROd2K/DML+8pVcIfvGK/dVaVU+sv2rv2bvAv7XH7P8A4l/Z/wDiNGr6d4itTEHZQzQyqQ8Myg5G+KRVdc8ZAyCMgmV4+rgsTSxdIMfgKWNw1XCVT+Arwt/wR3/4KS6v8Ude+Fnhj4f3t1FoeoS2L6xcMlnYyCLGJoZbhommhdGDfuldhypUMNtf0FS8Qcop4b2tWqfz7ivDnM6mK9lRpH6jfDT/AINqf2jvEGnIPi78R9C8Nsc7k0qCbUAOn/PX7Fj8zXg4rxfw1P8AhYQ9nC+EGK/5e1j7C0b/AINl/gqrqdd+J2vTIVxJ9hgtoOfYSLcY/P8ACvGq+LWO/wCXVKme9S8JcD/y9qncXv8AwbSfsnlf9A8deM0P+1NYn/2yrm/4izm//PqmdX/EJso/5+1DyXxN/wAGyvgg6ZIngj4u6np93gbXvLCG6X3+WOS3x+ZrupeL+J/5e4Q8vFeEGG/5c1T4e+Kf/Bup+2x4P8rUPhrrfh3xmkYbMXmvaXDHGV+SZPJGT6z8epr6PAeLWWVP97pVKR85mHhBjqf+6Vfan5M/G/8AZb/av/ZmOPjz4E1jw3bjIN1LF5lpkHGEuofMt3b2WQmv0HK+KMsxv+6VT8+zThLHYL/e6R4nZ+JK+jpVT5KrhTrYb7ArX2py1aRpQz8VqcwlaGYUAFABQAUGgUAFZgFAH//V/O+v70P88woAgm6UGgeEvAfjP4reN9M+Gnw9sX1bXtbuUsrK28xI/MlkOEQPIyIpYkAbmAyeTXj5pj6WCw1XF1f4VI93Jsrq43E0sJhf4p458WvD/wAYf2dPiBFpHiqwv/CXi/w7dxXsCXcRimhlhcSQzqrgh13KHRsMrLhhuUjPy9XH4HNsD+6q+1pVT7fC4DHZTjv3tL2VWkf6b37In7Q2gftWfs0eC/2hPDAVLfxVpkd5JGpDCGcZS4h3DILQzq8ZI4JUkcV/KuPwtXDYmrhKp/VWFxVLE0qVWkfzof8ABZ3/AII16xrWu6n+2P8Asc6S0+pXWbjxL4btF3NcP1a8s0H/AC3P/LaFR+++8g87cJv0vgPjf6l/wn5h/C/5dn5px5wR9d/4UMJ/FP5NbPxH3r99pYr2h/PFXAezPqr9ii1+O/hb4zf8NW/BjTZdcj+CXkeKtctbY/6U+nb/AC7tIkBDNutmm37efLDkZK4PxHG+Kw1TDf2fV/5e/wAM/QeA8LiaeJ+t0v8Al0f6Qbp8JP2p/gUVb7P4l8DfEDRf96G8sL6H8mjlif6Mp7g1/NP72nVP6W/iHyH+wH4x8WeB7DXf2GPjZqc2p+NvhF5NvaaheEedq/h653/2PqjHAMkrRxSWl6/e9tp2GEePJV/5/BSPs/4veJPHng34Za34s+GOgf8ACUa/YWklxZaOZ1tvtUqKSsPnurrGXI2hmUgZyeKzpG1U/h2+Ln/BzT/wUL8QajeeD/CXgXwv8Or2yuJbS8tr9Lq+vbaVMo0bM0tom5H67rYEEYIzmv0/K/Dn6zT9rVxf/gs/Ls08Qfq37qlhP/Bh0HjT/gq//wAFGfhb+y7a678TviTLP4/+LMceoaFp8Flp1rHoWh+Zn7d+7t/MkuNRK7LOOXzPKt1eX/lpHWuA4IwOIzP2VKrU9lS/if8AXz/n2cuP43x2Cyz2tX2ftav8P/r3/wA/D0vxL/wVo/as+AHxt+Fh+IPivVPEPgvxN8NPDt1r1rAI/tPnajYpJPfWsnl/8ffmHzP+eVGF4DpY3LKtXCfxaVSp/wCUzXFceVcFjsJSxf8ACq06f/lQ5T40/wDBWf8A4Kj/ALKfxAHhfUvHWm+PfDt/bR6n4f1uTTLVbfU9Nn+aG5UW0VvIjHlJY9w8uVHTnaSerJuA8szbDe1wtWpS/wDcZwZpx5mWU4n2WLpU6v8A7kPWPhr/AMHPvxp8Palaj41/CrTdd0vH+k3GgXEltdKoHzMkFwZkmcn+EzQr/tY5HBj/AAqx1P8Ae4St7U78B4q4GpV9li6Xsj96/C//AAWB/wCCdnxC0Twfq2rePLLSdB+I0O7QdT1hHtdPupQxils2vJlW3hvopMK9lO6XIBDeVtyw/NPZVKZ+oe1pVDxj9rD/AIIafsUftQ6cfEvw3t2+HPiB4y0F94fCratyColsSBAyDksIhE7H/loK+yyHxBzPLv3VX97S/wCnh8Rn3h9luY/wv3VU/lM/bJ/4Js/tXfsKXqX3xN0g634XdxHB4j0pWktMtnas68tbOQACsoCsx2o8gBav3PhzjfA5t+6pfxf+fZ+D8UcB47Kv3tX+F/z8PjDTdcr7ylVPz6rhTpIZ66jgNCtDnCgAoAKACgCvQaFigD//1vzvr+9D/PMKAILzpUVS6QfCj4qP8Efjj4J+MiSTRjwtr9lq83kfKWjtLiOWSLr0lVCh9jmvluKML9ZyzF4T/p2fb8G4r6tmeExf/Tw/0J/20P2Cv2af+Cg/wsk8FfGnSRNKY92l67Z7Y76zZiG3W82CQMgFo3DRtgbkbaMfyXlec4nLqntcIf19mmV4bG0vZYs/Jn/glpa+PP8Aglz+05qv/BJ/9oXWl1TQPFqXHir4Xa66iNbtEJGo6eEBcJNAAlyY9xwHkkYjeq16mfVaWY0v7Vpf9xDlybC/2d/wn1f+4Z/SdXy57x/O/wD8FTf+CGHgH9ry7vfjv+zXc2/hH4iujPcQMCun6ow3NiYKGMMxJyJo1IY5EiMWEkf3nC/G+Jy7/ZMX+9pHwfFHBGGzH97S/dVT8Qf+CIOqfEj9iH/gqZffs3/tT6XN4L1XxToM+hiw1IFA8zSxTwNE4ykqyfZ5IoZI2ZJGcBGbg19Rx5iqWY5RSxeE/wCXVQ+c4IwGJy7MquExZ/Sx+znrzf8ABPn9oqT9hn4iFbP4a+Oru51b4U6s/EFvK++e98NSyNjy5LcBrnTlb/WWzPBGf9DIP5Viqv1n/az9Vpfu/wB0faHx4+D+pap428MftDfDaBR4z8EPNAighPt2l3mz7dpsrAE7XMMNxGcZWeCI5KeYsnAbH1FpeoWWqafDf2J/cToHTtwfagVKr7Q/BX/gp7/wRt+Gv7THxR0b9sf4V+HI9R8YaReW9x4i8OJItpF4ktLcr+4knPEFyEUIlxj5k/duQBHJD9bkPFuJwVKrhP6pny+fcOUsbV+t/wBVD+Kb43/Eb4sfFH9oPxX40+PEc9n4v1LUJG1S3uIzC0LqdgthEeYkhRVijQ5KogXPy1/QXDmFw2GwNKlhD+feKMVicTjqtXFn17+2xb/8TL4V/wDZKvCv/pClZcEUv9mxf/X+oZcb1f3uE/68U/8A02Wfg54t0f4sfDq1/Yu+LE8FsL64aX4eapKGU2mt3G0nTXYA7bbVdojQKPluxCwUiSQ1wZ9hf7Bx39t0v4VX/eP/AJYd/DmK/t7A/wBiVf4tL/d//clM+MNU8MyaXqd1pupwS2t3byGKWKZCjo6HDKynBVgeCCM56195+6q0va0j4P2tWnV9lVNv4X/EOf4Mza14c1jRR4s+HnjAxJ4r8JSyMqXSxgol5aMx222qW6H/AEa5VSwwquHQFV+D4o4S9pU/tDL/APe//Tn/AF8P0Hhfi32VL+z81/3T/wBNn2b8Hf2hv2qv+CVGv+G/iL+yP4/uPFnwX8bxS3OhWWql5dIu4I5f30T2bSZ0zUbdj5d6tu8RMoy3mRmMt8RS4XyzPqXtcJ/s2LpfxKf/ANzPvKvFGZ5DV9lV/wBpwlX+HUP6zf2Bf+Cx/wCyt/wUJ0tfhB4xiXwb4+u7dluPDGsFWW6XJDGznH7u4XAzt+WXALGNVGa/Nc5yHHZVV/en6Nk2fYHNqX7r/wAFn5s/8FNf+CEUdgtx8cv2F9OcKuZb/wAGw9MfxPp/6t9mx6iI/chr9P4N8S6tP/Zc1/8ABn/yw/NOMvDT2n+15V/4L/8AlZ/MFpuq4/0DUP8AR/s/7qWL7nz1+8UsV7Q/njFYX2Z20M9ehSPLq0jQqzMKDMKACgAoAKAP/9f876/vQ/zzCgCCbpWZdI838VWOOlcGKPewFU/vI/4IcftWt+03+wp4f0LxHc+f4m+Hyr4a1Ld95kt0AtZugyJIAgZv4pVk9K/kvjLJv7OzOrS/7iH9h8G5z/aOWUqp9F/8FF/2FtF/bm+C9v4c0fVZfCfxA8KX8Wv+DPFVmALrS9VtcmCdG6tHklZYidsiEg4O1l8HAY/6tVPexVL2h4//AME7P+CgXiX48ajqX7Kn7WmkReCP2hPAKeV4h0PcDDexKdq6npj9ZbK4G2RD95AyhhyrNrj8B7P97S/hBhcV7T91VP1kryzqPj39sP8AYW/Za/br+G3/AAq79prwpbeIrBCXtZ2BS4t5MEB4Z4ysic4LKG2vgBwy8V1YXH1cN/COXFYWlif4p+BHx5/Yc/4KY/sofCTVvgxoNxL+198Ap9ksXhrW7n7H4y0YW8iSW8+l6rHjzri0dPNik/1vmqnlRx16lL6jif8Ap1V/8p//AHM5f9pp/wAX96bf/BOT/gvn8IPEnjkfsgftneINR0bxBbzfYdF8SeKrL+y7i4/uWmvwgfZrLUo/9WZI5TbXJ5HlTOLessVkOJp0va+yClmmG9r7I/qVimBHNeMeoWaAPyC/4KTf8EivgZ+35af8JlageFPiLZQCOz122QATBM7YbxQP3sZ6K/Lx8FcqGR/reHOLcTlNX/p0fJcR8JYbNqX/AE9P5Bv+CmHw7+KPwG+JHw/+G/xa0C80e68NeA9K8PSXcwJs72fTkaKeaxm5E0HKEFljlBb95FGxAP7TwHmlLE0sXVpf8valSofi3iDk1XDVcJS/6dnwHcSWGpabc6dqA8+2uEMcg/2TX6DV9liafsav8I/NML7XDVaVWl/FpH1F8ZPE7/Hf4Q2f7Ul9H5viWwvF8OePgjBt+piIvZaq6jaVGr2yPJIyxKhvILvBCsoPwfCWKq5dVq8P4v8A5dfw/wDp5TP0Hi3AUsxpUuIMJ/y9/if9O6h6R+zN/wAEs/25/wBrrwzF4++Gfg5tP0CSETW2qay/2SG4BPHkK4M8qsASsiRNGem701znjzKMFV9jVq/+CzLJvD7M8bS9rSpH0prn7Cv7X37CfgnX/An7ZvhI6/8AAHxbNFLr2q+HX+3/ANhXsY2Qa5BGf3sE9pn99+68q5tmeL/nnXwePz7A43E/2rkn+9/8+/8An5TPvMLw5jsFhv7KzX/dP+fn/PuofkD8e/gLrnwR+Jd38M/FLpNc2Biv9O1bTJWEdxBIBPZ6hZXEZG6OVNssMqEEequpC/o2Fq4HOsD7X/l1VPznFUsdkOO/59VaR/S1/wAEhf8AgvF4q0rxPpX7In/BQjWf7TS+kSy8M+PLn5XmZztjstWPC+f0WG6z++4WTM3zzfhnFvBtXKf3tL+EfufCXG9LNv3VX91VPt//AILD/wDBIKy/aG0+/wD2nP2aLRbTx1aRNPq2mQrhdTRQWZ41UZ+2A84H+tGflMhG72eA+N6uXVf7PzD+F/6bPG484DpZjS/tDCfxf/Th/HVo+q1/SOFqn8yY/C+zO/hn4r0Panjk9WZhQAUAFABQB//Q/O+v70P88woAKAOU1+Cuaqelhap9Mf8ABNf9v+8/4J0ftR2fxE1WSWTwVr8Y03xNZQjcz2+7dFcqv8Utu7FkPdGkQFd5Zfyrjzhz+0cN+6/i0j9k8PuI/wCzsT+9/hVT/Rm+H3xC8E/FbwPpnxJ+HWpQavoWtWyXlle2rB45opAGV1YcEEHIIr+aatL2f7qqf0jSq+0PgD/gob/wTo8Lftn6Jo3xH+HutT+AfjN4Gf7V4N8a6dgT2kuDugnXBW4spwcT27ja4xyMV6mAx/1b91V/hGWKwvtTxf8AYW/4Ka+JfGHxOP7DH/BQDRYvhr+0FpKMI7UnGmeIIIxj+0NFnkIM0cm138hgJY1DqwYxTFDH4D2f+14T97S/r+IFLFf8uj9nK8s6goA+I/2t/wDgnX+xp+3Borad+0v4E03xBdCMxw6mU8m/hUjGIryEx3Ea99qyAHuDXfgM0xOC/hVTlxWAw2J/in5peGP2Cv8Ago//AME+9LFl/wAE8/izafEjwTYZ+z+Afinv3wxj/ljZaxaR+bGP+eMckRiH05rvq4/A4n+LS9l/17/+VnLSwuJw38KqdpZ/8Fn/APhR7HRf+Cl/wf8AGHwHuoD5cmtT239reH5MybNy6lYedGnVP9ZjG6sv7Gq1P90q+1/r/n2H9qez/i/uj9SPgL+1v+zP+1BpC658AvHOh+LYGBONNu4pnUcffRGLJ/wICvLq0qtP91VO+lVpVP4R2Hxn+BXwk/aG8GXHw6+NHh+y8R6JdYL214gfDL910b70bj+F0IZexFa4XFVcNV9rhKplisBSxNL2VWkfyd/ttf8ABt/498PJe+Nf2FteGrWC/vR4a1mRY7hAF+7a3jYSXLdEuGQqoyZZGIA/Wsh8UP8Alzmv/gw/Jc+8L/8Al7l5kf8ABBz/AIJXf8LX8PTftj/tKySXPhHV2WDSfC7sWtNVW0m82K8volIW4himUNaI4ZX+ZypRkZ/L484opVMTSpYT+LS/5ef9fD2eA+F6uGw1X63/AMvf+XZ/ZqiBBX5efpZnapp2n6vYT6ZqkMdxbToY5IpQGR1bgqynggjqDQB/EJ/wUo/YYtPhH8Wbn9k7wfb/AOiTabeeMvg6COfs1ti413wkmP3j/ZPn1TR4/wDlnG8tt/zzr9L4Iz6rgsT7Wr/Cq/xP+vn/AD8Py/jfIfruG/dfxaX8P/p5T/8AuZ/PPqugad4i0xtO1OCOe2mj8uSJvmVlbqDX9BVcLSqUvZVT+faWKqYar7Wkf1y/8EDf+Cp82tW9t+wP+0zrLSa5YqV8GaxfSAve28aljYTO5y11Eilo3/5aoCH/AHihpv5p434S/snE+1pfwqp/S3BHGX9rU/ZVf4p5h/wXg/4JsW/wt12f9uj4HWTpp2rXA/4SyyiGY4biV9qXyqF4Wd3CTc/6za+GLuy/eeGnFvtP+ErF/wDcP/5WfB+KHBv/ADNcJ/3EP53dHvq/c6VU/n3FUjrIeldxwiUGYUAFABQB/9H876/vQ/zzCugArnA53WO31rmqnbhT+gn/AIN+tI+DPxw0L4x/sp/G7QNO8SafeR2WuQWV9bpMJQ3nQXLneGB8vFsAcfKWBHLV+BeKvtcNicJmFKsf0Z4S+zxOGxeX1T7pb4ffED/ghRr914++H/8Aavjj9k7Vbt59d0nL3mo+DZJHy+o23WS60z/n8j5li/1v7w+Z5n5zVxX9tfxf97/9OH6rhcL/AGd/C/hf+mz+gbwD488E/FXwVpnxD+HeqW2t6FrVul5Y31nIssM0UgDI8boSrKwIIIJBHIr5erS9n+6qnvHyV+3X/wAE/P2e/wDgoD8Lofh38abSe3vtJn+36Frumv5GpaXdjBS5srkAvFIrKrcfKSq7gwGK6sBj6uGq/ujKrS9ofl38N/2+f2n/APgmj42tP2a/+Cv039seCrmaOx8KfG+yg2adccfu4Nfj5Fjd/wDTx/qpf+2ckld9XAUsT+9y/wD8FnLSq+y/dVT+hXRtX0zxDpttreiXMd3Z3MYlimhYOjqwyrKwyGBHIIrxjvNagAoAoS28V1GbS9AlB5NAH5U/tEf8ESP+Can7Sd/J4n8SfDWx8N6/Iwl/tjwwW0i6LjHzyGzMcczEDB8+OQY7cmvUpZziadL2X/pw5fqFI+QJ/wDglZ/wUc/ZjiGo/sBftd+Jr9bEfu/DfxUjj1yyuB/ce8Ef2mD73/LKKtfrWBqfxaXsv+vZl7LE0v4VU+TP2pf+Cp/7Vml/Ce6/YP8A+Chnw8l/Z/8AGfxKv7LwtF8RdKvUk8NSabeTpBq1/a30h/0K4iszNJDbyyymP5DLLHWuFwH/ADFUv3tKkZVcV7T91/CP6pPA3g/wn8OvBGleAPA9lHYaJo9pHY2VrFwkUEShEVR2VVAAHYcV4P8AFPUpUvZnZ0AFAH4ef8F6P2b/AIjfFn9kG1+O/wAC7q7sPHvwY1aHxhpNxZMRKsdqQ1wEUBgxRQtztKtvMAj2tuwfo+F6tL6z/Z+L/hVf3f8A8rPnOI6VX6t9bwn8Wl+8/wDlh/HB+0La+F/G974d/aa+G9pBpfhr4qWcmqLZW2RDYarbyGDWNPi3Yby7W9VzANoxay27EZav6D4IzSricN9Uxf8AFwv7uofzxx5ldLDYn63hP4VX95TPlS/j1HStZsPEnh67kstV0y7iv7G9i+V4Li3cSQyow5DI6hlIwQQCORmvdznK6WNwtXCVT5zJs5q4LFUsXSP9Dv8A4J0/tVeB/wDgpv8AsNJcfEq0t73U57OXw74z0x9u17jy9k58sE/uLmNxIgJIAcoWZlY1/KuPwGJynHey/wCXtI/rTK8fhs6yz2v/AC6qn8Tn7ZX7L+vfsSftPeIP2f8AXDJPZWU32rR7uQAefYTfNA/BI3Kv7uTGB5iOBwK/qXhLPqebYGliz+VeMuHKuU46rhTxyznr7Okfn1WkaFWc4UAFABQB/9L876/vw/zzCgArnAx9T7VFU6cKfUH/AAS4/aXj/ZU/4KCeBfG+oziDTNfuR4c1bdnBt9QdI1ZsEfLHOIpTwc+XjoTX5d4g5X9dyyr/ANOv3h+veHOafUszpf8AT392f6OV9bWl9C1jeRiVJhtdT3Br+Xz+pT8I/EfwK+L3/BJHxFq3xm/Yy0XUPG3wF1W7kv8AxP8ADGwxJeaFJId8+o+Go/44DjfPpfrmSH/nnXs+1+u/xf4v/Pz/AOWHB7L6t/CP1/8A2f8A9oX4N/tQ/CzTPjX8B/ENp4l8NaxH5lveWjhlz0ZGHVJEOVdGAZGBVgGBA8urSq06vsqp1UqvtDuPH/w/8EfFXwdqHw/+I+k2mvaHq0Rt7ywvolmgmjbqkkbgqykdQQQehopVfZfvaRrV/eH4qWv7D37V3/BOLUrvxZ/wTDvh4v8AhtNN9qvvg34pufLjgB+9/wAI5qshP2F/S3uvMtif+WkfFep9awuN/wB7/i/8/P8A5YcHsqtP+Efaf7J//BS39nX9qrxLd/CSGS98EfE7SFX+1PA/imH7Bq9uSCSwt5D+/hGOJ4DJEcgBsnFcuKwFTDHVSxVKofoXXAahQAUAFAHj/wAbPgT8Jv2jfh5qHwi+Nug2niTw3qcey4srxNyt6MCMMjqeUdSGVgGUhgCNaVWrTq+1pGVWlSqUvY1j8Jv2LPEHxH/4JPfti6T/AMEsPjLrN14k+DvxEhuLr4NeIb4kz2MllEJLrw9dzMQrCKH57RuMKPLUkSRw2/fiqVKpS+t0v+4hlSq/8uqp/RzXlnUFAH5+/tgf8FL/ANjX9iGSDQfj14thttZvEDwaRaRy3d28bHaGaG3SRo0JyBLIFTgjdnivUyvJsdjf90pHl4/OcDgv97q+yP4sPGviX9lD4xeIPi78JP2QrfWtG8L6t5nxQ8MaVrdvBbfYtQ05Et9dtLTy7iXzILvS9l5DH+78v+zv+2lfrWQ1c3ynN8JVzWl/F/d/9fP+fZ+S59/ZmbZHi6WVVf4X7z/5YfnzeWVfudWkfz7Sqn6Uf8EZf2yp/wBkH9uTw/oWtTmHwf8AE+aPwzqyFsIt27Eadc43KCwnc243ZCrOzEfKK/FvFXIfaYb+0KX/AC6/9Nn7n4VZ97PE/wBn1f8Al7/6cP3s/wCDi79lVfHvwF0T9qvw1CP7U8C3SWepOM5fTrt9gzzhjHctGEGOBK5+ny/hVnP1bHf2fV/5en1Hirk31nA/2hS/5dH8g2g33av6XpH8tYqkdpXaeaFdABXOAV0Af//T/O+v78P88woAK5wMbWJ6iqdOFPsX/gkf+z2P2kP+Ci3gLQ9Rj8zTPDEz+Jr07clVsBvtmHBHF4bfr2PpmvynxGx/1bKKv/T392fsfhplf1nM6X/Tr94f6Knnf5/ya/mQ/qAsUAfj78bv2Gvi/wDAL4war+2N/wAEy307SvFOtS/bPGHgLUWMOi+Jzz5sgYZGn6o4A2XsYEbuB9qjlBLL30sVSqfusWctWl7P+EfVX7If7cfwi/a80/UNE0hLjw3488MbI/Evg7WF8nU9MlkGU86I8PDKvzQ3EReCUcxyNg4yxWFq0zWlV9ofbFcpqfLH7TP7Fv7M/wC1/oUGjftAeFLXXJLFvMsNQUvb39nJg4ks723aO5tn5zuhlUnAySOK6sLiquG/hGVWlSqHzR4d+Bf7eH7MsS2nwR+IVv8AF7wrbfNF4f8AiJ+51WJBz5cOv2UZ8z0i+22Esh/5a3Na1auGqf8ATo5f9ppn034M/aM1i7caP8WPAviHwZqy4Ux3EMV5bycsvmR3NhLdQiNtvyiZo5cH5o1rm9kdVKqfUdYmoUAFAH4w/wDBen4Sz+Of+CdPiX4teFIW/wCEx+DV9ZfEjw1dxxh5La90KZbppUB/iNss8Y5/j59u/K/4vsv+fv7syxR+rfwq+IWk/Fr4Z+Hvil4cO/TfEmm2+qWrccxXMSyxnjPVWBrgNSt8aPiTpvwb+D/ir4u61zZ+FdHu9Yuf+uVpC8z/APjqGtaVL2lX2Rliqv1alVqn+WP4h8aeOPjb8TvEXxo+JF295rniq8fUr24kOd0r4woJPCRqAkaD5URVVQEVQP60yHK6WCw1LC0j+S+I85q4nE1atU9s+C/xBt/gV8Y/A3x/uCi6f4R122vdSaTcG/s2Y/ZdURSvzBpbGaeIY5+biuXjzK/rOR1f+ftL95/4LDw+zT6txDSpf8uqv7v/AMGf/dDrfjR8MtR+Dvxb8U/CfUR5tx4b1a50wS42iQW0rRCQD0cLuHsa+oyvH/XcDSxf/P2mfG5zgKuCx1XCf8+qh8u+N9DbUdMudPFzNamePEc1u2ySNuzI/wDCw7GuXOcBSxOGq4Sr/wAvT1Mmx9XDYmli6X/Lo/0O/wBj74naD/wVN/4JVeHte8csslx8Q/Ck2ieICmCI9RRJLG/27ccR3UcuzPYA8jk/yDSq1cux3/T2lUP7Iq0qWY4H2X/LqrTP4A00jXfBviW88Ja8pg1LT5pLW5iI5SWJijj8CDX9kYDFfWaVKrSP4oznC/VqtWid/D0r36R85VJ62ICgAoA//9T876/vw/zzCucAroA53WJ686qduFP6Pv8Ag2a+Gy3vjz4s/GLUI1DWdpYaJaSFBkiZ5p7lA3XgxWzMPdT3r+ffF/Ff7phD+kfCDC/73izif+Cl/wDwVE+I/wCxt/wW60HxjoQkvfB3hbwva6F4h0hGys8V48l1NKq7gPtMSyWzoTjiPy9yrJJXy/DnC/8AaOUVv+fp9ln3Ef8AZ2Z0qX/Lo/rn+GvxJ8CfGHwNpfxL+Gmow6voWt2yXlle25zHLFIAyMp9CCDXwdWlVp1fZVT7elVpVKXtqJ3dZGp8V/tUfsQfDX9p2/0n4hR32oeC/iN4XSRfD3jLw/ItvqVmZOsZcq6XFq5H720uUlgkGdyE4I6sLivZGVWl7Q+YfDH7a/xi/ZT1m3+Gn/BS+xsNIsmdbXTPiloaPH4avS+AiahHJLNLol0f+nkvayH/AFdzk+WNfqvtP90/8FmX1r2X8U/WOwv7LUbBNRsJRNBKN6OpyCD6VwHUX6ACgAoAKACgD4T/AOCoGpafp3/BNf8AaAvtTfy4F+G/iEsT2/4llxXoZX/v1H/r5TOXH/7tVOq/4J7aBrfhP9gb4IeFfFEQt9U0rwDoVnexD+CeHToI5U/4C4IP0rgqnUdz+1p4Cb4ufsu/Ef4TW43N4o8L6npIx63VrJCP/Q66cBV9niaVU5cfS9phqtI/y8vAf/IOta/sjAH8ZZn/ABT1u+0Ox8QaXd6Hf821/DJayj/YkQof0Jr1KtL2lL2VU+cpYqphqvtaR9MftDaldeKLnwP8UtZCJP448CeHdcuLdVCst2+l28V7vA6M93FNIf8Aer4jw0q1f7DpUqv/AC6qVKZ+g+KtKlS4hq1aP/L32dQ+Qteg9K+zqnxuFqn9Yf8Awa1fFFrz4EfFr9ny6kQ/8Ij4tTVrKJQAYrTV7ZWVcBR1ura7kPJ5fPUmv5P8QcB9Wzyr/wBPf3h/XPh9j/rOR0v+nX7s/Dj/AIKm/DiX4Pf8FF/ij4XtVWC3v9Y/thSnQtqcMd7Kec/8tZ2H4V+8eHOK+s5HhD+ffEbAfVs8xZ8l2dfo9I/MKpoV1nMFABQB/9X876/vw/zzCgArnA4vX+9cVU9LDH9kH/Btv4SXSf2MPE3ik/e1bxbcN+CWlov9K/mPxVq+0zf2X/Ts/q/wqpezyj2v/Tw/lU/4K1Xc3jn/AIKUfGPxBOVLnXRYtt6ZsYIrI9feD8q/QeA8L/wh0j8+8QcV/wALlU+z/wDgjJ/wVivv2FvEz/Af48zSXPwm1+53wStl5NIuWPzSxr1NtITmaLBw37xAGLrN5fG/BH13/a8J/F/9OHqcEcb/AFar9Uxf8I/va8P6/oXinRLXxD4bvItQ0+9iW5trmBw8ckbjcjoykhlIIIIOCOlfg5+50qvtDeoNTJ1bStP1/T59J1W3jubW4jMUsUoDI6sMMrKeCCOCDQB+dFt+xd4w/Z+b+2f2CfFieCbMkyyeCNWie98NSHP3bWAOLnSh2H2KX7NHu8w2sh69X1r2v8U5fZez/hHrHhf9qHxdoTDRv2nfAeq+Abq3wJNStj/a2jSYX53TUbaMSQxD/npfWtl9Ky9l/wA+TWlV/wCfp9X+GfGPhLxlYjU/COq2mrWx/wCW1nKkyf8AfSEj9ayNTpqACgAoA/LX/grxpsvxG/ZJX9l6xDNqHxq8RaX4HjRQWItb25V9VkCrJGxMOkw3s+FJP7vGOa6sL+7q+1MsUfp5p9hZ6ZYw6fYIIoIUCIg6AAYArlNS9QB/mO/tsfBp/wBnf9tf4o/B51Ntb6Xrs01lAQAYrW7xd2iHHGRbTR5/rX9X8EZp9ZyylVP5L48wH1bM6tI8us56+9PzmrSPWfE13qOsfs8fBLVdWOb1/C+p28zeqWnizxBaxf8AkOJa+C4Dpez/ALWpf9RFQ+88QavtP7Kq/wDUJTPC9f8AvV9nVPjsKfu3/wAGxfihNK/bU+LvgpX58ReDbC/dMdtKvJYhznudQ9O3vx/OXi1S/wBupVf+nZ/TXhLivaZZWpf9PDnP+Dh7wwujf8FBNM1pbbZHqvhG0mMn951ubtD+QVa+y8Jav/CZVpf9PD4jxfpf8KdKr/07Px10zvX7VSPwiqbFdZzBQAUAf//W/O+v78P88woAK5wOL8S1w4k9LDH9q3/Bupn/AId8S5/6Gm+/9FW9fy/4of8AI8/7h0z+tPDD/kSf9xD+b/8Abh/YU/bY+I/7cHxZ8feD/hT4o1PSNV8Uahc2l5b6fcvFLC1xIUkjcR4dCCCCO1foPBHEeWYbKMJSxeLp/wBVD8+434czPE5vWq4TCVD5xvP+CZ/7dt+cf8Kh8Uf+C+4/+Jr6irxbkf8A0F0z5Klwlnn/AECVD9sv+CZvi7/gpH+wH8IbXT/Hfw28YeLfBk/iWTTLnwr9ic3mlW0kCXEeo6c8nWPzPOjntpMR+Zs8ryv3nmfjfGX9kZjjv9kq0/4f8Q/aeEv7XwWB/wBro1P4n8M/qv8AhT8YPAPxo8Mf8JR4DvxeRRSvbXULK0U9tPHxJBcwSBZYZozw8ciqy9xyK/NKtL2Z+jUqvtD1Og1CgAoA8z8WfB34S/EDyR478LaVrQt5RcQjULWGcJIOjr5ittYeooA9MoAKACgD5Y1r4VX3j79qnRfil4igzpPgDSrhNHQ/x6lqRVJ7lhnG63tIjDC4wdt3cKRggnX2v7ozPqesjQKAP4yv+C8v7Lk/jr9vPTvG2ha3oOgpqfhK0FzJ4i1Wy02OS4hublD5X2qWLewiMKtgnjaPav2Tw54jpYLA1aVWlU/if8u6ftD8b8RuHKuNxNKrSq06X/Xyp7M/Jqy/ZJ1DT/8AkI/Ev4aW/wD3M2nf/HK/S6XG+B/59V//AAXUPyqrwHif+f1D/wAGUz1jxd+zOD8FPhFYah8Uvhrbm20XWZPN/wCEhtfLk+0eLdduPMgk/wCWkf77y+P+WqTRf8s6+X4X4tw1OpmFWrSqfvan/PuofW8W8G4nE0svpUqtP91Qp0/4lM8V1L9l/T7/AP5q18Kv/Cmta+jq8b4H/n1X/wDBdQ+XpeH2O/5+0/8AwZTP13/4N+v2ef8AhVv7fviTxv8A8J34F8Ui58BXlgLXw1rEGoXil9Q0+TzXhi5W3xGB5nQl0HG6vyDxGzmlmNWl7KlUpfxP4h+0+HOTVcupYv2tWn/3DKH/AAcoSkftV+AwP+hXX/0suK+z8IP9xq/9fD4nxj/3mj/17Pwj0zvX7nSP59xRsV1nMFABXOB//9f876/vw/zzCgAoA4vX+9eVVPSwx/YZ/wAG1vjRtY/ZB8X+DJ+uj+LZmh/65TWdow/8fDV/NHirS9lm9Kr/ANOz+qvCqr7TKPY/9PD+Z7/gqPaat4W/4KU/GTwhcSOIbXxEt0u1m5N9a298eue9wQPYV954c0sNicoo+1pf8/D4PxLq4nDZvV9lVPjn+ydO1Af6fAJv+uo3fzr9LpZXhv8An1TPyWrmmJ/5+1D37Q/Afh3Wf2Ivib4a1W0tks/D/irw/wCKo08lf+Wkd7pFxJu67jJeWKfSviM+wFLDcQ5fV9l/F9pTP0bhzNMTieHswpe2qfuvZ1P4h5d+zN+0L8f/ANifxo3xI/Zn8QT+G7pwgu7RGL2l4inOy5tiQki/eCscOm4lGVjurvznhLA42l7KrRPLybjLHYKr7WlVP7BP2Hf+DhT9nX46m38B/tTxxfDLxQ3yfbpnLaRO3zEkTnm1AUbmFx+7UYBmYnFfhmfeH2Z4L97S/e0j94yHxByzG/uqv7qqf0I6NrWleItLg1vQbmK9s7lA8U0LB0dT0KsMgg+1fBn3hq0AFABQAUAFABQAUAFAH8Yf/BzlrVneftHfCbwyCq3FjoV3dygdSlzcxxxnp6wSd/Sv27wlpfusX/3DPxbxfq/wqR/Pbo8FfulI/nnFH1X+0DGLPT/hb4GfFvd6F8OtC+2Wox+7udSgOryjj+89+X/4FXw/hz+8yyri/wDn7UqVD7bxQ/d5nSwn/PqnTpnyXq/WvuKp8ThT+hL/AINgvC82qftKfGPxy8OyLRvDul2NvLx8zX1zdSTp+Bs4T+Nfzl4tVf8AbqVL/p2f014S4X2eBrVf+nh41/wcIeJ5Nf8A+CiiaPZ3H2ldE8LWFnLHx+6kaW5uPLx/1znjf/gdfb+EtL/hIq1f+nh8H4v1f+FP/uGfkTpnev2WkfhtU2K6zmCgAoA//9D876/vw/zzCgAoA53WIK86qduFP6Cf+DaT4lvoHx9+KHwavZlJ13RrPV4lPUDT5pIn7dzep+X0r8H8X8B+6wmLP6H8IMf+9xeEPmb/AIOKvhfqXw//AOCiGk/EQvnSPHfheG4iB4Zr7T5ngugOOVS2ex/Fj70eEGP/AHWLwh1eL+A/3TF/9wz8ddGr90pH88Yo+xf2StJ1Hxl418QfBbTRG118Q/DOo6DY+f8A6oX/AJYvdMJHq2oWtsn+659a+M8QaXs8spZh/wBA1SnUPsvDmr7TM6uX1f8AmKp1KZ8hfYdP1D/T/wDnv+9r7L+IfG1atWn+6Ob1Lwr3FctXCnVSx591f8E0fi9+1D8OP2h/C/wY+DHxJ1XwXpXiK4lsltYzHc2BvJYJFs1azuQ8JWa6MMU7p5c3kl/KljcKy/mnHnDmG+o1cX7L97SP1rw+4oxP16ll/tf3VU/Xf9mv/g5/vbBbPQf2x/hxLuYAS6t4VIIzgjLWd3KNo4BLLdHrgR96/Psf4aVP4uX1T9ByvxLw1T91mFI/fX9nP/gqR+wr+1Hoqav8KPiBYfM8UDW+pb7CZZpc7IhHdrEzOcdEDZ7c1+fY/K8TgqvssXSP0HAZphsb/Cqn31BPZXyfbLMiX0IrgO80KACgAoAKACgD+A//AIL6/EtfHv8AwUp1TQbC5E58GaFYaMVAwAXVtQbnPPF5jp2r+h/CrC+zyj2v/P0/nPxVxXtMz9l/z6pn5i+DfAl78SvFWi/CfQ/+Qn4r1O10S0/6738yQR/m7iv0biPH/UsoxeL/AOnZ+acOYD67m+Ewn/Tw+kP2u/HOgfEL9pHxn4r8IBRpP9qSWemeR/qzZWf+j2mz0X7PFHjHasuEsB9SyPCYT/p2ZcZZp9dzzF4v/p4fHOvT+lezijgwp/Yl/wAGzHwnuvC/7HvjH41ai7OPHPiy4+x9dotNNijtABnut1HdD9e9fyh4g4/6znlX/p1+7P658PsB9WyOl/09/eH853/BSn4lL8af+CgvxR8bWL/a4LfXZNLSXGPl05EseOvynyMj61++8B4D6tkeEo/1+8P548Qcf9ZzfF1T5m0zvX6FSPzWqaFdZzBQAVzgf//R/O+v78P88woAKAM/UoK5Kp00j6Z/4JufHN/2Z/28vh38Q7yVYtNuNTGk6kWXIFvf/uGkfuFhLiY/7n41+e8eZX9dyirS/wC4h+n+H2c/Us3pVT+mD/g48/Zwf4m/seaV+0NoduLjVPhRqf2yfaqtIdNvttveIpJG1UcW9zK2eI4Ce2D+BcB5p9Szel/09/dn9BceZX9dyir/ANOv3h/F9oN73r+r8LVP5GxVI9j8G+Mdd+H3ivSPH3hObyNT0G9g1KxlHHlzW8iyRt9Q6g0Y/C08ThquEq/8vTlwGKq4LE0sXS/5dHtn7Vfg3QvBn7QOr3ng+38jwp4uii8VeHwSuP7P1VPtKRIE4VbSVpbTHrCa+c4DxVWplv1Sr/Fw37up/wBwz6jjzC0qeZ/W6X8LE/vKf/cQ+ePJ/wA/5FfZHxAaBrd94A8TaR490I41PQNQt9UtT6TW0iyxn8GUGvLzTAUsThquEq/8vT2cmx9XBYmli6X/AC6Nv/goH8PdB8HftP8AimTwk7PoHiG6HibRy3QWGsRpqFqq+0UNwkf/AAGviOF6v1nKKXtf4tL93/4LP0biOl7PN6vsv4VX95/4MP63v+Dbf9nq4+F//BPufx74kgZL34ja3d6mEmXBW0t2+wwx4/u7oJJl/wCup+tfhnHmP+s5vVpf8+v3Z+58EYX2eWUv+np+8vhz4b/D7wfqT6p4T0Ox0ueaFIXe0hSLKR52qQgHAycV8afZHdUAFABQAUAYXiDXtL8JeHr3xNrsggstOge5uZD0SONS7sfYAE0GVWr7M/y6fil8V7r48fHvxl8cNYVRN4p1m51FIVAAijmkZoohjtFGVjHso+lf19w5gPqWBo4Q/kHijNPruOq4s+tP2N5D4N8d+Iv2h2k8uy+Ffh641dJfvD+0r3Gm6SjAc8XdyLkH0t29K8vjf/bauX5J/wA/an7z/r3T/iHVwR/sX9oZ3/z6p/u/+vlQ+VZutfoR+cHknieS+lni0nQonvNTu7iKzsreLl5riZxHDEg7s7sFUDkkgDmvm8+zSlgsNVxdX/l0fXZDldTG4mlhKP8Ay9P9E3wzonh3/glb/wAEs7XRjJHK3wv8IhZJOVW71IR/M3+y17fOT6Bpe/f+S8BhamY46lS/5+1D+ucfiqWXZZVq/wDPqmf59GlHUNQ1JtQ1GYz3U8hklkPV3flmP1PNf2RgKXs6Xsj+Lc0xXtKvtTv4ele1SPCJ62MwoAK5wP/S/O+v78P88woAKAIJulY1TQ838SWNeViqR7GAqn9/f/BOP48+Cf8Agot/wTxtfD3xJEeszTaVN4P8X2kxDCZ/I8icSgE/8fUDrKy8YEu0dK/kbi3Jv7JzOrS/8Fn9kcJZz/auUUqv/gw/hM/aL/Z98Ufsj/tK+Lf2bPHBee48LXjR2lzISRdWUjF7W5HGP3sJUuoLbH3RliytX9D8G59/aOWUqv8Ay9/5eH858b5D/Z2Z1aX/AC6/5dnN2c9feUj85q0j7Pt0n+NH7JsdhbmE+Ifg7dvKE58ybw/qk37wAAsztY6nIjAnA2Xr9Fjr4Or/AMJPEPtf+XWJ/d/9xKf8P/wYfeUv+Fbhr2X/AC9wP7z/ALh1P4n/AILPkuv0E/OTE1iesqprhaR9iH4I+Lf2/vhv8DNA+GJx4qsNa/4VXqkv3/LspPO1TTbt4/8AnnDZ/wBox/8AbtX43j80pZLjsw9r/Cq/vKf/AF8/h1D94yvK/wC2sDl//P2l+7/9yUz/AEK/hJ8MPCnwU+GPh/4ReBYPs2jeGtPh02yj/uw26CNB+CqBX8+1atWpV9rVP6CpUvZ0vZUj0SsjUKACgAoAKAPwz/4L2/tdaZ+z5+xdqfwk02ZT4n+KAfQrODJDCzYD7fKQOsf2djCTkFXmQ98j7fw+yb67mdKr/wAuqR8Rx5nNLBZZV/5+1T+GPw3Y1/UtKkfyXiqp99+ObcfBz9l3wr8NlCDWPiNKnjbWzgCRLJI3t9EgJAGR5T3d3zztuUHQV8bw5/wo5vi81/5dUv3FP/3IfZcR/wDCTkeEyT/l7V/f1P8A3GfD2sX3evvKtU+DwtI/Vz/ghL+xxc/tUftyWvxo8SxLP4M+DpXVnaXO2fWXwNPiA4DfZ1Ml0WVt0UscBYYdc/g/irn37r+yqX/cQ/oLwlyH97VzWr/17pn6rf8ABxz+1i+n6D4W/Y18F3C/atUf/hINdK4O22i3R20Lcn/Wy75DwCphU9GFcHhVk3tMTVzCr/y6O/xaz72eGpZfSP5aNBsa/oykfzTiqp1deieaFABQAUAf/9P876/vw/zzCgAoAKAOd1ixrzqtI7aVU/TH/gjh+3TP+xj+09H4f8dSNH4D8f7NO1J35W2nXcbS5ALBQokYxSE4CrIXY/uwK/KvEbhf+0cD9bpfxaR+yeGfFH9nY72VX+FVP3h/4L3f8E9L/wDaM+D1r+1H8H7Bbjx38Prd1ureNWabUNKZg0kCKgJeW3YtNAuDnMqKpeVcfkHBHFH9k4797/Cq/wBe0P2Tjzhf+1sD+6/i0j+Kbw3rmn6gft2n/wCkef8A6qv6lwtU/lDH4X2Z9RfAH4r/APCovihpHj3UbQarpP72w1vS2/1V9p15G1veWsmD0lgkYI3OyQI4BZQK4OI8r/tbA1cJ/wCC/wDr5/y7NeHM5/srM6OL/wCXX/Lz/r2J8efhsnwW+J174R027GqaPcxR6roGpqci80q7/eWV0AQCrPH8sic+XKskZLMhJy4Xz7+0cD7Wr/Fpfu6n/Xw6uKMh/s7Heypfwqv7yn/17Pl3xJrlepiqpwYDCn9ff/BvF/wT/vvhn8Np/wBtr4p2jw6744twnh+0mKssGm5JFztAOHusKyNk4hClSBIyj+afEbiP67ifqlL+FSP6g8PuHPqWG+t1f4tU/pY1/X7Pw9YLdXB3PM4igjHV5G+6q+5r85P0Y36ACgAoAKAPE/j/APH74YfsxfCfVfjL8X9Sj0zQ9Fi8yeRurE4Coi9Wd2IVFHLMQByRXVgMBVxtX6phP4py4/H0sFS9rWP85v8AbR/a68c/t0ftG6t8cPHEj2djMfs2j6Y7b0tLFCTHEv8AtEku7DALsxAVSFX+peEuHKWVYH2R/KvGXFFXNsT7Ur/s5fCnTvi58ULPwt4vnksvC2mW8mt+KLqEBnt9HsgHunUEj95L8ttAcMDPNEpGGrq4yzSrgsD7LCf73V/d0zy+EsrpY3He1xf+6Uv3lQzPjv8AGHU/jj8Wtf8Aiv4ggisjq10ZIbSH/VW1ugEdvbRj/nnbwLHCnT5VHFezk2V0sqwNLL6X/Lo8bOc0q5tjquYVf+Xp4n4M8G+OfjD8T9F+EPw3tP7U8S+JryOx023Azulfqzf3Y41DPI7YVUVmcqqsR5fEefUsuw1XF1T2eHMhq5jiaWEpH+hD+z18I/gd/wAEhf2BnsPEN2I9M8LWsmseINSOWe+1GcjzGXJyXlk2QW6EkhRFHuO0E/y1/tOdZn/09qn9X/7DkuWf9OqR/Bx8e/jb44/ap+Pmv/tAfEnd/aHiK6+0CJmLLDEqhIYlJ52xxqqLnnAGcnJP9X8OZNSy7A0sJSP5G4ozmrmOOq4uqYlnBX1NI+IqmhXWQFABQAUAf//U/O+v78P88woAKACgCCaDiuc0OA17Sq4atI9PC1T+w3/ghf8A8FMn+NvhO0/Yy+NN2R4x8OWZ/sS9uG51CwhUAR7iPmubdAdwyWaIB/mKSsP5k8RuEv7Oqf2hhP4VX/ymf1L4c8ZfXcN/Z+L/AItI/MD/AILf/wDBLHUv2YPFmo/tl/s8WW74daxL5/iHT4QSdIuWO43USgc2UrAmVetux3LmAlYPZ8PuN/Z/8JWYf9wzy/EHgP6z/wAKGX/9xKZ+C2m65X7xSqn8+1cKfbHw0mP7UXwfH7NEWZvH/g/7RqvggBvmvrd90+o6OR3bG+9s+P8AWrNGCDOMfB59V/sXMv7bpfwqv7vEf+46h95kNL+2ss/sSr/FpfvKf/uSmfQ3/BHH/gmdq37dnxcj+Kfxf0xj8JPC1wrXpnVlXU7mPa62adA0QyDctk5UiNRlmZPnOPOMvq1L6phP4tU+o4D4N+s1freL/hUj++TXNe8M+AvDV74l8RXVvpelaXbyXV3dXLrFDDDCpaSSR2IVURQWZmOAASTX4EfvtWr7M8M+Dd34h+LN4/x08UWb6fZXcZh8PadP8skdkxDC5uF/huLkqHEbZMEQRMJK06trV/dhSq+0PoOPWbCXVZNHWTNzBCs8if3UkLBC3+8UYD1wfSsjU16ACgD5p/ad/ax+CX7H3w0uvir8dtai0rToFYQxfenuJFUt5VvEAXlcgZwoJwCTwCR34DAYnG1fqmEODNM0w2Cpe1xZ/At/wUL/AOCifxi/4KNfEltU8RxyaH4E0WQjRNAV+FHI+03WCVkuXBOBysKkomS0jy/0jwlwbSymn/09P5p4y4yq5tV/6dHxhZQafp/+n/8AHvX6D/DPzT2vtD7Q+Isjfs0fAeL4DuyR+NviB9k17xeVyr2dlGC+laS25VZW2t9vulZQwkkhRjug5+DyH/hazOrxBV/hUv3eH/8AclQ/Qc+pf2LllLh+l/Fq/vMR/wC46Z8BXd7qWp6kun6bby3V3PKkcMMCF5JHc7VVFUEsxJACgEk9Oa+tx+PpYel7WqfL4DAVcRV9lSP7gP8Agi9/wSttf2OvBCfH748abBJ8T/EVvtVJFDf2RaMQ32aNuf3rkAyuDgYCL8oZpP5a4y4oq51if+nX/Ls/qXg3hKlkuG/e/wAX/l4fi3/wWh/4KUL+154+HwP+CF88nw78LXR8+4jYCPU75AVMoKkh4IslIv4XOZMsrIV/WvDng36lS/tDF/xav/lM/JfEvjL67V+qYT+F/wCnD8a9Hsa/ZKVI/DMVVOrrpOYK6DMKACgArnA//9X876/vw/zzCgAoAKACucDPvIKiqXSqnJWGs+JPhv4otPHng2+l0nVdKlS4srmFyjxyocqysOQQea8XH4CliKXsqp9HleaVcNV9rSP7gP8Aglp/wVX+Hn7eXgj/AIUf8aVtbP4jQ2zwXen3ATydWtyjeZLDGRtJKA+dCBjGWUbNyp/L/GXBtXJavtaX8I/q/g3jLDZtS9lV/in4w/8ABUP/AIIG+L/gTa6x8dv2CrSbWPB+Wu73wZAA11Ysx+dtNHHm2xzu+yLmSNsrCGRljh+j4S8Qfq3+yZh/4MPB4y8PvrNX+0Mv/i/8+z84/wDgk/8A8E6fjX+338arDxVYXN/4R8B+Fr6KfUfFFqXhuEuIGWVLbTpR0vc4YSg4twRK25vLjl+j4t4yw2Gw3sqX72rVPl+EuCKuJxPtav7qlSP9Df4UfCr4f/Az4e6X8L/hnp0Ok6HpEIht7eEYHqzMerSOxLyOxLOxLMSxJr8Hq1faVfa1T94pUqVP91SPiC1vb79vL4orf2Jdvgd4Mv8AMcqt+58T6naSA5XBy+l2M6cNgrd3Ccf6PEftXV/u1L/p6cv+81f+nX/pw+rfj/8AHDSfgV4NttbntZdW1nV7uPSdD0i3IE1/fzhjDAhOQgIVnllPyQwrJNIVjjdl5aVL2h1VavszO+C+mR/D1I/h/wCMNYXWfHOpwHXNduYySpkbZESqsSYbcbfJtEY7jHEctI6SucjU9s1/xB4f8IaPceIfE19Dp2n2aGSe4uXWOONR1Z3bAUDuTgUBVq+zP51P2zv+Djj9nH4Pm68H/sqWZ+Jmuw4jOpgmLSI2+U7hN9+54JwIQI2H3Zs8V+g5N4fY7E/vcX+6pH59n3iDgcF+6wn72qfgL+3T8bPjd4v8GaT4U/aP1U6/8VPFYj8Q+J5Z4/LGjWUuJNJ0O1jzi1j8sJqF5Hj95I0Xm+ZLBz+g8EZDhqmJq5hhf4X8On/7kqH5zx5n2Jp4b+z6v8Wr+8qf/Kz87LOD+z+tfsFI/Fqv7w+q/wBnrQ9D8I2WqftU/E2xivvC3ge6SPSdMuCPK1vXyhktrFk6va2gKXWoDcP3ZjiIb7QMfnvFGPq5jif9X8J/3E/6d0//ALofo3CWV08uw3+sGL/7h/8ATyp/9zPl241H4v8A7Q/xRe20a31Hxx458YX0kyW8CebdXVxKzSSSMowqr1kkclY41BZiqqzD2cfmmByXA/vf3VKkeXgMrx2dY791+9q1T+0L/glF/wAEUvC/7I81r8f/ANo1rfxD8T2j/wBGtYwGs9IVh92HqJblh/rZ+ij93F8u95v544t4yxOdVf8Ap1/z7P6M4S4Nw2S0va/xap8Lf8FiP+CxUHjePVf2RP2RdW8zT5N1v4l8RWjDbMOQ9nbN3iPSSZTiQfKh8skt9v4fcB/8zDMP+4dM+D8QfEH/AJl+X/8AcSofzX6PpVfvtKkfzxiqp20MHFdx5hPQZhXQAUAFc4BQB//W/O+v78P88woAKACgAoAWbpXOaHJazXNVO+keO3Pi3xJ4K1W18W+DNQudN1SxkFxbXdnI0U0boflZHQgqwPIIII7V85mlKlVpeyqn2OTVatOr7Wkf3tf8ERv2zP2vf2x/2dx4m/aj8IzWUOnhItI8WvthXWkO7zG+y8MrQ7RvmVVicvtRVaNwP5f4twGBwWO9lhKv/wBzP6g4Xx+OxOG9ri6R+02maRpulpJHp0EcKyyvM2xduXkYs7H1ZmJJPfNfLn1B+WnjXxz4n/4KIeOtR+BvwT1KfTfgzoNy9j408UWcjJJq8yEpNoulTRkHylIaPULtD8hDW0X+kec9t6nsvq372r/FOWr/ALT/ANej9A/HHjT4Ufsz/Bm88YeJ3tfDPg/wjp6gpBGI4be3hURxRQwxrwAAscUUa5J2oikkCuClSq1KprVq0qdI+AtE8YL4K8Ka/wD8FMf22bSXRBp1g8PhXw5Ioln0jTZ5U2RLGufO1jVJhD5qxBiD5FnB5hRprnq9l7T/AGTCHL/D/wBrqnx7af8ABQXTv2ck8QeH9S0+L4jftS+PY7nxFqngjSryP/iVw2cPmWujmfnL2FkvNvbCSW5uftMsUX7+vUpZNVxP73+FhP8An4eXVzmlhv3X8XF/8+z+d/xT+3V+0h/wUc+Ev7Q+t/tG6vHcaTpPhbT9Q0fRLJNunWbnX9MTfAhzvfY7x/aJPMkG5+3Ffpf+rmGynHZf9U/5+f8AuM/NKufYnNsDmHtf+fdP/wBOHzH+x98PfCnhGw1P9sX4u2cV54U8A3SRaXp05xHrOvuhe1sGA5MEKj7Xd88xIIsEzLX1GfYqriatLh/Cfxav8T/p3TPkshpfVqVXO8X/AAqX8P8A6eVDwHxl8QvEXxE8Tap488Y30uoarrd1Je3tzMcvJNK5d2P1JJr7fC0qWGpeypfwj4PFVauJq/W6p23wP+EPif8AaB+Ia+CfDk40fSLCN9R1/XLiNpItN0+Hma6eKP8AeSsOEhgiG+eZo4lwzgjweKOKKWU4b/p7/wAuz6PhLhKrm2J9l/y6/wCXh+w3gP8A4JM/tfft9+JPD6nQZvgP8DfCdp9g8NxeI4i+qfY5JPMnmOn4ikF/eSb7i8uLry8yv/y1ijjr8lpcb4bKcNVpYT97i6v8Sp/08P1//Uirm2J9ri/3WEpfw6Z/SL+z9+yN/wAE/P8Agjn8G77xraS22hMYli1jxbr0ol1G/bcWVXlIBZmYny7a3RE3E+VEGYg/B1auZ51if+ftU+8pUssyXDf8+qR/N7/wUo/4LS+O/wBr9Zfg/wDs7m68J/DuTcl3ctlL7U1OPvbT+5tzg/u8B3U/OVDNGv7dwb4c0sF/tWYfvav/AKbPwzjLxLqY3/ZMv/dUj8UtH0Kv1+lSPxbFYo7aGDiuo8v2pPWhAV0AFABQAUAFAH//1/zvr+/D/PMK5wCugArnAgmn4qval+yOb1LXK5KtU76WFOAS68SeKPElp4P8F6ddaxql9ILe1tLKN5pppX4VEjQFmYngAAkngZrwcfmlLDUva1T6PK8mq4mr7KlSP6hf+CbH/BvS82rWfx0/4KDRRXcTolxY+B0dXjVjhg2puu5ZSDnEEbeXwPMZ1Zol/AuKPEGrif8AZMv/AIR/Q/C/h9SwX73MP4p/WskeieGdG+URWFhZReyRxxoPwCqoH0Ar8vP1A/JTxD468e/8FN2Pgv8AZ/1a88MfANppIdd8aWMjQXniVEOySx0R/lkhsJPuTarGSZBmO06/aE9T/cv4v8U4Pa1av/Xo/Q6+vPgN+x98CTeXZ0zwL4A8D6b/ANM7azsbSBen8KJGij2AA9K4P3tSqdX8M+Hfgr4R+JX7cHxP039qz9oXSrnQfh34euEvfh74NvVKTPOufL13VoWwVuFBJsLSRQbbPnSqLry1tuqr+7/dUjL2XtP3tU57/gqN/wAE9f2g/wBvew8MWPwq+ME/w3s/Cl2upQWlraySGa9U7UuHmjuoHVoIy/kbfuuxY7iqberJs0pYKr+9pe1OXNMrqY2l+6q+yP514/8Ag2c/b2+HPi2w8a/Cn4g+FpNT0i4ivbK9M97aXEc0TBklQLbTBHVgGXEp24GDkV+g/wDERsNUpeyq4Q/Pqvh9iva+1pYs/QO5/wCCLP7QHivw38RvFl9ceG/DXin4teF49F8SWllJK9hFqsesWV2+pWgEUW2O7ghlkmtz/qrj5Ij5T/J85S4t9nVpf8+qVT92e9V4S9p7X/n7Vp/vDkvjf/wb/wD7QPxk1DSPAnh3xxoXg74b+B7U2HhnTreO4vJ3WQh7q8vBts4hd3cuZJTFlcBEyBGpPfk3iD9S9rV9l7WrV/iVDy808PvrvsqXtfZUqX8M9t+E/wDwbO/sy6G5vPjP4413xYShX7ParFYW+eeSq+dL/wB8zD8DzWWP8S83xP8AC/dHVgPDTKKf8X96fqX4O+Gv/BOj/glv8P7q78OQeHvhlpmpiNri4urj/SbwwAKgaSd3urp4w/yrl2G7AHOK+S/4U81q/wDLyrVPqP8AhNyql/y7pUj8kP2sv+Djj4f6El54S/Y28Ny+JdQGY013WUe2sh97a8dt8tzMOmRJ9nIzxuFfo2Q+FWJxP73MKvsj8+z7xVwNP/kX/vT+Yv49/tE/Hz9q/wAat44+PPiO61y5jJNvFKdtvArEsVhgTEUQJOSEVQep5r9pybhvA5dS9jhKR+GZ9xRjsxq+1xdU4DTdKr6ilSPkquKOkhg4rpOEnroMwoAKACgArnAKACgD/9D876/vQ/zzCgAoAz7yesy6VI4nWNcrgq1T2cLhT7z/AGLP+CTv7XH7d723ifw9ZDwf4NmAY+I9aRwskZ3ANZwDElzyOD8kTcjzQeK/L+KPEbA4L9zS/e1T9a4X8Ocdjf3tX91SP7LP2FP+CV/7K37BGmHUfhzp39r+L50K3nibUgHu3DAbki6rbw5Ufu4wMgDezsA1fg+c8R47NqvtcXWP33JuG8Dl1L2OEpH1J+0b+1R8EP2UfBi+NPjZrUemRXL/AGfT7ONXmu724P3LaztYVee5nc8LHEjMeuMAkcGFwtXE/wAI9SriqVP+KfBkHwR/aD/4KFXZ179sCwn8AfBdH82x+GSujX2soPuP4lmjyiQ9xpVtKY/+fqWX/VR9XtaWG/3T+L/z8/8AlZy+yq1P31U+1P2iv2o/gJ+xl4CtNa+Jl01nHdSLZaNo+mwm4vr6c/dtrCzhBluJm/hjjUsevQEjlwuFq4n+Ea4rFUsMfDPhb4K/E79pDxFafth/8FKDbeEfBvhGX+2fC3w2nuENlpTx/vE1TX7gnyrrUosb4Y8/ZrH/AJZeZL+9rq9rS/3TCGX/AFF4s/En/gqn/wAFyvGvxJ1yX4G/sL63f6BoemXBe98UWu+3uLt4mIKWx+WSO2yBuf5WkI2jEYJl/VeEvDn/AJi81pf9wz8l4t8Rv3v1TKv/AAYfGXws/wCC5X/BTj4dwJDceKtO8WC3OVh1qwhZfoWtRayn/v5+FfUYrwvyip/06PksL4oZvT/6en2Z4f8A+DlP9q+10dF8VfD/AMMXl4MgyWz3Nsh/4Cz3B/UV41Xwgw3/AC6xdQ9ml4v4n/l7SOs/4iZ/jpjH/CqNHz0z/aUv/wAi1zf8Qg/6i/8AymdX/EZH/wBAh5z4x/4ORv2yb62jj8G+D/CWluANzXUd1dnPflbmAfoPpXdhfCDA/wDL2rUODFeL+O/5dUqZ8L/FX/grt/wUo+LqxWF98R7vR7SRcLFoscFiwOMZFxCi3I/7/fXNfUYDw5yPDf8ALr2v/Xw+Xx/iXm+J/wCXp+fOsp4j8Y6jP4p8Y6jd6vqc5zJdXsrzSOfVnclifcmvssLgKVKl7KlSPiMVnNXE/vatU07LQ69D2R41XFHSQ2Peur2Ry1appeStWZja6DMK5wCugArnAKACgAoAK6AP/9H876/vQ/zzCgCCbpQaC6J4Z8Q+OPE9l4P8H2Ul9qmrXKW1tbRffklkYKiqO5JIA9TXDj8VSw1KrVq/wj08BhauJq0sJS/in9Yn7BH/AARJ+BHwH021+Mf7a8mmeKvFKBbiHSZmWTTLBhyQyuoNzNk4Yy5jHARCyiQ/zJxbx5js1/dYT91SP6l4S8PsDlP73F/vap+onxp/4KffsDfs/WEs3jz4naKz2ybms9LlGoTgA94bMTSjr1K4r5LAcL5njf4WEqH2WP4oyzBfxcWfgx+1J/wcm614juh4C/Yp8Jppf2if7L/wkfi0gLH84XzY7O383KYywkeQkdGgNfeYDwvq+y9rmFX/ALh0z4PH+KFKpV9ll/8A4MqH1B8Iv2mf+CTX7Iep/wDC9Pjd8aYfjL8aL+18u98YzRz6ncgSAeZb6fHbxzW2l2mc/wCjxeXx/rS55r5yrwvnmN/dUsJ7KkfR/wCtGR4Kn+9xftap84ftVf8AByZfanZ3/hX9jfwa9u67ol13xMBjOB88Nnby/MOpVnmHvH3r6jJvCWr/ABcwq/8Ags+Sznxaw1P/AJF9L/wYfgHon7ZH7ZFv8dj+09ceOL278d+U1sNYuYoJ3iifBaKGOWNooY8gHy441QHoor9Q/wBSMsqYb6p7L90fl/8Ar5mf1n637X96WPjr+1b+1b+1SDY/Hnx1qniS3jfzHtpHEFoX4G/7LbiK3D4GNwjBxx0rvyvhLLcu/e4SkeXmnGWZ5j+6xdU8Ks9Dr6ilSPkquKNv+y/pWvsjl+tB/Zf0o9kP2of2X9KPZC+tB/Zf0o9kH1osfYfp/n8a29kZ+1NOGDikY+1ErQZYoAKDMKDQr0AHnf5/yaADzv8AP+TQAUAHnf5/yaACgAoA/9L83/O/z/k1/eB/n57Ir+d/n/Jp+1D2Qed/n/Jo9qHsitN1rI1pHEaloen/APPvFXL7I9Oliqpm/wBl/SsvZGv1ksw6VWvsjP2pZ/smj2Qe1Nuz0qtfZHJVqm3DBWpze1HUEiecaCvZE/276f5/Cl7UPZFrzv8AP+TWpl7Ised/n/JoMiv53+f8mg19kHnf5/yaA9kHnf5/yaftRFfzv8/5NHtR+yG/bvp/n8Kx9qa+yD7d9P8AP4Ue1MvZCzX2RR7U19kZ39qfSj2oeyD+1PpR7U0+rB/an0o9qP2RP9uNMy9kV/txpe1NfZFmG+4o9qZeyLXnf5/ya1MvZH//0/y8i61/dB/A4+gBkXWtALEXWsznM69oOwy6DQK5wFh6UAdJZ9TXYc1U0putBgYsvWszekUqDUKAN+HrWhy1SxN1rQxM2XrWZoEXWgDToMzMl60GhXi61mdA+gBkvWtACLrWZoYep9BSqmtIraZ3/wCutcmBNMUWP+Yl/wBsqP8Al4H/AC6OMvf+Qld15f8Ay9rHqf8ALqkdpo//ACDbWvUy/wDhnl5h/FN+uw4j/9k=";
+const T = {
+  en: {
+    title: 'Logo to PES', tagline: 'Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.',
+    logo: 'Logo', choose: 'Choose an image', dropHint: 'or drop a PNG or JPG here',
+    logoHint: "Flat logos with a few solid colors work best. Photos and color gradients won't stitch well.",
+    example: 'Example: dove and globe logo', size: 'Size', hoop: 'Hoop', width: 'Width', height: 'Height', fit: 'Fit to hoop',
+    inches: (w, h) => `That's ${w} × ${h} inches.`,
+    colors: 'Thread colors', count: 'Colors in the logo', auto: n => `Auto (${n})`,
+    colorsHint: 'Colors stitch from top to bottom. Set the background to Fabric if the fabric should show through.',
+    stitch: 'Stitch', skip: 'Fabric', machineName: n => `Machine calls it: ${n}`, up: 'Stitch earlier', down: 'Stitch later', thread: 'Thread color',
+    more: 'More stitch settings', angle: 'Fill direction', density: 'Fill density', light: 'Light', normal: 'Normal', dense: 'Dense',
+    satin: 'Narrow parts become satin up to', fabric: 'Preview fabric color',
+    preview: 'Stitch preview', busy: 'Making stitches…', fits: h => `Fits the ${h} hoop`, tooBig: h => `Too big for the ${h} hoop`,
+    nothing: 'Turn on at least one color to stitch', rSize: '↕ height × ↔ width (mm)', rSt: 'stitches', rCc: 'thread changes',
+    rTr: 'jump threads to cut', rMin: 'minutes to sew (about)',
+    download: 'Download .pes', dlNote: "You'll get a .zip. Open it and copy the .pes file inside to your USB stick.",
+    dlNoteDirect: 'The .pes file downloads directly. Copy it to your USB stick.',
+    saved: 'Saved. Unzip it and copy the .pes file to your USB stick.', declined: 'Download canceled.', dlFail: "The download didn't start. Try again.",
+    tip1: 'Sew a test on scrap fabric with stabilizer before the real garment.',
+    tip2: "White thread looks faint on the machine's screen. That's normal.",
+    tip3: 'Your machine will stop at each thread change and show the color name listed above.',
+    badImage: "That file couldn't be opened as an image. Try a PNG or JPG.", failed: 'Something went wrong making stitches. Try a simpler image or fewer colors.'
+  },
+  es: {
+    title: 'Logo a PES', tagline: 'Convierte un logo de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.',
+    logo: 'Logo', choose: 'Elegir imagen', dropHint: 'o suelta aquí un PNG o JPG',
+    logoHint: 'Funcionan mejor los logos planos con pocos colores sólidos. Las fotos y los degradados no se bordan bien.',
+    example: 'Ejemplo: logo de paloma y mundo', size: 'Tamaño', hoop: 'Bastidor', width: 'Ancho', height: 'Alto', fit: 'Ajustar al bastidor',
+    inches: (w, h) => `Son ${w} × ${h} pulgadas.`,
+    colors: 'Colores de hilo', count: 'Colores en el logo', auto: n => `Auto (${n})`,
+    colorsHint: 'Los colores se bordan de arriba hacia abajo. Marca el fondo como Tela si la tela debe verse.',
+    stitch: 'Bordar', skip: 'Tela', machineName: n => `La máquina lo llama: ${n}`, up: 'Bordar antes', down: 'Bordar después', thread: 'Color del hilo',
+    more: 'Más ajustes de puntada', angle: 'Dirección del relleno', density: 'Densidad del relleno', light: 'Ligera', normal: 'Normal', dense: 'Densa',
+    satin: 'Las partes delgadas van en satín hasta', fabric: 'Color de tela (vista previa)',
+    preview: 'Vista previa de puntadas', busy: 'Creando puntadas…', fits: h => `Cabe en el bastidor de ${h}`, tooBig: h => `Demasiado grande para el bastidor de ${h}`,
+    nothing: 'Activa al menos un color para bordar', rSize: '↕ alto × ↔ ancho (mm)', rSt: 'puntadas', rCc: 'cambios de hilo',
+    rTr: 'hilos de salto para cortar', rMin: 'minutos de bordado (aprox.)',
+    download: 'Descargar .pes', dlNote: 'Recibirás un .zip. Ábrelo y copia el archivo .pes a tu memoria USB.',
+    dlNoteDirect: 'El archivo .pes se descarga directamente. Cópialo a tu memoria USB.',
+    saved: 'Guardado. Descomprímelo y copia el archivo .pes a tu memoria USB.', declined: 'Descarga cancelada.', dlFail: 'La descarga no empezó. Inténtalo de nuevo.',
+    tip1: 'Haz una prueba en un retazo con entretela antes de la prenda final.',
+    tip2: 'El hilo blanco se ve tenue en la pantalla de la máquina. Es normal.',
+    tip3: 'La máquina se detiene en cada cambio de hilo y muestra el nombre del color indicado arriba.',
+    badImage: 'No se pudo abrir ese archivo como imagen. Prueba con un PNG o JPG.', failed: 'Algo salió mal al crear las puntadas. Prueba con una imagen más simple o menos colores.'
+  }
+};
+let lang = (navigator.language || 'en').toLowerCase().startsWith('es') ? 'es' : 'en';
+const t = (k, ...a) => { const v = T[lang][k]; return typeof v === 'function' ? v(...a) : v; };
+const $ = id => document.getElementById(id);
+const Emb = window.Emb;
+
+const HOOPS = { '100x100': [100, 100, '4×4 in'], '130x180': [130, 180, '5×7 in'], '160x260': [160, 260, '6×10 in'] };
+const state = {
+  img: null, name: 'logo', aspect: 1, analysis: null, kChoice: 'auto', colors: [], order: [],
+  wmm: 90, hmm: 90, hoop: '100x100', angle: 45, density: 0.4, satin: 4.5, fabric: '#14285a',
+  result: null, busy: false, jobId: 0, pending: false, isExample: true
+};
+
+/* ---------- language */
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-t]').forEach(el => { const v = T[lang][el.dataset.t]; if (typeof v === 'string') el.textContent = v; });
+  $('lang-en').setAttribute('aria-pressed', lang === 'en');
+  $('lang-es').setAttribute('aria-pressed', lang === 'es');
+  document.title = t('title');
+  $('fname').textContent = state.isExample ? t('example') : state.fileLabel || '';
+  renderKSelect(); renderColors(); updateInches(); renderReadout();
+  $('dlnote').textContent = downloadsCap === false ? t('dlNoteDirect') : t('dlNote');
+}
+$('lang-en').onclick = () => { lang = 'en'; applyLang(); };
+$('lang-es').onclick = () => { lang = 'es'; applyLang(); };
+
+/* ---------- colour helpers */
+const hex = c => '#' + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const rgbInt = c => (Math.round(c[0]) << 16) | (Math.round(c[1]) << 8) | Math.round(c[2]);
+const fromHex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const intHex = n => '#' + n.toString(16).padStart(6, '0');
+
+/* ---------- loading an image */
+function loadImage(src, label, isExample) {
+  const im = new Image();
+  im.onload = () => {
+    state.img = im; state.isExample = isExample; state.fileLabel = label;
+    state.aspect = im.naturalWidth / im.naturalHeight;
+    $('thumb').src = src;
+    $('fname').textContent = isExample ? t('example') : label;
+    analyze();
+    fitToHoop();
+    schedule(0);
+  };
+  im.onerror = () => { setStatus('bad', t('badImage')); };
+  im.src = src;
+}
+function analyze() {
+  const im = state.img;
+  const s = Math.min(1, 320 / Math.max(im.naturalWidth, im.naturalHeight));
+  const w = Math.max(1, Math.round(im.naturalWidth * s)), h = Math.max(1, Math.round(im.naturalHeight * s));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(im, 0, 0, w, h);
+  state.analysis = Emb.analyzeColors(ctx.getImageData(0, 0, w, h).data, w, h, 8);
+  state.kChoice = 'auto';
+  setColorsForK();
+  renderKSelect();
+}
+function currentK() { return state.kChoice === 'auto' ? state.analysis.suggested : +state.kChoice; }
+function setColorsForK() {
+  const k = currentK();
+  const r = state.analysis.results[k] || state.analysis.results[state.analysis.suggested];
+  const b = state.analysis.border[k] || { counts: r.centers.map(() => 0), transparent: 0, total: 1 };
+  let bg = -1;
+  if (b.transparent < b.total * 0.5 && r.centers.length > 1) {
+    const m = Math.max(...b.counts);
+    if (m > b.total * 0.3) bg = b.counts.indexOf(m);
+  }
+  // near-black and near-white clusters (anti-aliased averages) default to true black / white thread
+  const snap = c => Math.max(...c) < 50 ? 0x000000 : (Math.min(...c) > 225 ? 0xffffff : rgbInt(c));
+  state.colors = r.centers.map((c, i) => ({ rgb: c, stitch: i !== bg, thread: snap(c), share: r.counts[i] }));
+  // background first, then larger areas first
+  const idx = r.centers.map((_, i) => i).filter(i => i !== bg).sort((a, b2) => r.counts[b2] - r.counts[a]);
+  state.order = bg >= 0 ? [bg, ...idx] : idx;
+  state.fabric = bg >= 0 ? hex(r.centers[bg]) : '#efece6';
+  $('fabric').value = state.fabric;
+  renderColors();
+}
+function renderKSelect() {
+  const sel = $('kcount');
+  if (!state.analysis) return;
+  const opts = [['auto', t('auto', state.analysis.suggested)]];
+  for (let k = 1; k <= 8; k++) if (state.analysis.results[k]) opts.push([String(k), String(k)]);
+  sel.innerHTML = '';
+  for (const [v, l] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = l; sel.appendChild(o); }
+  sel.value = state.kChoice;
+}
+$('kcount').onchange = e => { state.kChoice = e.target.value; setColorsForK(); schedule(); };
+
+function renderColors() {
+  const box = $('colors');
+  box.innerHTML = '';
+  state.order.forEach((ci, pos) => {
+    const c = state.colors[ci];
+    if (!c) return;
+    const row = document.createElement('div');
+    row.className = 'crow' + (c.stitch ? '' : ' off');
+    const stitchNo = c.stitch ? state.order.filter(j => state.colors[j].stitch).indexOf(ci) + 1 : '–';
+    row.innerHTML = `
+      <span class="step" title="${t('stitch')}">${stitchNo}</span>
+      <span class="swatch" style="background:${hex(c.rgb)}"></span>
+      <div class="cmain">
+        <div class="seg" role="group">
+          <button type="button" data-a="on" aria-pressed="${c.stitch}">${t('stitch')}</button>
+          <button type="button" data-a="off" aria-pressed="${!c.stitch}">${t('skip')}</button>
+        </div>
+        ${c.stitch ? `<div class="thread"><input type="color" id="thr-${ci}" value="${intHex(c.thread)}" aria-label="${t('thread')}"><span>${t('machineName', Emb.brotherName(c.thread))}</span></div>` : ''}
+      </div>
+      <div class="move">
+        <button type="button" data-a="up" aria-label="${t('up')}" ${pos === 0 ? 'disabled' : ''}>▲</button>
+        <button type="button" data-a="down" aria-label="${t('down')}" ${pos === state.order.length - 1 ? 'disabled' : ''}>▼</button>
+      </div>`;
+    row.querySelector('[data-a="on"]').onclick = () => { c.stitch = true; renderColors(); schedule(); };
+    row.querySelector('[data-a="off"]').onclick = () => { c.stitch = false; state.fabric = hex(c.rgb); $('fabric').value = state.fabric; renderColors(); schedule(); };
+    row.querySelector('[data-a="up"]').onclick = () => { const o = state.order; [o[pos - 1], o[pos]] = [o[pos], o[pos - 1]]; renderColors(); schedule(); };
+    row.querySelector('[data-a="down"]').onclick = () => { const o = state.order; [o[pos + 1], o[pos]] = [o[pos], o[pos + 1]]; renderColors(); schedule(); };
+    const inp = row.querySelector('input[type="color"]');
+    if (inp) {
+      inp.oninput = () => { c.thread = parseInt(inp.value.slice(1), 16); inp.nextElementSibling.textContent = t('machineName', Emb.brotherName(c.thread)); if (state.result) drawPreview(); };
+    }
+    box.appendChild(row);
+  });
+}
+
+/* ---------- size */
+function fitToHoop() {
+  const [hw, hh] = HOOPS[state.hoop];
+  const maxW = hw - 10, maxH = hh - 10;
+  let w = maxW, h = w / state.aspect;
+  if (h > maxH) { h = maxH; w = h * state.aspect; }
+  state.wmm = Math.round(w * 2) / 2; state.hmm = Math.round(h * 2) / 2;
+  $('wmm').value = state.wmm; $('hmm').value = state.hmm;
+  updateInches();
+}
+function updateInches() { $('inches').textContent = t('inches', (state.wmm / 25.4).toFixed(2), (state.hmm / 25.4).toFixed(2)); }
+$('wmm').oninput = e => { const v = +e.target.value; if (v >= 10) { state.wmm = v; state.hmm = Math.round(v / state.aspect * 2) / 2; $('hmm').value = state.hmm; updateInches(); schedule(600); } };
+$('hmm').oninput = e => { const v = +e.target.value; if (v >= 10) { state.hmm = v; state.wmm = Math.round(v * state.aspect * 2) / 2; $('wmm').value = state.wmm; updateInches(); schedule(600); } };
+$('hoop').onchange = e => { state.hoop = e.target.value; fitToHoop(); schedule(); };
+$('fit').onclick = () => { fitToHoop(); schedule(); };
+$('angle').oninput = e => { state.angle = +e.target.value; $('angleV').textContent = state.angle + '°'; schedule(500); };
+$('density').onchange = e => { state.density = +e.target.value; schedule(); };
+$('satin').oninput = e => { state.satin = +e.target.value; $('satinV').textContent = state.satin + ' mm'; schedule(500); };
+$('fabric').oninput = e => { state.fabric = e.target.value; if (state.result) drawPreview(); };
+
+/* ---------- file input + drag and drop */
+function takeFile(f) {
+  if (!f) return;
+  const stem = f.name.replace(/\.[^.]+$/, '');
+  state.name = (stem.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'logo').slice(0, 24);
+  const rd = new FileReader();
+  rd.onload = () => loadImage(rd.result, f.name, false);
+  rd.readAsDataURL(f);
+}
+$('file').onchange = e => takeFile(e.target.files[0]);
+const drop = $('drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => takeFile(e.dataTransfer.files[0]));
+
+/* ---------- digitizing in a worker */
+let worker = null;
+try {
+  const blob = new Blob([document.getElementById('engine-src').textContent], { type: 'text/javascript' });
+  worker = new Worker(URL.createObjectURL(blob));
+} catch (e) { worker = null; }
+let timer = null;
+function schedule(delay) {
+  clearTimeout(timer);
+  timer = setTimeout(run, delay === undefined ? 250 : delay);
+}
+function buildParams() {
+  const area = state.wmm * state.hmm;
+  const mmpx = Math.max(0.1, Math.sqrt(area / 1.3e6));
+  const W = Math.max(20, Math.round(state.wmm / mmpx)), H = Math.max(20, Math.round(state.hmm / mmpx));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(state.img, 0, 0, W, H);
+  const data = ctx.getImageData(0, 0, W, H).data;
+  const up = W / state.img.naturalWidth;
+  return {
+    rgba: data, W, H, mmpx, blurPx: Math.max(0, Math.min(3, Math.round(up * 0.5))),
+    colors: state.colors.map(c => ({ rgb: c.rgb, stitch: c.stitch, thread: c.thread })),
+    order: state.order.slice(), angle: state.angle, density: state.density, satinMax: state.satin
+  };
+}
+function run() {
+  if (!state.img) return;
+  if (state.busy) { state.pending = true; return; }
+  if (!state.colors.some(c => c.stitch)) { state.result = null; setStatus('bad', t('nothing')); drawPreview(); renderReadout(); $('download').disabled = true; return; }
+  state.busy = true; state.pending = false;
+  const id = ++state.jobId;
+  setStatus('busy', t('busy'));
+  $('download').disabled = true;
+  const params = buildParams();
+  const done = res => {
+    state.busy = false;
+    if (state.pending) { run(); return; }
+    state.result = res; drawPreview(); renderReadout(); updateFitChip();
+    $('download').disabled = !res.cmds.length;
+  };
+  const fail = msg => { state.busy = false; console.error(msg); setStatus('bad', t('failed')); if (state.pending) run(); };
+  if (worker) {
+    worker.onmessage = ev => {
+      const m = ev.data;
+      if (m.id !== id) return;
+      if (m.type === 'done') done(m.result);
+      else if (m.type === 'error') fail(m.message);
+    };
+    worker.onerror = () => { worker = null; state.busy = false; run(); };
+    worker.postMessage({ type: 'digitize', id, params }, [params.rgba.buffer]);
+  } else {
+    setTimeout(() => { try { done(Emb.digitize(params)); } catch (e) { fail(String(e && e.stack || e)); } }, 30);
+  }
+}
+function setStatus(kind, text) { const s = $('status'); s.className = 'chip ' + kind; s.textContent = text; }
+function updateFitChip() {
+  const r = state.result; if (!r) return;
+  const [hw, hh, label] = HOOPS[state.hoop];
+  if (r.width <= hw && r.height <= hh) setStatus('good', t('fits', label)); else setStatus('bad', t('tooBig', label));
+}
+
+/* ---------- preview drawing */
+function drawPreview() {
+  const cv = $('stage');
+  const [hw, hh] = HOOPS[state.hoop];
+  const ring = 9;                                   // hoop frame around the sewing field, mm
+  const cssW = cv.clientWidth || 600;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const totW = hw + ring * 2 + 6, totH = hh + ring * 2 + 6;
+  const cssH = cssW * totH / totW;
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  cv.style.height = cssH + 'px';
+  const ctx = cv.getContext('2d');
+  const s = cv.width / totW;                       // px per mm
+  const css = getComputedStyle(document.documentElement);
+  ctx.fillStyle = css.getPropertyValue('--surface').trim() || '#fff';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  const fx = (3 + ring) * s, fy = (3 + ring) * s;
+  // hoop frame
+  ctx.lineWidth = ring * 0.55 * s;
+  ctx.strokeStyle = css.getPropertyValue('--line').trim();
+  roundRect(ctx, fx - ring * 0.5 * s, fy - ring * 0.5 * s, (hw + ring) * s, (hh + ring) * s, 8 * s); ctx.stroke();
+  // fabric in the sewing field
+  ctx.fillStyle = state.fabric;
+  roundRect(ctx, fx - ring * 0.25 * s, fy - ring * 0.25 * s, (hw + ring * 0.5) * s, (hh + ring * 0.5) * s, 5 * s); ctx.fill();
+  // sewing-field limit (basting line) and centre mark
+  const r = state.result;
+  const over = r && (r.width > hw || r.height > hh);
+  ctx.setLineDash([2.2 * s, 1.6 * s]); ctx.lineWidth = Math.max(1, 0.35 * s);
+  ctx.strokeStyle = over ? css.getPropertyValue('--tack').trim() : 'rgba(255,255,255,0.55)';
+  if (!over && luminance(fromHex(state.fabric)) > 0.6) ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.strokeRect(fx, fy, hw * s, hh * s);
+  ctx.setLineDash([]);
+  if (!r || !r.cmds.length) return;
+  const ox = fx + (hw - r.width) / 2 * s, oy = fy + (hh - r.height) / 2 * s;
+  const k = s / 10;                                 // commands are in 0.1 mm
+  const blocks = [];
+  let path = new Path2D(), last = null, ci = 0;
+  for (const [x, y, c] of r.cmds) {
+    const px = ox + x * k, py = oy + y * k;
+    if (c === Emb.STITCH) { if (last) { path.moveTo(last[0], last[1]); path.lineTo(px, py); } last = [px, py]; }
+    else if (c === Emb.JUMP) { last = [px, py]; }
+    else if (c === Emb.COLOR_CHANGE) { blocks.push([path, ci]); path = new Path2D(); ci++; }
+  }
+  blocks.push([path, ci]);
+  ctx.lineCap = 'round';
+  for (const [p, i] of blocks) {
+    const col = liveThread(i, r.threads[i]);
+    const rgb = [(col >> 16) & 255, (col >> 8) & 255, col & 255];
+    ctx.strokeStyle = `rgb(${rgb.map(v => Math.round(v * 0.58)).join(',')})`;
+    ctx.lineWidth = Math.max(1, 0.46 * s); ctx.stroke(p);
+    ctx.strokeStyle = `rgb(${rgb.join(',')})`;
+    ctx.lineWidth = Math.max(0.6, 0.32 * s); ctx.stroke(p);
+  }
+}
+function liveThread(i, fallback) {
+  const stitched = state.order.filter(j => state.colors[j] && state.colors[j].stitch);
+  const ci = state.result && state.result.colorsUsed ? state.result.colorsUsed[i] : stitched[i];
+  return ci !== undefined && state.colors[ci] ? state.colors[ci].thread : fallback;
+}
+function luminance(c) { return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255; }
+function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+window.addEventListener('resize', () => { if (state.result) drawPreview(); });
+
+function renderReadout() {
+  const r = state.result;
+  const nf = (v, d) => v.toLocaleString(lang === 'es' ? 'es-CO' : 'en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+  if (!r || !r.cmds.length) { ['r-size', 'r-st', 'r-cc', 'r-tr', 'r-min'].forEach(id => $(id).textContent = '–'); return; }
+  $('r-size').textContent = `${nf(r.height, 1)} × ${nf(r.width, 1)}`;
+  $('r-st').textContent = nf(r.stitches);
+  $('r-cc').textContent = nf(r.colorChanges);
+  $('r-tr').textContent = nf(r.trims);
+  $('r-min').textContent = nf(Math.max(1, Math.ceil(r.stitches / 600 + r.colorChanges)));
+}
+
+/* ---------- download */
+let downloadsCap = null;      // null = not known yet, false = not available here
+(async () => {
+  try {
+    downloadsCap = (window.claude && window.claude.use) ? (await window.claude.use('downloads')) || false : false;
+  } catch (e) { downloadsCap = false; }
+  $('dlnote').textContent = downloadsCap === false ? t('dlNoteDirect') : t('dlNote');
+})();
+$('download').onclick = async () => {
+  const r = state.result; if (!r || !r.cmds.length) return;
+  const msg = $('dlmsg'); msg.className = 'msg'; msg.textContent = '';
+  const threads = r.colorsUsed ? r.colorsUsed.map((ci, i) => state.colors[ci] ? state.colors[ci].thread : r.threads[i]) : r.threads;
+  const pes = Emb.writePES(r.cmds, threads, state.name.toUpperCase().slice(0, 8));
+  const fname = state.name + '.pes';
+  if (downloadsCap) {
+    const zip = Emb.makeZip([{ name: fname, data: pes }]);
+    try {
+      await downloadsCap.save({ filename: state.name + '.zip', data: new Blob([zip]) });
+      msg.className = 'msg ok'; msg.textContent = t('saved');
+    } catch (e) {
+      if (e && e.code === 'declined') { msg.textContent = t('declined'); }
+      else { msg.className = 'msg err'; msg.textContent = t('dlFail'); console.error(e); }
+    }
+    return;
+  }
+  // outside claude.ai: a normal download of the .pes itself
+  const url = URL.createObjectURL(new Blob([pes], { type: 'application/octet-stream' }));
+  const a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+};
+
+/* ---------- start with the example */
+applyLang();
+$('angleV').textContent = state.angle + '°';
+loadImage(EXAMPLE, 'example', true);
+})();
+</script>
+</body>
+</html>

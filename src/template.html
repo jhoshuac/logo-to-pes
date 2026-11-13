@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logo to PES</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Recursive:slnt,wght,CASL,MONO@-15..0,300..900,0..1,0..1&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* layout: settings rail on the left, the hoop and its stitch preview on the right; stacks on phones */
+  --bg: #e9ecf0;          /* cool muslin */
+  --surface: #ffffff;
+  --ink: #18202e;
+  --muted: #5a6474;
+  --line: #d3d9e1;
+  --accent: #2346c8;      /* royal-blue thread */
+  --accent-ink: #ffffff;
+  --tack: #d23b33;        /* the machine's red frame line */
+  --good: #1f7a4d;
+  --good-bg: #e2f3ea;
+  --bad: #b3261e;
+  --bad-bg: #fbe6e4;
+  --font-display: "Recursive", "Trebuchet MS", sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --font-mono: "Recursive", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f131a; --surface: #171d27; --ink: #e7ebf1; --muted: #9aa4b3; --line: #2a3341;
+    --accent: #8ea6ff; --accent-ink: #0d1530; --tack: #ff7a70; --good: #6fd3a0; --good-bg: #133326; --bad: #ff8a80; --bad-bg: #3a1714;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f131a; --surface: #171d27; --ink: #e7ebf1; --muted: #9aa4b3; --line: #2a3341;
+  --accent: #8ea6ff; --accent-ink: #0d1530; --tack: #ff7a70; --good: #6fd3a0; --good-bg: #133326; --bad: #ff8a80; --bad-bg: #3a1714;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.45; }
+h1, h2 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 860; font-variation-settings: "CASL" 1, "slnt" 0; letter-spacing: -0.01em; line-height: 1.02; }
+h2 { font-size: 15px; font-weight: 800; font-variation-settings: "CASL" 0.6; letter-spacing: 0.02em; display: flex; align-items: center; gap: 10px; }
+.num { font-family: var(--font-mono); font-variation-settings: "MONO" 1, "CASL" 0; font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 22px 20px 40px; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 20px; padding-bottom: 14px; border-bottom: 2px dashed var(--accent); }
+header p { margin: 8px 0 0; color: var(--muted); max-width: 62ch; }
+.lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); }
+.lang button { border: 0; background: transparent; color: var(--muted); font: 700 13px var(--font-body); padding: 6px 12px; cursor: pointer; }
+.lang button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.main { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 18px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: 1fr; } .preview { order: -1; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+.rail { display: grid; gap: 14px; }
+.step { font-family: var(--font-mono); font-variation-settings: "MONO" 1; font-size: 12px; width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--ink); color: var(--bg); flex: none; }
+.hint { color: var(--muted); font-size: 14px; margin: 0; }
+label { font-weight: 700; font-size: 14px; }
+.field { display: grid; gap: 4px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+.row > .field { flex: 1 1 110px; }
+input[type="number"], select { width: 100%; font: 16px var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; }
+input[type="number"] { font-family: var(--font-mono); font-variation-settings: "MONO" 1; }
+button { font-family: var(--font-body); }
+.btn { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 7px; padding: 8px 12px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.btn:hover { border-color: var(--ink); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-size: 17px; padding: 12px 18px; }
+.btn.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 14px; display: grid; grid-template-columns: 76px 1fr; gap: 14px; align-items: center; cursor: pointer; transition: border-color .15s; }
+.drop.over, .drop:hover { border-color: var(--accent); }
+.drop img { width: 76px; height: 76px; object-fit: contain; background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0 / 12px 12px; border-radius: 6px; }
+.drop strong { display: block; }
+.colors { display: grid; gap: 8px; }
+.crow { display: grid; grid-template-columns: 22px 30px 1fr auto; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.crow.off { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--line) 45%, transparent) 6px 7px); }
+.swatch { width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--line); }
+.cmain { display: grid; gap: 4px; min-width: 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; width: max-content; }
+.seg button { border: 0; background: transparent; color: var(--muted); padding: 4px 10px; font-weight: 700; font-size: 13px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.thread { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.thread input[type="color"] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: none; cursor: pointer; }
+.move { display: grid; gap: 4px; }
+.move button { border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 30px; height: 24px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1; }
+.move button:disabled { opacity: .3; cursor: default; }
+details summary { cursor: pointer; font-weight: 700; font-family: var(--font-display); font-variation-settings: "CASL" .6; }
+details[open] summary { margin-bottom: 10px; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.preview { position: sticky; top: 12px; display: grid; gap: 12px; }
+.hoopbox { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 10px; }
+canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; display: block; border-radius: 8px; }
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.tile { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); }
+.tile.wide { grid-column: span 2; }
+.tile .v { font-family: var(--font-mono); font-variation-settings: "MONO" 1; font-size: 19px; white-space: nowrap; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.tile .k { font-size: 12px; color: var(--muted); }
+.statusline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between; }
+.chip { font-size: 13px; font-weight: 700; border-radius: 999px; padding: 4px 10px; display: inline-flex; gap: 6px; align-items: center; }
+.chip.good { color: var(--good); background: var(--good-bg); }
+.chip.bad { color: var(--bad); background: var(--bad-bg); }
+.chip.busy { color: var(--muted); background: var(--bg); border: 1px solid var(--line); }
+.chip.busy::before { content: ""; width: 9px; height: 9px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .chip.busy::before { animation: none; } }
+.dl { display: grid; gap: 8px; }
+.msg { font-size: 14px; margin: 0; min-height: 1.3em; }
+.msg.err { color: var(--bad); }
+.msg.ok { color: var(--good); }
+.tips { color: var(--muted); font-size: 14px; margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 data-t="title">Logo to PES</h1>
+      <p data-t="tagline">Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.</p>
+    </div>
+    <div class="lang" role="group" aria-label="Language">
+      <button id="lang-en" type="button" aria-pressed="true">EN</button>
+      <button id="lang-es" type="button" aria-pressed="false">ES</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="rail">
+      <section class="panel" aria-labelledby="h-logo">
+        <h2 id="h-logo"><span class="step">1</span><span data-t="logo">Logo</span></h2>
+        <label class="drop" id="drop" for="file">
+          <img id="thumb" alt="">
+          <span>
+            <strong data-t="choose">Choose an image</strong>
+            <span class="hint" data-t="dropHint">or drop a PNG or JPG here</span><br>
+            <span class="hint" id="fname"></span>
+          </span>
+        </label>
+        <input id="file" class="sr" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
+        <p class="hint" data-t="logoHint">Flat logos with a few solid colors work best. Photos and color gradients won't stitch well.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-size">
+        <h2 id="h-size"><span class="step">2</span><span data-t="size">Size</span></h2>
+        <div class="field">
+          <label for="hoop" data-t="hoop">Hoop</label>
+          <select id="hoop">
+            <option value="100x100">4 × 4 in (100 × 100 mm)</option>
+            <option value="130x180">5 × 7 in (130 × 180 mm)</option>
+            <option value="160x260">6 × 10 in (160 × 260 mm)</option>
+          </select>
+        </div>
+        <div class="row">
+          <div class="field"><label for="wmm"><span data-t="width">Width</span> (mm)</label><input id="wmm" type="number" min="10" max="400" step="0.5"></div>
+          <div class="field"><label for="hmm"><span data-t="height">Height</span> (mm)</label><input id="hmm" type="number" min="10" max="400" step="0.5"></div>
+          <button class="btn" id="fit" type="button" data-t="fit">Fit to hoop</button>
+        </div>
+        <p class="hint" id="inches"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-colors">
+        <h2 id="h-colors"><span class="step">3</span><span data-t="colors">Thread colors</span></h2>
+        <div class="field">
+          <label for="kcount" data-t="count">Colors in the logo</label>
+          <select id="kcount"></select>
+        </div>
+        <p class="hint" data-t="colorsHint">Colors stitch from top to bottom. Set the background to Fabric if the fabric should show through.</p>
+        <div class="colors" id="colors"></div>
+      </section>
+
+      <section class="panel">
+        <details>
+          <summary data-t="more">More stitch settings</summary>
+          <div style="display:grid;gap:12px">
+            <div class="field">
+              <label for="angle"><span data-t="angle">Fill direction</span>: <span class="num" id="angleV">45°</span></label>
+              <input id="angle" type="range" min="0" max="175" step="5" value="45">
+            </div>
+            <div class="field">
+              <label for="density" data-t="density">Fill density</label>
+              <select id="density">
+                <option value="0.45" data-t="light">Light</option>
+                <option value="0.4" selected data-t="normal">Normal</option>
+                <option value="0.35" data-t="dense">Dense</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="satin"><span data-t="satin">Narrow parts become satin up to</span>: <span class="num" id="satinV">4.5 mm</span></label>
+              <input id="satin" type="range" min="2.5" max="6" step="0.5" value="4.5">
+            </div>
+            <div class="field">
+              <label for="fabric" data-t="fabric">Preview fabric color</label>
+              <input id="fabric" type="color" value="#14285a" style="width:60px;height:32px;border:1px solid var(--line);border-radius:6px;padding:0;background:none">
+            </div>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <div class="preview">
+      <div class="hoopbox">
+        <div class="statusline">
+          <h2 data-t="preview">Stitch preview</h2>
+          <span class="chip busy" id="status" role="status">…</span>
+        </div>
+        <canvas id="stage" width="800" height="800" aria-label="Stitch preview"></canvas>
+        <div class="readout">
+          <div class="tile wide"><div class="v" id="r-size">–</div><div class="k" data-t="rSize">↕ height × ↔ width</div></div>
+          <div class="tile"><div class="v" id="r-st">–</div><div class="k" data-t="rSt">stitches</div></div>
+          <div class="tile"><div class="v" id="r-cc">–</div><div class="k" data-t="rCc">thread changes</div></div>
+          <div class="tile"><div class="v" id="r-tr">–</div><div class="k" data-t="rTr">jump threads to cut</div></div>
+          <div class="tile"><div class="v" id="r-min">–</div><div class="k" data-t="rMin">minutes to sew (about)</div></div>
+        </div>
+      </div>
+      <div class="panel dl">
+        <button class="btn primary" id="download" type="button" disabled data-t="download">Download .pes</button>
+        <p class="hint" id="dlnote" data-t="dlNote">You'll get a .zip. Open it and copy the .pes file inside to your USB stick.</p>
+        <p class="msg" id="dlmsg" role="status"></p>
+        <ul class="tips">
+          <li data-t="tip1">Sew a test on scrap fabric with stabilizer before the real garment.</li>
+          <li data-t="tip2">White thread looks faint on the machine's screen. That's normal.</li>
+          <li data-t="tip3">Your machine will stop at each thread change and show the color name listed above.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script id="engine-src">
+/*ENGINE*/
+</script>
+<script>
+(() => {
+'use strict';
+const EXAMPLE = "EXAMPLE_DATA_URI";
+const T = {
+  en: {
+    title: 'Logo to PES', tagline: 'Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.',
+    logo: 'Logo', choose: 'Choose an image', dropHint: 'or drop a PNG or JPG here',
+    logoHint: "Flat logos with a few solid colors work best. Photos and color gradients won't stitch well.",
+    example: 'Example: dove and globe logo', size: 'Size', hoop: 'Hoop', width: 'Width', height: 'Height', fit: 'Fit to hoop',
+    inches: (w, h) => `That's ${w} × ${h} inches.`,
+    colors: 'Thread colors', count: 'Colors in the logo', auto: n => `Auto (${n})`,
+    colorsHint: 'Colors stitch from top to bottom. Set the background to Fabric if the fabric should show through.',
+    stitch: 'Stitch', skip: 'Fabric', machineName: n => `Machine calls it: ${n}`, up: 'Stitch earlier', down: 'Stitch later', thread: 'Thread color',
+    more: 'More stitch settings', angle: 'Fill direction', density: 'Fill density', light: 'Light', normal: 'Normal', dense: 'Dense',
+    satin: 'Narrow parts become satin up to', fabric: 'Preview fabric color',
+    preview: 'Stitch preview', busy: 'Making stitches…', fits: h => `Fits the ${h} hoop`, tooBig: h => `Too big for the ${h} hoop`,
+    nothing: 'Turn on at least one color to stitch', rSize: '↕ height × ↔ width (mm)', rSt: 'stitches', rCc: 'thread changes',
+    rTr: 'jump threads to cut', rMin: 'minutes to sew (about)',
+    download: 'Download .pes', dlNote: "You'll get a .zip. Open it and copy the .pes file inside to your USB stick.",
+    dlNoteDirect: 'The .pes file downloads directly. Copy it to your USB stick.',
+    saved: 'Saved. Unzip it and copy the .pes file to your USB stick.', declined: 'Download canceled.', dlFail: "The download didn't start. Try again.",
+    tip1: 'Sew a test on scrap fabric with stabilizer before the real garment.',
+    tip2: "White thread looks faint on the machine's screen. That's normal.",
+    tip3: 'Your machine will stop at each thread change and show the color name listed above.',
+    badImage: "That file couldn't be opened as an image. Try a PNG or JPG.", failed: 'Something went wrong making stitches. Try a simpler image or fewer colors.'
+  },
+  es: {
+    title: 'Logo a PES', tagline: 'Convierte un logo de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.',
+    logo: 'Logo', choose: 'Elegir imagen', dropHint: 'o suelta aquí un PNG o JPG',
+    logoHint: 'Funcionan mejor los logos planos con pocos colores sólidos. Las fotos y los degradados no se bordan bien.',
+    example: 'Ejemplo: logo de paloma y mundo', size: 'Tamaño', hoop: 'Bastidor', width: 'Ancho', height: 'Alto', fit: 'Ajustar al bastidor',
+    inches: (w, h) => `Son ${w} × ${h} pulgadas.`,
+    colors: 'Colores de hilo', count: 'Colores en el logo', auto: n => `Auto (${n})`,
+    colorsHint: 'Los colores se bordan de arriba hacia abajo. Marca el fondo como Tela si la tela debe verse.',
+    stitch: 'Bordar', skip: 'Tela', machineName: n => `La máquina lo llama: ${n}`, up: 'Bordar antes', down: 'Bordar después', thread: 'Color del hilo',
+    more: 'Más ajustes de puntada', angle: 'Dirección del relleno', density: 'Densidad del relleno', light: 'Ligera', normal: 'Normal', dense: 'Densa',
+    satin: 'Las partes delgadas van en satín hasta', fabric: 'Color de tela (vista previa)',
+    preview: 'Vista previa de puntadas', busy: 'Creando puntadas…', fits: h => `Cabe en el bastidor de ${h}`, tooBig: h => `Demasiado grande para el bastidor de ${h}`,
+    nothing: 'Activa al menos un color para bordar', rSize: '↕ alto × ↔ ancho (mm)', rSt: 'puntadas', rCc: 'cambios de hilo',
+    rTr: 'hilos de salto para cortar', rMin: 'minutos de bordado (aprox.)',
+    download: 'Descargar .pes', dlNote: 'Recibirás un .zip. Ábrelo y copia el archivo .pes a tu memoria USB.',
+    dlNoteDirect: 'El archivo .pes se descarga directamente. Cópialo a tu memoria USB.',
+    saved: 'Guardado. Descomprímelo y copia el archivo .pes a tu memoria USB.', declined: 'Descarga cancelada.', dlFail: 'La descarga no empezó. Inténtalo de nuevo.',
+    tip1: 'Haz una prueba en un retazo con entretela antes de la prenda final.',
+    tip2: 'El hilo blanco se ve tenue en la pantalla de la máquina. Es normal.',
+    tip3: 'La máquina se detiene en cada cambio de hilo y muestra el nombre del color indicado arriba.',
+    badImage: 'No se pudo abrir ese archivo como imagen. Prueba con un PNG o JPG.', failed: 'Algo salió mal al crear las puntadas. Prueba con una imagen más simple o menos colores.'
+  }
+};
+let lang = (navigator.language || 'en').toLowerCase().startsWith('es') ? 'es' : 'en';
+const t = (k, ...a) => { const v = T[lang][k]; return typeof v === 'function' ? v(...a) : v; };
+const $ = id => document.getElementById(id);
+const Emb = window.Emb;
+
+const HOOPS = { '100x100': [100, 100, '4×4 in'], '130x180': [130, 180, '5×7 in'], '160x260': [160, 260, '6×10 in'] };
+const state = {
+  img: null, name: 'logo', aspect: 1, analysis: null, kChoice: 'auto', colors: [], order: [],
+  wmm: 90, hmm: 90, hoop: '100x100', angle: 45, density: 0.4, satin: 4.5, fabric: '#14285a',
+  result: null, busy: false, jobId: 0, pending: false, isExample: true
+};
+
+/* ---------- language */
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-t]').forEach(el => { const v = T[lang][el.dataset.t]; if (typeof v === 'string') el.textContent = v; });
+  $('lang-en').setAttribute('aria-pressed', lang === 'en');
+  $('lang-es').setAttribute('aria-pressed', lang === 'es');
+  document.title = t('title');
+  $('fname').textContent = state.isExample ? t('example') : state.fileLabel || '';
+  renderKSelect(); renderColors(); updateInches(); renderReadout();
+  $('dlnote').textContent = downloadsCap === false ? t('dlNoteDirect') : t('dlNote');
+}
+$('lang-en').onclick = () => { lang = 'en'; applyLang(); };
+$('lang-es').onclick = () => { lang = 'es'; applyLang(); };
+
+/* ---------- colour helpers */
+const hex = c => '#' + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const rgbInt = c => (Math.round(c[0]) << 16) | (Math.round(c[1]) << 8) | Math.round(c[2]);
+const fromHex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const intHex = n => '#' + n.toString(16).padStart(6, '0');
+
+/* ---------- loading an image */
+function loadImage(src, label, isExample) {
+  const im = new Image();
+  im.onload = () => {
+    state.img = im; state.isExample = isExample; state.fileLabel = label;
+    state.aspect = im.naturalWidth / im.naturalHeight;
+    $('thumb').src = src;
+    $('fname').textContent = isExample ? t('example') : label;
+    analyze();
+    fitToHoop();
+    schedule(0);
+  };
+  im.onerror = () => { setStatus('bad', t('badImage')); };
+  im.src = src;
+}
+function analyze() {
+  const im = state.img;
+  const s = Math.min(1, 320 / Math.max(im.naturalWidth, im.naturalHeight));
+  const w = Math.max(1, Math.round(im.naturalWidth * s)), h = Math.max(1, Math.round(im.naturalHeight * s));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(im, 0, 0, w, h);
+  state.analysis = Emb.analyzeColors(ctx.getImageData(0, 0, w, h).data, w, h, 8);
+  state.kChoice = 'auto';
+  setColorsForK();
+  renderKSelect();
+}
+function currentK() { return state.kChoice === 'auto' ? state.analysis.suggested : +state.kChoice; }
+function setColorsForK() {
+  const k = currentK();
+  const r = state.analysis.results[k] || state.analysis.results[state.analysis.suggested];
+  const b = state.analysis.border[k] || { counts: r.centers.map(() => 0), transparent: 0, total: 1 };
+  let bg = -1;
+  if (b.transparent < b.total * 0.5 && r.centers.length > 1) {
+    const m = Math.max(...b.counts);
+    if (m > b.total * 0.3) bg = b.counts.indexOf(m);
+  }
+  // near-black and near-white clusters (anti-aliased averages) default to true black / white thread
+  const snap = c => Math.max(...c) < 50 ? 0x000000 : (Math.min(...c) > 225 ? 0xffffff : rgbInt(c));
+  state.colors = r.centers.map((c, i) => ({ rgb: c, stitch: i !== bg, thread: snap(c), share: r.counts[i] }));
+  // background first, then larger areas first
+  const idx = r.centers.map((_, i) => i).filter(i => i !== bg).sort((a, b2) => r.counts[b2] - r.counts[a]);
+  state.order = bg >= 0 ? [bg, ...idx] : idx;
+  state.fabric = bg >= 0 ? hex(r.centers[bg]) : '#efece6';
+  $('fabric').value = state.fabric;
+  renderColors();
+}
+function renderKSelect() {
+  const sel = $('kcount');
+  if (!state.analysis) return;
+  const opts = [['auto', t('auto', state.analysis.suggested)]];
+  for (let k = 1; k <= 8; k++) if (state.analysis.results[k]) opts.push([String(k), String(k)]);
+  sel.innerHTML = '';
+  for (const [v, l] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = l; sel.appendChild(o); }
+  sel.value = state.kChoice;
+}
+$('kcount').onchange = e => { state.kChoice = e.target.value; setColorsForK(); schedule(); };
+
+function renderColors() {
+  const box = $('colors');
+  box.innerHTML = '';
+  state.order.forEach((ci, pos) => {
+    const c = state.colors[ci];
+    if (!c) return;
+    const row = document.createElement('div');
+    row.className = 'crow' + (c.stitch ? '' : ' off');
+    const stitchNo = c.stitch ? state.order.filter(j => state.colors[j].stitch).indexOf(ci) + 1 : '–';
+    row.innerHTML = `
+      <span class="step" title="${t('stitch')}">${stitchNo}</span>
+      <span class="swatch" style="background:${hex(c.rgb)}"></span>
+      <div class="cmain">
+        <div class="seg" role="group">
+          <button type="button" data-a="on" aria-pressed="${c.stitch}">${t('stitch')}</button>
+          <button type="button" data-a="off" aria-pressed="${!c.stitch}">${t('skip')}</button>
+        </div>
+        ${c.stitch ? `<div class="thread"><input type="color" id="thr-${ci}" value="${intHex(c.thread)}" aria-label="${t('thread')}"><span>${t('machineName', Emb.brotherName(c.thread))}</span></div>` : ''}
+      </div>
+      <div class="move">
+        <button type="button" data-a="up" aria-label="${t('up')}" ${pos === 0 ? 'disabled' : ''}>▲</button>
+        <button type="button" data-a="down" aria-label="${t('down')}" ${pos === state.order.length - 1 ? 'disabled' : ''}>▼</button>
+      </div>`;
+    row.querySelector('[data-a="on"]').onclick = () => { c.stitch = true; renderColors(); schedule(); };
+    row.querySelector('[data-a="off"]').onclick = () => { c.stitch = false; state.fabric = hex(c.rgb); $('fabric').value = state.fabric; renderColors(); schedule(); };
+    row.querySelector('[data-a="up"]').onclick = () => { const o = state.order; [o[pos - 1], o[pos]] = [o[pos], o[pos - 1]]; renderColors(); schedule(); };
+    row.querySelector('[data-a="down"]').onclick = () => { const o = state.order; [o[pos + 1], o[pos]] = [o[pos], o[pos + 1]]; renderColors(); schedule(); };
+    const inp = row.querySelector('input[type="color"]');
+    if (inp) {
+      inp.oninput = () => { c.thread = parseInt(inp.value.slice(1), 16); inp.nextElementSibling.textContent = t('machineName', Emb.brotherName(c.thread)); if (state.result) drawPreview(); };
+    }
+    box.appendChild(row);
+  });
+}
+
+/* ---------- size */
+function fitToHoop() {
+  const [hw, hh] = HOOPS[state.hoop];
+  const maxW = hw - 10, maxH = hh - 10;
+  let w = maxW, h = w / state.aspect;
+  if (h > maxH) { h = maxH; w = h * state.aspect; }
+  state.wmm = Math.round(w * 2) / 2; state.hmm = Math.round(h * 2) / 2;
+  $('wmm').value = state.wmm; $('hmm').value = state.hmm;
+  updateInches();
+}
+function updateInches() { $('inches').textContent = t('inches', (state.wmm / 25.4).toFixed(2), (state.hmm / 25.4).toFixed(2)); }
+$('wmm').oninput = e => { const v = +e.target.value; if (v >= 10) { state.wmm = v; state.hmm = Math.round(v / state.aspect * 2) / 2; $('hmm').value = state.hmm; updateInches(); schedule(600); } };
+$('hmm').oninput = e => { const v = +e.target.value; if (v >= 10) { state.hmm = v; state.wmm = Math.round(v * state.aspect * 2) / 2; $('wmm').value = state.wmm; updateInches(); schedule(600); } };
+$('hoop').onchange = e => { state.hoop = e.target.value; fitToHoop(); schedule(); };
+$('fit').onclick = () => { fitToHoop(); schedule(); };
+$('angle').oninput = e => { state.angle = +e.target.value; $('angleV').textContent = state.angle + '°'; schedule(500); };
+$('density').onchange = e => { state.density = +e.target.value; schedule(); };
+$('satin').oninput = e => { state.satin = +e.target.value; $('satinV').textContent = state.satin + ' mm'; schedule(500); };
+$('fabric').oninput = e => { state.fabric = e.target.value; if (state.result) drawPreview(); };
+
+/* ---------- file input + drag and drop */
+function takeFile(f) {
+  if (!f) return;
+  const stem = f.name.replace(/\.[^.]+$/, '');
+  state.name = (stem.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'logo').slice(0, 24);
+  const rd = new FileReader();
+  rd.onload = () => loadImage(rd.result, f.name, false);
+  rd.readAsDataURL(f);
+}
+$('file').onchange = e => takeFile(e.target.files[0]);
+const drop = $('drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => takeFile(e.dataTransfer.files[0]));
+
+/* ---------- digitizing in a worker */
+let worker = null;
+try {
+  const blob = new Blob([document.getElementById('engine-src').textContent], { type: 'text/javascript' });
+  worker = new Worker(URL.createObjectURL(blob));
+} catch (e) { worker = null; }
+let timer = null;
+function schedule(delay) {
+  clearTimeout(timer);
+  timer = setTimeout(run, delay === undefined ? 250 : delay);
+}
+function buildParams() {
+  const area = state.wmm * state.hmm;
+  const mmpx = Math.max(0.1, Math.sqrt(area / 1.3e6));
+  const W = Math.max(20, Math.round(state.wmm / mmpx)), H = Math.max(20, Math.round(state.hmm / mmpx));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(state.img, 0, 0, W, H);
+  const data = ctx.getImageData(0, 0, W, H).data;
+  const up = W / state.img.naturalWidth;
+  return {
+    rgba: data, W, H, mmpx, blurPx: Math.max(0, Math.min(3, Math.round(up * 0.5))),
+    colors: state.colors.map(c => ({ rgb: c.rgb, stitch: c.stitch, thread: c.thread })),
+    order: state.order.slice(), angle: state.angle, density: state.density, satinMax: state.satin
+  };
+}
+function run() {
+  if (!state.img) return;
+  if (state.busy) { state.pending = true; return; }
+  if (!state.colors.some(c => c.stitch)) { state.result = null; setStatus('bad', t('nothing')); drawPreview(); renderReadout(); $('download').disabled = true; return; }
+  state.busy = true; state.pending = false;
+  const id = ++state.jobId;
+  setStatus('busy', t('busy'));
+  $('download').disabled = true;
+  const params = buildParams();
+  const done = res => {
+    state.busy = false;
+    if (state.pending) { run(); return; }
+    state.result = res; drawPreview(); renderReadout(); updateFitChip();
+    $('download').disabled = !res.cmds.length;
+  };
+  const fail = msg => { state.busy = false; console.error(msg); setStatus('bad', t('failed')); if (state.pending) run(); };
+  if (worker) {
+    worker.onmessage = ev => {
+      const m = ev.data;
+      if (m.id !== id) return;
+      if (m.type === 'done') done(m.result);
+      else if (m.type === 'error') fail(m.message);
+    };
+    worker.onerror = () => { worker = null; state.busy = false; run(); };
+    worker.postMessage({ type: 'digitize', id, params }, [params.rgba.buffer]);
+  } else {
+    setTimeout(() => { try { done(Emb.digitize(params)); } catch (e) { fail(String(e && e.stack || e)); } }, 30);
+  }
+}
+function setStatus(kind, text) { const s = $('status'); s.className = 'chip ' + kind; s.textContent = text; }
+function updateFitChip() {
+  const r = state.result; if (!r) return;
+  const [hw, hh, label] = HOOPS[state.hoop];
+  if (r.width <= hw && r.height <= hh) setStatus('good', t('fits', label)); else setStatus('bad', t('tooBig', label));
+}
+
+/* ---------- preview drawing */
+function drawPreview() {
+  const cv = $('stage');
+  const [hw, hh] = HOOPS[state.hoop];
+  const ring = 9;                                   // hoop frame around the sewing field, mm
+  const cssW = cv.clientWidth || 600;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const totW = hw + ring * 2 + 6, totH = hh + ring * 2 + 6;
+  const cssH = cssW * totH / totW;
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  cv.style.height = cssH + 'px';
+  const ctx = cv.getContext('2d');
+  const s = cv.width / totW;                       // px per mm
+  const css = getComputedStyle(document.documentElement);
+  ctx.fillStyle = css.getPropertyValue('--surface').trim() || '#fff';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  const fx = (3 + ring) * s, fy = (3 + ring) * s;
+  // hoop frame
+  ctx.lineWidth = ring * 0.55 * s;
+  ctx.strokeStyle = css.getPropertyValue('--line').trim();
+  roundRect(ctx, fx - ring * 0.5 * s, fy - ring * 0.5 * s, (hw + ring) * s, (hh + ring) * s, 8 * s); ctx.stroke();
+  // fabric in the sewing field
+  ctx.fillStyle = state.fabric;
+  roundRect(ctx, fx - ring * 0.25 * s, fy - ring * 0.25 * s, (hw + ring * 0.5) * s, (hh + ring * 0.5) * s, 5 * s); ctx.fill();
+  // sewing-field limit (basting line) and centre mark
+  const r = state.result;
+  const over = r && (r.width > hw || r.height > hh);
+  ctx.setLineDash([2.2 * s, 1.6 * s]); ctx.lineWidth = Math.max(1, 0.35 * s);
+  ctx.strokeStyle = over ? css.getPropertyValue('--tack').trim() : 'rgba(255,255,255,0.55)';
+  if (!over && luminance(fromHex(state.fabric)) > 0.6) ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.strokeRect(fx, fy, hw * s, hh * s);
+  ctx.setLineDash([]);
+  if (!r || !r.cmds.length) return;
+  const ox = fx + (hw - r.width) / 2 * s, oy = fy + (hh - r.height) / 2 * s;
+  const k = s / 10;                                 // commands are in 0.1 mm
+  const blocks = [];
+  let path = new Path2D(), last = null, ci = 0;
+  for (const [x, y, c] of r.cmds) {
+    const px = ox + x * k, py = oy + y * k;
+    if (c === Emb.STITCH) { if (last) { path.moveTo(last[0], last[1]); path.lineTo(px, py); } last = [px, py]; }
+    else if (c === Emb.JUMP) { last = [px, py]; }
+    else if (c === Emb.COLOR_CHANGE) { blocks.push([path, ci]); path = new Path2D(); ci++; }
+  }
+  blocks.push([path, ci]);
+  ctx.lineCap = 'round';
+  for (const [p, i] of blocks) {
+    const col = liveThread(i, r.threads[i]);
+    const rgb = [(col >> 16) & 255, (col >> 8) & 255, col & 255];
+    ctx.strokeStyle = `rgb(${rgb.map(v => Math.round(v * 0.58)).join(',')})`;
+    ctx.lineWidth = Math.max(1, 0.46 * s); ctx.stroke(p);
+    ctx.strokeStyle = `rgb(${rgb.join(',')})`;
+    ctx.lineWidth = Math.max(0.6, 0.32 * s); ctx.stroke(p);
+  }
+}
+function liveThread(i, fallback) {
+  const stitched = state.order.filter(j => state.colors[j] && state.colors[j].stitch);
+  const ci = state.result && state.result.colorsUsed ? state.result.colorsUsed[i] : stitched[i];
+  return ci !== undefined && state.colors[ci] ? state.colors[ci].thread : fallback;
+}
+function luminance(c) { return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255; }
+function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+window.addEventListener('resize', () => { if (state.result) drawPreview(); });
+
+function renderReadout() {
+  const r = state.result;
+  const nf = (v, d) => v.toLocaleString(lang === 'es' ? 'es-CO' : 'en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+  if (!r || !r.cmds.length) { ['r-size', 'r-st', 'r-cc', 'r-tr', 'r-min'].forEach(id => $(id).textContent = '–'); return; }
+  $('r-size').textContent = `${nf(r.height, 1)} × ${nf(r.width, 1)}`;
+  $('r-st').textContent = nf(r.stitches);
+  $('r-cc').textContent = nf(r.colorChanges);
+  $('r-tr').textContent = nf(r.trims);
+  $('r-min').textContent = nf(Math.max(1, Math.ceil(r.stitches / 600 + r.colorChanges)));
+}
+
+/* ---------- download */
+let downloadsCap = null;      // null = not known yet, false = not available here
+(async () => {
+  try {
+    downloadsCap = (window.claude && window.claude.use) ? (await window.claude.use('downloads')) || false : false;
+  } catch (e) { downloadsCap = false; }
+  $('dlnote').textContent = downloadsCap === false ? t('dlNoteDirect') : t('dlNote');
+})();
+$('download').onclick = async () => {
+  const r = state.result; if (!r || !r.cmds.length) return;
+  const msg = $('dlmsg'); msg.className = 'msg'; msg.textContent = '';
+  const threads = r.colorsUsed ? r.colorsUsed.map((ci, i) => state.colors[ci] ? state.colors[ci].thread : r.threads[i]) : r.threads;
+  const pes = Emb.writePES(r.cmds, threads, state.name.toUpperCase().slice(0, 8));
+  const fname = state.name + '.pes';
+  if (downloadsCap) {
+    const zip = Emb.makeZip([{ name: fname, data: pes }]);
+    try {
+      await downloadsCap.save({ filename: state.name + '.zip', data: new Blob([zip]) });
+      msg.className = 'msg ok'; msg.textContent = t('saved');
+    } catch (e) {
+      if (e && e.code === 'declined') { msg.textContent = t('declined'); }
+      else { msg.className = 'msg err'; msg.textContent = t('dlFail'); console.error(e); }
+    }
+    return;
+  }
+  // outside claude.ai: a normal download of the .pes itself
+  const url = URL.createObjectURL(new Blob([pes], { type: 'application/octet-stream' }));
+  const a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+};
+
+/* ---------- start with the example */
+applyLang();
+$('angleV').textContent = state.angle + '°';
+loadImage(EXAMPLE, 'example', true);
+})();
+</script>
+</body>
+</html>
