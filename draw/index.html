@@ -6,7 +6,7 @@
 <title>Draw to PES</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Recursive:slnt,wght,CASL,MONO@-15..0,300..900,0..1,0..1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Archivo+Black&family=Fredoka:wght@700&family=Pacifico&family=Atkinson+Hyperlegible:wght@400;700&family=Recursive:slnt,wght,CASL,MONO@-15..0,300..900,0..1,0..1&display=swap" rel="stylesheet">
 <style>
 :root {
   /* layout: tool strip | hoop canvas | colors and stitch panel; tools wrap above the canvas on phones */
@@ -113,6 +113,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .stale { opacity: .5; }
 .selbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .selbar[hidden] { display: none; }
+.selbar .mini { width: 34px; height: 30px; font-size: 15px; }
+.mono3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mono3 label { display: grid; gap: 4px; font-size: 12px; }
+.mono3 input { width: 100%; font: 700 20px var(--font-body); text-align: center; text-transform: uppercase; padding: 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink); }
+.warnline { color: var(--bad); font-weight: 700; }
+details summary { cursor: pointer; font-weight: 700; }
 .scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
 </style>
 </head>
@@ -161,6 +167,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
         <div class="selbar" id="selbar" hidden>
           <button class="btn" type="button" id="selDone" data-t="selDone">Done</button>
           <button class="btn" type="button" id="selDel" data-t="selDelete">Delete</button>
+          <button class="mini" type="button" id="rotL" title="Rotate left 15°">⟲</button>
+          <button class="mini" type="button" id="rotR" title="Rotate right 15°">⟳</button>
+          <button class="mini" type="button" id="flipH" title="Flip left to right">⇋</button>
+          <button class="mini" type="button" id="flipV" title="Flip upside down">⇅</button>
+          <button class="mini" type="button" id="selSmaller" title="Smaller">−</button>
+          <button class="mini" type="button" id="selBigger" title="Bigger">+</button>
+          <span class="num hint" id="selSize"></span>
           <span class="hint" data-t="selHint">Drag inside the dashed box to move it.</span>
         </div>
         <label class="check"><input type="checkbox" id="grid" checked> <span data-t="grid">Grid, 10 mm squares</span></label>
@@ -195,10 +208,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
           <input type="range" id="size" min="1" max="15" step="0.5" value="3">
         </div>
         <div class="field">
-          <label for="tsize"><span data-t="textSize">Letter height</span>: <span class="num" id="tsizeV"></span></label>
-          <input type="range" id="tsize" min="5" max="40" step="1" value="12">
-        </div>
-        <div class="field">
           <span class="hint" data-t="shapeMode">Boxes and circles:</span>
           <div class="seg" role="group">
             <button type="button" id="m-outline" aria-pressed="true" data-t="outline">Outline</button>
@@ -208,9 +217,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
         <div class="field">
           <label for="hoop" data-t="hoop">Hoop</label>
           <select id="hoop">
-            <option value="100x100">4 × 4 in (100 × 100 mm)</option>
-            <option value="130x180">5 × 7 in (130 × 180 mm)</option>
-            <option value="160x260">6 × 10 in (160 × 260 mm)</option>
+            <option value="100x100" data-t="hoop4">4 × 4 in (100 × 100 mm), fits the SE625</option>
+            <option value="130x180" data-t="hoop5">5 × 7 in (130 × 180 mm), bigger machines only</option>
+            <option value="160x260" data-t="hoop6">6 × 10 in (160 × 260 mm), bigger machines only</option>
           </select>
         </div>
         <div class="field">
@@ -219,14 +228,78 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
         </div>
       </section>
 
+      <section class="panel" aria-labelledby="h-text">
+        <h2 id="h-text" data-t="textTitle">Text and monograms</h2>
+        <div class="field">
+          <label for="font" data-t="font">Font</label>
+          <select id="font">
+            <option value="block" data-t="font_block">Block</option>
+            <option value="rounded" data-t="font_rounded">Rounded</option>
+            <option value="serif" data-t="font_serif">Classic serif</option>
+            <option value="script" data-t="font_script">Script</option>
+          </select>
+          <span class="hint" id="fontMin"></span>
+        </div>
+        <div class="field">
+          <label for="tsize"><span data-t="textSize">Letter height</span>: <span class="num" id="tsizeV"></span></label>
+          <input type="range" id="tsize" min="5" max="40" step="1" value="12">
+          <span class="hint warnline" id="tsizeWarn" hidden></span>
+        </div>
+        <div class="field">
+          <span class="hint" data-t="textShape">Shape:</span>
+          <div class="seg" role="group" id="tshape">
+            <button type="button" data-shape="straight" aria-pressed="true" data-t="ts_straight">Straight</button>
+            <button type="button" data-shape="up" aria-pressed="false" data-t="ts_up">Arch up</button>
+            <button type="button" data-shape="down" aria-pressed="false" data-t="ts_down">Arch down</button>
+          </div>
+        </div>
+        <div class="field" id="curveField" hidden>
+          <label for="curve"><span data-t="curve">Curve</span>: <span class="num" id="curveV"></span></label>
+          <input type="range" id="curve" min="30" max="200" step="5" value="70">
+        </div>
+        <details>
+          <summary data-t="monoTitle">Monogram</summary>
+          <div style="display:grid;gap:8px;margin-top:8px">
+            <div class="mono3">
+              <label><span data-t="monoFirst">First</span><input id="m1" maxlength="1" autocomplete="off"></label>
+              <label><span data-t="monoLast">Last (big)</span><input id="m2" maxlength="1" autocomplete="off"></label>
+              <label><span data-t="monoMiddle">Middle</span><input id="m3" maxlength="1" autocomplete="off"></label>
+            </div>
+            <div class="field">
+              <label for="monoStyle" data-t="monoStyle">Style</label>
+              <select id="monoStyle">
+                <option value="classic" data-t="mono_classic">Big middle letter</option>
+                <option value="row" data-t="mono_row">Three in a row</option>
+                <option value="circle" data-t="mono_circle">Big middle letter in a circle</option>
+              </select>
+            </div>
+            <button class="btn" type="button" id="monoAdd" data-t="monoAdd">Add monogram</button>
+            <span class="hint" data-t="monoHint">Traditional order: first initial, last name initial in the middle, middle initial.</span>
+          </div>
+        </details>
+      </section>
+
       <section class="panel" aria-labelledby="h-st">
         <h2 id="h-st" data-t="stTitle">Stitch file</h2>
+        <div class="field">
+          <label for="fabricType" data-t="fabricType">What are you stitching on?</label>
+          <select id="fabricType">
+            <option value="cotton" data-t="fab_cotton">Woven cotton, canvas, bags</option>
+            <option value="tshirt" data-t="fab_tshirt">T-shirt (stretchy knit)</option>
+            <option value="polo" data-t="fab_polo">Polo shirt (piqué)</option>
+            <option value="denim" data-t="fab_denim">Denim, twill, jackets</option>
+            <option value="towel" data-t="fab_towel">Towel</option>
+            <option value="fleece" data-t="fab_fleece">Fleece, sweatshirt</option>
+          </select>
+          <span class="hint" id="fabricTip"></span>
+        </div>
         <div class="field">
           <label for="density"><span data-t="densityTitle">Stitch density</span>: <span class="num" id="densityV"></span></label>
           <input id="density" type="range" min="2" max="5" step="0.1" value="3.3">
           <div class="scale"><span data-t="lighter">Lighter</span><span data-t="denser">Denser, covers more</span></div>
           <span class="hint" data-t="densityHint">If the fabric shows through, move this toward Denser.</span>
         </div>
+        <label class="radio" for="basting"><input type="checkbox" id="basting"><span data-t="basting">Basting box</span><small data-t="bastingHint">Sews a box of long stitches first to hold the fabric and stabilizer. Use any thread and pull it out when you're done.</small></label>
         <span class="chip idle" id="status" role="status"></span>
         <button class="btn primary" id="make" type="button" data-t="make">Make stitches</button>
         <div id="results" class="stale" style="display:grid;gap:10px">
@@ -571,10 +644,13 @@ function resample(xy, w, step) {
   }
   return { P, W: WW, N, L };
 }
-function underlayPath(xy, w) {
-  const r = resample(xy, w, 1.0);
+function underlayPath(xy, w, level) {
+  // light: a walk down the middle; normal: narrow zigzag; heavy: wider, closer zigzag
+  const heavy = level === 'heavy', light = level === 'light';
+  const r = resample(xy, w, heavy ? 0.8 : 1.0);
   return r.P.map((p, i) => {
-    const off = Math.max(0, 0.3 * r.W[i] - 0.25) * (i % 2 ? 1 : -1);
+    const amt = light ? 0 : heavy ? Math.max(0, 0.38 * r.W[i] - 0.2) : Math.max(0, 0.3 * r.W[i] - 0.25);
+    const off = amt * (i % 2 ? 1 : -1);
     return [p[0] + r.N[i][0] * off, p[1] + r.N[i][1] * off];
   });
 }
@@ -679,7 +755,7 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       let v, fxy, fw;
       if (e.a === f.u) { v = e.b; fxy = e.xy; fw = e.w; }
       else { v = e.a; fxy = e.xy.slice().reverse(); fw = e.w.slice().reverse(); }
-      out.push(...underlayPath(fxy, fw));
+      out.push(...underlayPath(fxy, fw, opt.underlay));
       const back = { xy: fxy.slice().reverse(), w: fw.slice().reverse() };
       if (!vis.has(v)) { vis.add(v); stack.push({ u: v, i: 0, back }); }
       else out.push(...satinPath(back.xy, back.w, opt.pull, opt.satinSpacing));
@@ -803,7 +879,7 @@ function simplifyDP(pts, tol) {
   return pts.filter((_, i) => keep[i]);
 }
 
-function tatami(mask, W, H, comp, mmpx, angleDeg, spacingMM, stitchMM, cur, grid, visible) {
+function tatami(mask, W, H, comp, mmpx, angleDeg, spacingMM, stitchMM, cur, grid, visible, pullMM) {
   const out = [];
   const a = angleDeg * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a), vx = -uy, vy = ux;
   const corners = [[comp.minx, comp.miny], [comp.maxx + 1, comp.miny], [comp.minx, comp.maxy + 1], [comp.maxx + 1, comp.maxy + 1]];
@@ -848,7 +924,9 @@ function tatami(mask, W, H, comp, mmpx, angleDeg, spacingMM, stitchMM, cur, grid
   });
   const toMM = (s, t) => [(s * ux + t * vx) * mmpx, (s * uy + t * vy) * mmpx];
   const L = stitchMM / mmpx, endGap = 0.6 / mmpx;
+  const ext = (pullMM || 0) / mmpx;          // pull compensation: rows reach a little past the edge
   function rowPts(r, a0, b0, ltr) {
+    a0 -= ext; b0 += ext;
     const t = rows[r].t;
     const off = (r % 3) / 3 * L;
     const xs = [a0];
@@ -983,13 +1061,14 @@ function fillLocal(cm, W, H, comp, mmpx, opt, cur, lm) {
   // 2. sparse underlay across the fill direction
   const ul = thresh(dIn, v => v > 0.5 / mmpx);
   let any = false; for (let i = 0; i < ul.length && !any; i++) if (ul[i]) any = true;
-  if (any) {
-    const r = tatami(ul, W, H, comp, mmpx, opt.angle + 90, 1.8, 3.0, cur, grid, false);
+  const layers = opt.underlay === 'light' ? [[90, 2.6]] : opt.underlay === 'heavy' ? [[90, 1.6], [0, 2.4]] : [[90, 1.8]];
+  if (any) for (const [da, sp] of layers) {
+    const r = tatami(ul, W, H, comp, mmpx, opt.angle + da, sp, 3.0, cur, grid, false);
     for (const it of r.seq) seq.push(it);
     if (r.seq.length) cur = r.cur;
   }
   // 3. top fill
-  const r = tatami(cm, W, H, comp, mmpx, opt.angle, opt.density, opt.stitchLen, cur, grid, true);
+  const r = tatami(cm, W, H, comp, mmpx, opt.angle, opt.density, opt.stitchLen, cur, grid, true, opt.pullMM);
   for (const it of r.seq) seq.push(it);
   return { seq, cur: r.seq.length ? r.cur : cur };
 }
@@ -1287,7 +1366,7 @@ function digitize(p, progress) {
     b.travel = { mask: tm, W, H, mmpx };
     let st0 = b.cmds.length;
     if (nCount) {
-      const blocks = networkBlocks(narrowSk, D, W, H, mmpx, { pruneMM: 1.2, minW: 0.9, maxW: p.satinMax, extraW: 0, pull: 0.2, satinSpacing: p.satinSpacing || 0.4 });
+      const blocks = networkBlocks(narrowSk, D, W, H, mmpx, { pruneMM: 1.2, minW: 0.9, maxW: p.satinMax, extraW: 0, pull: p.pull === undefined ? 0.2 : p.pull, satinSpacing: p.satinSpacing || 0.4, underlay: p.underlay || 'normal' });
       const r = orderNetworks(blocks, cur);
       for (const s of r.seqs) b.points(s);
       if (r.seqs.length) cur = b.cur;
@@ -1297,15 +1376,31 @@ function digitize(p, progress) {
     while (left.length) {
       left.sort((c1, c2) => boxDist(c1, cur, mmpx) - boxDist(c2, cur, mmpx));
       const c = left.shift();
-      const r = fillComponent(fillMask, W, H, c, lab, mmpx, { angle: p.angle, density: p.density, stitchLen: 3.5 }, cur, laterIn);
+      const r = fillComponent(fillMask, W, H, c, lab, mmpx, { angle: p.angle, density: p.density, stitchLen: 3.5, underlay: p.underlay || 'normal', pullMM: p.fillPull || 0 }, cur, laterIn);
       b.seq(r.seq);
       cur = b.cur || cur;
     }
     summary.push({ color: j, commands: b.cmds.length - st0 });
   });
   if (b.cmds.length) b.end();
+  // basting box: a running stitch around everything, sewn first in its own colour stop,
+  // to hold fabric and stabilizer together; it is pulled out afterwards
+  let basted = false;
+  if (p.basting && b.cmds.length) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const c of b.cmds) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
+    const m = 2.5;
+    x0 -= m; y0 -= m; x1 += m; y1 += m;
+    const bb = new Builder();
+    bb.points(runPath([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]], 4.0));
+    bb.colorChange();
+    b.cmds = bb.cmds.concat(b.cmds);
+    threads.unshift(0xa8a8a8); used.unshift(-1);
+    basted = true;
+  }
   const res = finish(b, threads, summary);
   res.colorsUsed = used;
+  res.basting = basted;
   return res;
 }
 function boxDist(c, p, mmpx) {
@@ -1566,7 +1661,18 @@ function makeZip(files) {
   return w.result();
 }
 
-const Emb = { logoToLayer, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
+/* Fabric presets: density (lines per mm), satin and fill pull compensation (mm), underlay.
+   Stretchy or thick fabrics get more pull compensation and underlay; denim gets less. */
+const FABRICS = {
+  cotton: { lines: 3.3, pull: 0.2, fillPull: 0.15, underlay: 'normal' },
+  tshirt: { lines: 3.1, pull: 0.35, fillPull: 0.3, underlay: 'heavy' },
+  polo: { lines: 3.0, pull: 0.35, fillPull: 0.3, underlay: 'heavy' },
+  denim: { lines: 3.0, pull: 0.15, fillPull: 0.1, underlay: 'light' },
+  towel: { lines: 3.6, pull: 0.3, fillPull: 0.25, underlay: 'heavy' },
+  fleece: { lines: 3.6, pull: 0.3, fillPull: 0.25, underlay: 'heavy' }
+};
+
+const Emb = { FABRICS, logoToLayer, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
 if (typeof module !== 'undefined' && module.exports) module.exports = Emb;
 root.Emb = Emb;
 
@@ -1594,6 +1700,23 @@ const Emb = window.Emb;
 const T = {
   en: {
     title: 'Draw to PES', tagline: 'Draw a design in thread colors and save it as a .pes file for Brother and Baby Lock machines.',
+    fabricTitle: 'Fabric and stitches', fabricType: 'What are you stitching on?',
+    fab_cotton: 'Woven cotton, canvas, bags', fab_tshirt: 'T-shirt (stretchy knit)', fab_polo: 'Polo shirt (piqué)',
+    fab_denim: 'Denim, twill, jackets', fab_towel: 'Towel', fab_fleece: 'Fleece, sweatshirt',
+    tip_cotton: 'Tear-away stabilizer works.', tip_tshirt: "Use cut-away stabilizer so the design doesn't stretch out of shape.",
+    tip_polo: 'Cut-away stabilizer, plus water-soluble topping so stitches don\'t sink into the texture.',
+    tip_denim: 'Tear-away stabilizer is usually enough.', tip_towel: "Put water-soluble topping on top so stitches don't sink into the loops.",
+    tip_fleece: 'Cut-away stabilizer, plus water-soluble topping on top.',
+    basting: 'Basting box', bastingHint: "Sews a box of long stitches first to hold the fabric and stabilizer. Use any thread and pull it out when you're done.",
+    hoop4: '4 × 4 in (100 × 100 mm), fits the SE625', hoop5: '5 × 7 in (130 × 180 mm), bigger machines only', hoop6: '6 × 10 in (160 × 260 mm), bigger machines only',
+    textTitle: 'Text and monograms', font: 'Font', font_block: 'Block', font_rounded: 'Rounded', font_serif: 'Classic serif', font_script: 'Script',
+    fontMin: n => `Smallest that sews well: about ${n} mm tall.`, tooSmall: n => `This font needs letters about ${n} mm tall or more to sew cleanly.`,
+    textShape: 'Shape:', ts_straight: 'Straight', ts_up: 'Arch up', ts_down: 'Arch down', curve: 'Curve', curveV: r => `circle ${r} mm across`,
+    monoTitle: 'Monogram', monoFirst: 'First', monoLast: 'Last (big)', monoMiddle: 'Middle', monoStyle: 'Style',
+    mono_classic: 'Big middle letter', mono_row: 'Three in a row', mono_circle: 'Big middle letter in a circle', monoAdd: 'Add monogram',
+    monoHint: 'Traditional order: first initial, last name initial in the middle, middle initial. It lands in the middle of the hoop, selected so you can move it.',
+    rotL: 'Rotate left 15°', rotR: 'Rotate right 15°', flipH: 'Flip left to right', flipV: 'Flip upside down', smaller: 'Smaller', bigger: 'Bigger',
+    bastingRow: 'Basting box (any thread)',
     select: 'Select', selDone: 'Done', selDelete: 'Delete', selHint: 'Drag inside the dashed box to move it.',
     toLogo: 'Convert a logo', image: 'Image', wand: 'Erase area', rmbg: 'Remove background',
     bgRemoved: 'Background removed. Undo brings it back.', nothingThere: 'Nothing to erase there.',
@@ -1624,6 +1747,23 @@ const T = {
   },
   es: {
     title: 'Dibujo a PES', tagline: 'Dibuja un diseño con colores de hilo y guárdalo como archivo .pes para máquinas Brother y Baby Lock.',
+    fabricTitle: 'Tela y puntadas', fabricType: '¿Sobre qué vas a bordar?',
+    fab_cotton: 'Algodón tejido, lona, bolsos', fab_tshirt: 'Camiseta (tejido elástico)', fab_polo: 'Polo (piqué)',
+    fab_denim: 'Mezclilla, dril, chaquetas', fab_towel: 'Toalla', fab_fleece: 'Polar, sudadera',
+    tip_cotton: 'Funciona entretela desgarrable.', tip_tshirt: 'Usa entretela recortable para que el diseño no se deforme.',
+    tip_polo: 'Entretela recortable, y film soluble encima para que las puntadas no se hundan en la textura.',
+    tip_denim: 'Normalmente basta entretela desgarrable.', tip_towel: 'Pon film soluble encima para que las puntadas no se hundan en los rizos.',
+    tip_fleece: 'Entretela recortable, y film soluble encima.',
+    basting: 'Caja de hilván', bastingHint: 'Borda primero una caja de puntadas largas para sujetar la tela y la entretela. Usa cualquier hilo y quítala al terminar.',
+    hoop4: '4 × 4 in (100 × 100 mm), para la SE625', hoop5: '5 × 7 in (130 × 180 mm), solo máquinas más grandes', hoop6: '6 × 10 in (160 × 260 mm), solo máquinas más grandes',
+    textTitle: 'Texto y monogramas', font: 'Letra', font_block: 'Bloque', font_rounded: 'Redondeada', font_serif: 'Clásica con remates', font_script: 'Manuscrita',
+    fontMin: n => `Lo más pequeño que se borda bien: unos ${n} mm de alto.`, tooSmall: n => `Esta letra necesita unos ${n} mm de alto o más para bordarse limpia.`,
+    textShape: 'Forma:', ts_straight: 'Recto', ts_up: 'Arco arriba', ts_down: 'Arco abajo', curve: 'Curva', curveV: r => `círculo de ${r} mm`,
+    monoTitle: 'Monograma', monoFirst: 'Nombre', monoLast: 'Apellido (grande)', monoMiddle: 'Segundo nombre', monoStyle: 'Estilo',
+    mono_classic: 'Letra del medio grande', mono_row: 'Tres en fila', mono_circle: 'Letra del medio grande en un círculo', monoAdd: 'Agregar monograma',
+    monoHint: 'Orden tradicional: inicial del nombre, inicial del apellido en el medio, inicial del segundo nombre. Aparece en el centro del bastidor, seleccionado para moverlo.',
+    rotL: 'Girar 15° a la izquierda', rotR: 'Girar 15° a la derecha', flipH: 'Voltear horizontal', flipV: 'Voltear vertical', smaller: 'Más pequeño', bigger: 'Más grande',
+    bastingRow: 'Caja de hilván (cualquier hilo)',
     select: 'Seleccionar', selDone: 'Listo', selDelete: 'Borrar', selHint: 'Arrastra dentro del recuadro para moverlo.',
     toLogo: 'Convertir un logo', image: 'Imagen', wand: 'Borrar zona', rmbg: 'Quitar fondo',
     bgRemoved: 'Fondo quitado. Deshacer lo devuelve.', nothingThere: 'No hay nada que borrar ahí.',
@@ -1664,6 +1804,7 @@ const PXMM = 8;                         // canvas pixels per mm
 
 const st = {
   sel: null, tool: 'brush', color: 0x000000, size: 3, tsize: 12, filled: false, hoop: '100x100', fabric: '#f1eee8', grid: true, lines: 3.3,
+  fabricKey: 'cotton', basting: false, font: 'block', tshape: 'straight', curve: 70,
   used: new Set(), undo: [], redo: [], result: null, stale: true, busy: false, order: null, view: 'draw', jobId: 0
 };
 const paint = $('paint'), overlay = $('overlay'), stitchCv = $('stitch'), stage = $('stage');
@@ -1714,6 +1855,7 @@ function drawOverlay() {
     dashedRect(octx, st.sel.x, st.sel.y, st.sel.w, st.sel.h);
   }
   $('selbar').hidden = !st.sel || st.view !== 'draw';
+  if (st.sel) $('selSize').textContent = `${(st.sel.w / PXMM).toFixed(1)} × ${(st.sel.h / PXMM).toFixed(1)} mm`;
   if (hover && (st.tool === 'brush' || st.tool === 'eraser') && st.view === 'draw') {
     octx.strokeStyle = 'rgba(0,0,0,0.6)'; octx.lineWidth = 1.5;
     octx.beginPath(); octx.arc(hover[0], hover[1], st.size * PXMM / 2, 0, Math.PI * 2); octx.stroke();
@@ -1976,21 +2118,190 @@ function closeText(commit) {
   const s = inp.value.trim(); inp.remove();
   if (!commit || !s) return;
   if (st.sel && st.sel.img) commitSel();
-  snapshot();
-  const capPx = st.tsize * PXMM;
-  pctx.save();
-  pctx.fillStyle = intToHex(st.color);
-  pctx.font = `900 ${Math.round(capPx / 0.72)}px "Arial Black", "Arial", "Helvetica Neue", sans-serif`;
-  pctx.textBaseline = 'alphabetic';
-  pctx.fillText(s, p[0], p[1] + capPx);
-  const m = pctx.measureText(s);
-  pctx.restore();
-  const asc = m.actualBoundingBoxAscent || capPx, desc = m.actualBoundingBoxDescent || capPx * 0.25;
-  const left = m.actualBoundingBoxLeft || 0, right = m.actualBoundingBoxRight || m.width;
-  const pad = 4;
-  st.sel = { x: p[0] - left - pad, y: p[1] + capPx - asc - pad, w: left + right + 2 * pad, h: asc + desc + 2 * pad, img: null };
-  st.used.add(st.color); changed(); drawOverlay();
+  const color = st.color, shape = st.tshape;
+  withFont(st.font, () => {
+    const layer = renderTextLayer(s, st.font, st.tsize, shape, st.curve, color);
+    if (!layer) return;
+    // straight text starts where you tapped; arched text is centred there
+    const x = shape === 'straight' ? Math.round(p[0]) : Math.round(p[0] - layer.width / 2);
+    const y = shape === 'straight' ? Math.round(p[1]) : Math.round(p[1] - layer.height / 2);
+    putLayer(layer, x, y, [color]);
+  });
 }
+
+/* ---------------- lettering: fonts, arcs, monograms */
+const FONTS = {
+  block: { css: '"Archivo Black", "Arial Black", sans-serif', weight: 400, min: 5 },
+  rounded: { css: '"Fredoka", "Arial Rounded MT Bold", sans-serif', weight: 700, min: 6 },
+  serif: { css: '"Abril Fatface", Georgia, serif', weight: 400, min: 7 },
+  script: { css: '"Pacifico", "Brush Script MT", cursive', weight: 400, min: 8 }
+};
+function withFont(key, fn) {
+  const F = FONTS[key];
+  const go = () => { try { fn(); } catch (e) { console.error(e); } };
+  if (document.fonts && document.fonts.load) document.fonts.load(`${F.weight} 40px ${F.css}`).then(go, go); else go();
+}
+function fontPx(key, capMM) {
+  const F = FONTS[key], m = document.createElement('canvas').getContext('2d');
+  m.font = `${F.weight} 100px ${F.css}`;
+  const ratio = (m.measureText('H').actualBoundingBoxAscent || 72) / 100;
+  return capMM * PXMM / ratio;                       // font size that gives capital letters capMM tall
+}
+function cropCanvas(c) {
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3] > 20) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (x1 < 0) return null;
+  const pad = 2, o = document.createElement('canvas');
+  o.width = x1 - x0 + 1 + 2 * pad; o.height = y1 - y0 + 1 + 2 * pad;
+  o.getContext('2d').drawImage(c, x0 - pad, y0 - pad, o.width, o.height, 0, 0, o.width, o.height);
+  return o;
+}
+function renderTextLayer(text, fontKey, capMM, shape, curveMM, color) {
+  const F = FONTS[fontKey], px = fontPx(fontKey, capMM), font = `${F.weight} ${px}px ${F.css}`;
+  const c = document.createElement('canvas'), ctx = c.getContext('2d');
+  ctx.font = font;
+  if (shape === 'straight') {
+    c.width = Math.ceil(ctx.measureText(text).width + px * 1.2); c.height = Math.ceil(px * 2);
+    ctx.font = font; ctx.fillStyle = intToHex(color); ctx.textBaseline = 'alphabetic';
+    ctx.fillText(text, px * 0.3, px * 1.3);
+    return cropCanvas(c);
+  }
+  const R = curveMM / 2 * PXMM;                      // radius of the circle the text follows
+  const chars = [...text], track = px * 0.05;
+  const widths = chars.map(ch => ctx.measureText(ch).width);
+  const total = widths.reduce((a, b) => a + b, 0) + track * (chars.length - 1);
+  const size = Math.ceil(2 * (R + px * 2));
+  c.width = size; c.height = size;
+  ctx.font = font; ctx.fillStyle = intToHex(color); ctx.textBaseline = 'alphabetic';
+  const cx = size / 2, cy = size / 2, capPx = capMM * PXMM;
+  let acc = 0;
+  chars.forEach((ch, i) => {
+    const mid = acc + widths[i] / 2;
+    ctx.save(); ctx.translate(cx, cy);
+    if (shape === 'up') {                            // along the top, letters standing outward
+      ctx.rotate(-total / 2 / R + mid / R);
+      ctx.fillText(ch, -widths[i] / 2, -R);
+    } else {                                         // along the bottom, reading left to right
+      ctx.rotate(total / 2 / R - mid / R);
+      ctx.fillText(ch, -widths[i] / 2, R + capPx);
+    }
+    ctx.restore();
+    acc += widths[i] + track;
+  });
+  return cropCanvas(c);
+}
+function putLayer(layer, x, y, colors) {
+  snapshot();
+  pctx.drawImage(layer, x, y);
+  colors.forEach(c => st.used.add(c));
+  st.sel = { x, y, w: layer.width, h: layer.height, img: null };
+  changed(); drawOverlay();
+}
+function renderMonogram(l1, l2, l3, style, fontKey, capMM, color) {
+  const F = FONTS[fontKey];
+  const small = fontPx(fontKey, capMM), big = fontPx(fontKey, style === 'row' ? capMM : capMM * 1.6);
+  const letters = [[l1, small], [l2, big], [l3, small]].filter(([ch]) => ch);
+  const m = document.createElement('canvas').getContext('2d');
+  const items = letters.map(([ch, px]) => { m.font = `${F.weight} ${px}px ${F.css}`; const mt = m.measureText(ch); return { ch, px, w: mt.width, asc: mt.actualBoundingBoxAscent || px * 0.72 }; });
+  const gap = small * 0.12;
+  const width = items.reduce((a, it) => a + it.w, 0) + gap * (items.length - 1);
+  const bigAsc = Math.max(...items.map(it => it.asc));
+  const ring = style === 'circle' ? 2.2 * PXMM : 0;
+  const rad = Math.max(width, bigAsc) / 2 + (ring ? 3 * PXMM : 0);
+  const size = Math.ceil(2 * rad + 2 * ring + bigAsc + 40);
+  const c = document.createElement('canvas'); c.width = size; c.height = size;
+  const ctx = c.getContext('2d'); ctx.fillStyle = ctx.strokeStyle = intToHex(color); ctx.textBaseline = 'alphabetic';
+  const cx = size / 2, cy = size / 2;
+  let x = cx - width / 2;
+  for (const it of items) {                          // every letter centred on the same middle line
+    ctx.font = `${F.weight} ${it.px}px ${F.css}`;
+    ctx.fillText(it.ch, x, cy + it.asc / 2);
+    x += it.w + gap;
+  }
+  if (ring) { ctx.lineWidth = ring; ctx.beginPath(); ctx.arc(cx, cy, rad + ring / 2, 0, Math.PI * 2); ctx.stroke(); }
+  return cropCanvas(c);
+}
+$('monoAdd').onclick = () => {
+  const l1 = $('m1').value.trim().toUpperCase(), l2 = $('m2').value.trim().toUpperCase(), l3 = $('m3').value.trim().toUpperCase();
+  if (!l1 && !l2 && !l3) { $('m1').focus(); return; }
+  closeText(true); commitSel();
+  const color = st.color;
+  withFont(st.font, () => {
+    const layer = renderMonogram(l1, l2, l3, $('monoStyle').value, st.font, st.tsize, color);
+    if (!layer) return;
+    let L = layer;
+    const sc = Math.min(1, paint.width * 0.9 / L.width, paint.height * 0.9 / L.height);
+    if (sc < 1) { const c2 = document.createElement('canvas'); c2.width = Math.round(L.width * sc); c2.height = Math.round(L.height * sc); c2.getContext('2d').drawImage(L, 0, 0, c2.width, c2.height); L = c2; }
+    setTool('select');
+    putLayer(L, Math.round((paint.width - L.width) / 2), Math.round((paint.height - L.height) / 2), [color]);
+  });
+};
+function showFont() {
+  const n = FONTS[st.font].min;
+  $('fontMin').textContent = t('fontMin', n);
+  const w = $('tsizeWarn'); w.hidden = st.tsize >= n; w.textContent = t('tooSmall', n);
+}
+$('font').onchange = e => { st.font = e.target.value; showFont(); };
+document.querySelectorAll('#tshape [data-shape]').forEach(b => b.addEventListener('click', () => {
+  st.tshape = b.dataset.shape;
+  document.querySelectorAll('#tshape [data-shape]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('curveField').hidden = st.tshape === 'straight';
+  if (st.tool !== 'text') setTool('text');
+}));
+function showCurve() { $('curveV').textContent = t('curveV', st.curve); }
+$('curve').oninput = e => { st.curve = +e.target.value; showCurve(); };
+
+/* ---------------- rotate, flip and resize a selection (always redrawn from the original pixels) */
+function snapToThreads(c) {
+  const used = [...st.used]; if (!used.length) return;
+  const rgb = used.map(u => [(u >> 16) & 255, (u >> 8) & 255, u & 255]);
+  const ctx = c.getContext('2d'), im = ctx.getImageData(0, 0, c.width, c.height), d = im.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 128) { d[i + 3] = 0; continue; }
+    let b = 0, bd = Infinity;
+    for (let j = 0; j < rgb.length; j++) { const q = (d[i] - rgb[j][0]) ** 2 + (d[i + 1] - rgb[j][1]) ** 2 + (d[i + 2] - rgb[j][2]) ** 2; if (q < bd) { bd = q; b = j; } }
+    d[i] = rgb[b][0]; d[i + 1] = rgb[b][1]; d[i + 2] = rgb[b][2]; d[i + 3] = 255;
+  }
+  ctx.putImageData(im, 0, 0);
+}
+function transformSel(fn) {
+  if (!st.sel) return;
+  liftSel();
+  const q = st.sel;
+  if (!q.src) { q.src = q.img; q.angle = 0; q.scale = 1; q.fx = 1; q.fy = 1; }
+  fn(q);
+  const s = q.src, a = q.angle * Math.PI / 180;
+  const w0 = s.width * q.scale, h0 = s.height * q.scale;
+  const W = Math.max(1, Math.ceil(Math.abs(w0 * Math.cos(a)) + Math.abs(h0 * Math.sin(a))));
+  const H = Math.max(1, Math.ceil(Math.abs(w0 * Math.sin(a)) + Math.abs(h0 * Math.cos(a))));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.translate(W / 2, H / 2); ctx.rotate(a); ctx.scale(q.fx * q.scale, q.fy * q.scale);
+  ctx.drawImage(s, -s.width / 2, -s.height / 2);
+  snapToThreads(c);
+  const cx = q.x + q.w / 2, cy = q.y + q.h / 2;
+  q.img = c; q.w = W; q.h = H; q.x = cx - W / 2; q.y = cy - H / 2;
+  changed(); drawOverlay();
+}
+$('rotL').onclick = () => transformSel(q => { q.angle -= 15; });
+$('rotR').onclick = () => transformSel(q => { q.angle += 15; });
+$('flipH').onclick = () => transformSel(q => { q.fx *= -1; });
+$('flipV').onclick = () => transformSel(q => { q.fy *= -1; });
+$('selSmaller').onclick = () => transformSel(q => { q.scale = Math.max(0.1, q.scale / 1.1); });
+$('selBigger').onclick = () => transformSel(q => { q.scale = Math.min(10, q.scale * 1.1); });
+
+/* ---------------- fabric presets and basting */
+function applyFabric(key, setLines) {
+  const f = Emb.FABRICS[key] || Emb.FABRICS.cotton;
+  st.fabricKey = key;
+  if (setLines) { st.lines = f.lines; $('density').value = f.lines; }
+  $('fabricTip').textContent = t('tip_' + key);
+  showDensity();
+  if (st.result && !st.stale) { st.stale = true; markStale(); }
+}
+$('fabricType').onchange = e => applyFabric(e.target.value, true);
+$('basting').onchange = e => { st.basting = e.target.checked; if (st.result && !st.stale) { st.stale = true; markStale(); } };
 
 /* ---------------- tools, colours, settings */
 document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
@@ -2025,7 +2336,7 @@ function setColor(c) {
 }
 $('custom').oninput = e => setColor(parseInt(e.target.value.slice(1), 16));
 $('size').oninput = e => { st.size = +e.target.value; $('sizeV').textContent = st.size + ' mm'; drawOverlay(); };
-$('tsize').oninput = e => { st.tsize = +e.target.value; $('tsizeV').textContent = st.tsize + ' mm'; };
+$('tsize').oninput = e => { st.tsize = +e.target.value; $('tsizeV').textContent = st.tsize + ' mm'; showFont(); };
 $('m-outline').onclick = () => { st.filled = false; $('m-outline').setAttribute('aria-pressed', true); $('m-filled').setAttribute('aria-pressed', false); };
 $('m-filled').onclick = () => { st.filled = true; $('m-outline').setAttribute('aria-pressed', false); $('m-filled').setAttribute('aria-pressed', true); };
 $('hoop').onchange = e => { commitSel(); snapshot(); setHoop(e.target.value, true); st.undo = []; st.redo = []; updateUndo(); changed(); };
@@ -2111,7 +2422,9 @@ function makeStitches() {
     rgba: ctx.getImageData(0, 0, W, H).data, W, H, mmpx, blurPx: 0,
     colors: colors.map(cc => ({ rgb: [(cc >> 16) & 255, (cc >> 8) & 255, cc & 255], stitch: true, thread: cc })),
     order: colors.map((_, i) => i), angle: 45, satinMax: 4.5,
-    density: 1 / st.lines, satinSpacing: Math.min(0.5, Math.max(0.25, 1 / st.lines + 0.05))
+    density: 1 / st.lines, satinSpacing: Math.min(0.5, Math.max(0.25, 1 / st.lines + 0.05)),
+    pull: Emb.FABRICS[st.fabricKey].pull, fillPull: Emb.FABRICS[st.fabricKey].fillPull, underlay: Emb.FABRICS[st.fabricKey].underlay,
+    basting: st.basting
   };
   st.busy = true; setStatus('busy', t('busy')); $('make').disabled = true;
   const id = ++st.jobId;
@@ -2148,13 +2461,20 @@ function renderResults() {
   $('r-cc').textContent = nf(r.colorChanges);
   $('r-tr').textContent = nf(r.trims);
   const box = $('order'); box.innerHTML = '';
-  r.threads.forEach((c, i) => {
+  const skip = r.basting ? 1 : 0;
+  if (skip) {
     const row = document.createElement('div'); row.className = 'orow';
-    row.innerHTML = `<span class="step">${i + 1}</span><span class="dot" style="background:${intToHex(c)}"></span><span>${Emb.brotherName(c)}</span>
+    row.innerHTML = `<span class="step">1</span><span class="dot" style="background:${intToHex(r.threads[0])}"></span><span>${t('bastingRow')}</span>`;
+    box.appendChild(row);
+  }
+  const design = r.threads.slice(skip);
+  design.forEach((c, i) => {
+    const row = document.createElement('div'); row.className = 'orow';
+    row.innerHTML = `<span class="step">${i + 1 + skip}</span><span class="dot" style="background:${intToHex(c)}"></span><span>${Emb.brotherName(c)}</span>
       <button class="mini" type="button" aria-label="${t('earlier')}" ${i === 0 ? 'disabled' : ''}>▲</button>
-      <button class="mini" type="button" aria-label="${t('later')}" ${i === r.threads.length - 1 ? 'disabled' : ''}>▼</button>`;
+      <button class="mini" type="button" aria-label="${t('later')}" ${i === design.length - 1 ? 'disabled' : ''}>▼</button>`;
     const [up, dn] = row.querySelectorAll('button');
-    const move = dir => { const o = r.threads.slice(); [o[i], o[i + dir]] = [o[i + dir], o[i]]; st.order = o; makeStitches(); };
+    const move = dir => { const o = design.slice(); [o[i], o[i + dir]] = [o[i + dir], o[i]]; st.order = o; makeStitches(); };
     up.onclick = () => move(-1); dn.onclick = () => move(1);
     box.appendChild(row);
   });
@@ -2206,7 +2526,9 @@ function applyLang() {
   document.title = t('title');
   $('toolHint').textContent = T[lang].hints[st.tool];
   $('curName').textContent = t('machineName', Emb.brotherName(st.color));
-  showDensity();
+  showDensity(); showFont(); showCurve();
+  $('fabricTip').textContent = t('tip_' + st.fabricKey);
+  for (const [id, k] of [['rotL', 'rotL'], ['rotR', 'rotR'], ['flipH', 'flipH'], ['flipV', 'flipV'], ['selSmaller', 'smaller'], ['selBigger', 'bigger']]) { $(id).title = t(k); $(id).setAttribute('aria-label', t(k)); }
   if (st.busy) setStatus('busy', t('busy'));
   else if (!st.result) setStatus('idle', t('idle'));
   else if (st.stale) setStatus('idle', t('stale'));
@@ -2272,7 +2594,9 @@ function takeHandoff() {
   if (!h || !h.png) return;
   if (HOOPS[h.hoop]) { $('hoop').value = h.hoop; setHoop(h.hoop, false); }
   if (h.fabric) { st.fabric = h.fabric; $('fabric').value = h.fabric; stage.style.background = h.fabric; }
+  if (h.fabricKey && Emb.FABRICS[h.fabricKey]) { $('fabricType').value = h.fabricKey; applyFabric(h.fabricKey, false); }
   if (h.lines) { st.lines = h.lines; $('density').value = h.lines; showDensity(); }
+  if (h.basting) { st.basting = true; $('basting').checked = true; }
   const im = new Image();
   im.onload = () => { const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; c.getContext('2d').drawImage(im, 0, 0); placeLayer(c, h.used || [], h.used || null); };
   im.src = h.png;
@@ -2280,6 +2604,7 @@ function takeHandoff() {
 
 /* ---------------- start */
 setHoop('100x100', false);
+$('fabricType').value = 'cotton'; $('basting').checked = false; $('font').value = 'block'; $('curve').value = st.curve;
 $('hoop').value = '100x100'; $('fabric').value = st.fabric; $('density').value = st.lines; $('size').value = st.size; $('tsize').value = st.tsize; $('grid').checked = true;
 $('sizeV').textContent = st.size + ' mm'; $('tsizeV').textContent = st.tsize + ' mm';
 stage.style.background = st.fabric;

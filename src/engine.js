@@ -318,10 +318,13 @@ function resample(xy, w, step) {
   }
   return { P, W: WW, N, L };
 }
-function underlayPath(xy, w) {
-  const r = resample(xy, w, 1.0);
+function underlayPath(xy, w, level) {
+  // light: a walk down the middle; normal: narrow zigzag; heavy: wider, closer zigzag
+  const heavy = level === 'heavy', light = level === 'light';
+  const r = resample(xy, w, heavy ? 0.8 : 1.0);
   return r.P.map((p, i) => {
-    const off = Math.max(0, 0.3 * r.W[i] - 0.25) * (i % 2 ? 1 : -1);
+    const amt = light ? 0 : heavy ? Math.max(0, 0.38 * r.W[i] - 0.2) : Math.max(0, 0.3 * r.W[i] - 0.25);
+    const off = amt * (i % 2 ? 1 : -1);
     return [p[0] + r.N[i][0] * off, p[1] + r.N[i][1] * off];
   });
 }
@@ -426,7 +429,7 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       let v, fxy, fw;
       if (e.a === f.u) { v = e.b; fxy = e.xy; fw = e.w; }
       else { v = e.a; fxy = e.xy.slice().reverse(); fw = e.w.slice().reverse(); }
-      out.push(...underlayPath(fxy, fw));
+      out.push(...underlayPath(fxy, fw, opt.underlay));
       const back = { xy: fxy.slice().reverse(), w: fw.slice().reverse() };
       if (!vis.has(v)) { vis.add(v); stack.push({ u: v, i: 0, back }); }
       else out.push(...satinPath(back.xy, back.w, opt.pull, opt.satinSpacing));
@@ -550,7 +553,7 @@ function simplifyDP(pts, tol) {
   return pts.filter((_, i) => keep[i]);
 }
 
-function tatami(mask, W, H, comp, mmpx, angleDeg, spacingMM, stitchMM, cur, grid, visible) {
+function tatami(mask, W, H, comp, mmpx, angleDeg, spacingMM, stitchMM, cur, grid, visible, pullMM) {
   const out = [];
   const a = angleDeg * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a), vx = -uy, vy = ux;
   const corners = [[comp.minx, comp.miny], [comp.maxx + 1, comp.miny], [comp.minx, comp.maxy + 1], [comp.maxx + 1, comp.maxy + 1]];
@@ -595,7 +598,9 @@ function tatami(mask, W, H, comp, mmpx, angleDeg, spacingMM, stitchMM, cur, grid
   });
   const toMM = (s, t) => [(s * ux + t * vx) * mmpx, (s * uy + t * vy) * mmpx];
   const L = stitchMM / mmpx, endGap = 0.6 / mmpx;
+  const ext = (pullMM || 0) / mmpx;          // pull compensation: rows reach a little past the edge
   function rowPts(r, a0, b0, ltr) {
+    a0 -= ext; b0 += ext;
     const t = rows[r].t;
     const off = (r % 3) / 3 * L;
     const xs = [a0];
@@ -730,13 +735,14 @@ function fillLocal(cm, W, H, comp, mmpx, opt, cur, lm) {
   // 2. sparse underlay across the fill direction
   const ul = thresh(dIn, v => v > 0.5 / mmpx);
   let any = false; for (let i = 0; i < ul.length && !any; i++) if (ul[i]) any = true;
-  if (any) {
-    const r = tatami(ul, W, H, comp, mmpx, opt.angle + 90, 1.8, 3.0, cur, grid, false);
+  const layers = opt.underlay === 'light' ? [[90, 2.6]] : opt.underlay === 'heavy' ? [[90, 1.6], [0, 2.4]] : [[90, 1.8]];
+  if (any) for (const [da, sp] of layers) {
+    const r = tatami(ul, W, H, comp, mmpx, opt.angle + da, sp, 3.0, cur, grid, false);
     for (const it of r.seq) seq.push(it);
     if (r.seq.length) cur = r.cur;
   }
   // 3. top fill
-  const r = tatami(cm, W, H, comp, mmpx, opt.angle, opt.density, opt.stitchLen, cur, grid, true);
+  const r = tatami(cm, W, H, comp, mmpx, opt.angle, opt.density, opt.stitchLen, cur, grid, true, opt.pullMM);
   for (const it of r.seq) seq.push(it);
   return { seq, cur: r.seq.length ? r.cur : cur };
 }
@@ -1034,7 +1040,7 @@ function digitize(p, progress) {
     b.travel = { mask: tm, W, H, mmpx };
     let st0 = b.cmds.length;
     if (nCount) {
-      const blocks = networkBlocks(narrowSk, D, W, H, mmpx, { pruneMM: 1.2, minW: 0.9, maxW: p.satinMax, extraW: 0, pull: 0.2, satinSpacing: p.satinSpacing || 0.4 });
+      const blocks = networkBlocks(narrowSk, D, W, H, mmpx, { pruneMM: 1.2, minW: 0.9, maxW: p.satinMax, extraW: 0, pull: p.pull === undefined ? 0.2 : p.pull, satinSpacing: p.satinSpacing || 0.4, underlay: p.underlay || 'normal' });
       const r = orderNetworks(blocks, cur);
       for (const s of r.seqs) b.points(s);
       if (r.seqs.length) cur = b.cur;
@@ -1044,15 +1050,31 @@ function digitize(p, progress) {
     while (left.length) {
       left.sort((c1, c2) => boxDist(c1, cur, mmpx) - boxDist(c2, cur, mmpx));
       const c = left.shift();
-      const r = fillComponent(fillMask, W, H, c, lab, mmpx, { angle: p.angle, density: p.density, stitchLen: 3.5 }, cur, laterIn);
+      const r = fillComponent(fillMask, W, H, c, lab, mmpx, { angle: p.angle, density: p.density, stitchLen: 3.5, underlay: p.underlay || 'normal', pullMM: p.fillPull || 0 }, cur, laterIn);
       b.seq(r.seq);
       cur = b.cur || cur;
     }
     summary.push({ color: j, commands: b.cmds.length - st0 });
   });
   if (b.cmds.length) b.end();
+  // basting box: a running stitch around everything, sewn first in its own colour stop,
+  // to hold fabric and stabilizer together; it is pulled out afterwards
+  let basted = false;
+  if (p.basting && b.cmds.length) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const c of b.cmds) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
+    const m = 2.5;
+    x0 -= m; y0 -= m; x1 += m; y1 += m;
+    const bb = new Builder();
+    bb.points(runPath([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]], 4.0));
+    bb.colorChange();
+    b.cmds = bb.cmds.concat(b.cmds);
+    threads.unshift(0xa8a8a8); used.unshift(-1);
+    basted = true;
+  }
   const res = finish(b, threads, summary);
   res.colorsUsed = used;
+  res.basting = basted;
   return res;
 }
 function boxDist(c, p, mmpx) {
@@ -1313,7 +1335,18 @@ function makeZip(files) {
   return w.result();
 }
 
-const Emb = { logoToLayer, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
+/* Fabric presets: density (lines per mm), satin and fill pull compensation (mm), underlay.
+   Stretchy or thick fabrics get more pull compensation and underlay; denim gets less. */
+const FABRICS = {
+  cotton: { lines: 3.3, pull: 0.2, fillPull: 0.15, underlay: 'normal' },
+  tshirt: { lines: 3.1, pull: 0.35, fillPull: 0.3, underlay: 'heavy' },
+  polo: { lines: 3.0, pull: 0.35, fillPull: 0.3, underlay: 'heavy' },
+  denim: { lines: 3.0, pull: 0.15, fillPull: 0.1, underlay: 'light' },
+  towel: { lines: 3.6, pull: 0.3, fillPull: 0.25, underlay: 'heavy' },
+  fleece: { lines: 3.6, pull: 0.3, fillPull: 0.25, underlay: 'heavy' }
+};
+
+const Emb = { FABRICS, logoToLayer, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
 if (typeof module !== 'undefined' && module.exports) module.exports = Emb;
 root.Emb = Emb;
 

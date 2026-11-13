@@ -12,7 +12,7 @@ Turn a flat logo into a `.pes` embroidery file for Brother and Baby Lock machine
 2. Pick your hoop and the size of the design.
 3. For each color, choose **Stitch** or **Fabric** (Fabric means the fabric shows through and that color is skipped). Change the thread colors if you like. The page shows the name your machine will use for each color.
 4. Under **Background**, choose whether to remove the background (the default), remove it but keep that color where it appears inside the logo, or keep it and stitch it like a patch. **Tap to remove** lets you tap any area in the preview to take it out; **Restore removed areas** brings them back.
-5. Set the **stitch density**. The default is 3.3 lines per mm (rows 0.30 mm apart). If the fabric shows through the stitches, move it toward Denser.
+5. Under **Fabric and stitches**, pick what you're stitching on (cotton, T-shirt, polo, denim, towel, fleece). That sets the density, pull compensation and underlay, and shows a stabilizer tip. Fine-tune the **stitch density** if needed, and tick **Basting box** to sew a removable box first that holds the fabric and stabilizer. The default is 3.3 lines per mm (rows 0.30 mm apart). If the fabric shows through the stitches, move it toward Denser.
 6. Check the stitch preview, then press **Download .pes**. To change the logo first (add text, erase or move parts), press **Edit this logo in the drawing editor**.
 7. Copy the `.pes` file to a USB stick and load it on the machine.
 
@@ -22,7 +22,7 @@ Sew a test on scrap fabric with stabilizer before the real garment.
 
 ## Draw your own design
 
-The drawing page works like a simple paint program sized to the hoop: select, brush, eraser, line, box, circle, fill and text, in Brother thread colors, with a 10 mm grid. To move something, use **Select**: drag a box around it, then drag inside the box. New text stays selected after you press Enter, so you can drag it right away. **Image** brings a picture or logo into the drawing in thread colors. **Remove background** clears the background around the selection (or around the whole drawing), and **Erase area** removes whatever connected area you tap. Arrow keys nudge a selection and Delete removes it. Set the stitch density, press **Make stitches** to see the stitches, then **Download .pes**. Lines thinner than 1 mm and letters under 5 mm tall are hard to sew. Every visit starts with a blank page, so download the `.pes` before closing it.
+The drawing page works like a simple paint program sized to the hoop: select, brush, eraser, line, box, circle, fill and text, in Brother thread colors, with a 10 mm grid. To move something, use **Select**: drag a box around it, then drag inside the box. New text stays selected after you press Enter, so you can drag it right away. **Image** brings a picture or logo into the drawing in thread colors. **Remove background** clears the background around the selection (or around the whole drawing), and **Erase area** removes whatever connected area you tap. Arrow keys nudge a selection and Delete removes it; the selection bar can also rotate (15° steps), flip and resize it. The **Text and monograms** panel has 4 fonts (each shows its smallest sewable size), straight or arched text, and a 3-letter monogram builder. Set the stitch density, press **Make stitches** to see the stitches, then **Download .pes**. Lines thinner than 1 mm and letters under 5 mm tall are hard to sew. Every visit starts with a blank page, so download the `.pes` before closing it.
 
 ## Cómo usarlo (Español)
 
@@ -36,6 +36,8 @@ The drawing page works like a simple paint program sized to the hoop: select, br
 Cada visita empieza en blanco. No se guarda nada de lo que subes o dibujas.
 
 Para dibujar tu propio diseño, abre https://jhoshuac.github.io/logo-to-pes/draw/ (seleccionar, pincel, borrador, línea, caja, círculo, relleno y texto). Para mover algo, usa **Seleccionar**: arrastra un recuadro alrededor y luego arrastra dentro del recuadro. Pulsa **Crear puntadas** y luego **Descargar .pes**.
+
+Features still to come are listed in [PENDING.md](PENDING.md).
 
 ## How it works
 
