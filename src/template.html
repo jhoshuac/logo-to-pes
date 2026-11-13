@@ -80,6 +80,7 @@ button { font-family: var(--font-body); }
 .drop img[src=""], .drop img:not([src]) { visibility: hidden; }
 .drop img { width: 76px; height: 76px; object-fit: contain; background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0 / 12px 12px; border-radius: 6px; }
 .drop strong { display: block; }
+a.inline { color: var(--accent); font-weight: 700; }
 .bgbox { display: grid; gap: 8px; border-top: 1px dashed var(--line); padding-top: 12px; }
 .bgbox[hidden] { display: none; }
 .radio { display: grid; grid-template-columns: 20px 1fr; gap: 2px 8px; align-items: start; font-size: 14px; cursor: pointer; }
@@ -170,6 +171,7 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
         </label>
         <input id="file" class="sr" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
         <p class="hint" data-t="logoHint">Flat logos with a few solid colors work best. Photos and color gradients won't stitch well.</p>
+        <p class="hint"><a class="inline" href="./draw/" data-t="havePes">Already have a .pes file? Open it in the drawing editor to add a name or shapes.</a></p>
         <div class="bgbox" id="bgbox" hidden>
           <h2 id="bgTitle" data-t="bgTitle">Background</h2>
           <div id="bgopts" role="radiogroup" aria-labelledby="bgTitle" style="display:grid;gap:8px">
@@ -297,7 +299,7 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
 'use strict';
 const T = {
   en: {
-    title: 'Logo to PES', tagline: 'Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.', navDraw: 'Open the drawing editor', bgTitle: 'Background', bgAll: 'Remove it', bgAllHint: 'Also leaves out that color anywhere inside the logo.',
+    title: 'Logo to PES', tagline: 'Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.', navDraw: 'Open the drawing editor', havePes: 'Already have a .pes file? Open it in the drawing editor to add a name or shapes.', bgTitle: 'Background', bgAll: 'Remove it', bgAllHint: 'Also leaves out that color anywhere inside the logo.',
     bgEdge: 'Remove it, keep that color inside the logo', bgEdgeHint: 'Only the area touching the edges of the picture goes.',
     bgKeep: 'Keep it and stitch it', bgKeepHint: 'Sews the background too, like a patch.',
     noBg: "No solid background found. Use Tap to remove to take out anything you don't want.",
@@ -336,7 +338,7 @@ const T = {
     badImage: "That file couldn't be opened as an image. Try a PNG or JPG.", failed: 'Something went wrong making stitches. Try a simpler image or fewer colors.'
   },
   es: {
-    title: 'Logo a PES', tagline: 'Convierte un logo de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.', navDraw: 'Abrir el editor de dibujo', bgTitle: 'Fondo', bgAll: 'Quitarlo', bgAllHint: 'También deja fuera ese color en cualquier parte dentro del logo.',
+    title: 'Logo a PES', tagline: 'Convierte un logo de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.', navDraw: 'Abrir el editor de dibujo', havePes: '¿Ya tienes un archivo .pes? Ábrelo en el editor de dibujo para agregar un nombre o formas.', bgTitle: 'Fondo', bgAll: 'Quitarlo', bgAllHint: 'También deja fuera ese color en cualquier parte dentro del logo.',
     bgEdge: 'Quitarlo, pero dejar ese color dentro del logo', bgEdgeHint: 'Solo se quita la zona que toca los bordes de la imagen.',
     bgKeep: 'Dejarlo y bordarlo', bgKeepHint: 'Borda también el fondo, como un parche.',
     noBg: 'No se encontró un fondo sólido. Usa Tocar para quitar para sacar lo que no quieras.',

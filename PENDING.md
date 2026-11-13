@@ -9,7 +9,6 @@ Features found in embroidery programs (Brother PE-Design, Hatch, Embrilliance, I
 | Thin lines as running / triple (bean) stitch | Fine details sewn as a thin line instead of being widened to a 1 mm satin | Plain stitches, works on any machine |
 | Appliqué | Placement line, tack-down and satin border so a fabric piece fills a large area | Uses the machine's color stops to pause for placing and trimming the fabric |
 | More lettering fonts | More choices beyond the 4 in the editor | Each with its smallest sewable size |
-| Open an existing .pes | View a design, add a name or shapes, save again | Resizing stitch files is limited without full stitch recalculation |
 | Sew-out simulator | Watch the stitches sew in order before going to the machine | Runs in the browser only |
 | Print a real-size template | Paper template to position the design on the garment | Runs in the browser only |
 
@@ -30,3 +29,4 @@ Features found in embroidery programs (Brother PE-Design, Hatch, Embrilliance, I
 - Basting box sewn first in its own color stop
 - Curved text (arch up / arch down), 4 fonts with minimum sizes, and 3-letter monograms
 - Rotate, flip and resize a selection in the editor
+- Open an existing .pes in the editor: its stitches are kept exactly, it can be moved, rotated, flipped and resized a little (80–120%), and text or drawings can be added before saving one combined .pes

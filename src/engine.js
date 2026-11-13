@@ -1335,6 +1335,105 @@ function makeZip(files) {
   return w.result();
 }
 
+/* ------------------------------------------------------------ reading .pes files
+   Every PES version carries a PEC block (the part Brother machines read), so that is what
+   we read. Returns stitches in 0.1 mm with the design's own thread colours. */
+function readPES(bytes) {
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const sig = String.fromCharCode(...u8.subarray(0, 8));
+  let p0;
+  if (sig === '#PEC0001') p0 = 8;
+  else if (sig.startsWith('#PES')) p0 = (u8[8] | (u8[9] << 8) | (u8[10] << 16) | (u8[11] << 24)) >>> 0;
+  else throw new Error('not-pes');
+  if (!(p0 > 0) || p0 + 532 > u8.length) throw new Error('broken-pes');
+  const label = String.fromCharCode(...u8.subarray(p0 + 3, p0 + 19)).replace(/[^\x20-\x7e]/g, '').trim();
+  const cc = u8[p0 + 48];
+  const count = cc === 0xff ? 1 : cc + 1;
+  const colorIdx = Array.from(u8.subarray(p0 + 49, p0 + 49 + count));
+  const blockLen = u8[p0 + 514] | (u8[p0 + 515] << 8) | (u8[p0 + 516] << 16);
+  const end = Math.min(u8.length, p0 + 512 + blockLen);
+  const s7 = b => (b > 63 ? b - 128 : b);
+  const s12 = b => { b &= 0xfff; return b > 0x7ff ? b - 0x1000 : b; };
+  const cmds = [];
+  let i = p0 + 528, x = 0, y = 0;
+  while (i < end) {
+    const v1 = u8[i], v2 = u8[i + 1];
+    if (v1 === 0xff || v2 === undefined) break;
+    if (v1 === 0xfe && v2 === 0xb0) { cmds.push([x, y, COLOR_CHANGE]); i += 3; continue; }
+    let jump = false, trim = false, dx, dy;
+    if (v1 & 0x80) { if (v1 & 0x20) trim = true; if (v1 & 0x10) jump = true; dx = s12((v1 << 8) | v2); i += 2; }
+    else { dx = s7(v1); i += 1; }
+    const w1 = u8[i];
+    if (w1 === undefined) break;
+    if (w1 & 0x80) { if (w1 & 0x20) trim = true; if (w1 & 0x10) jump = true; dy = s12((w1 << 8) | u8[i + 1]); i += 2; }
+    else { dy = s7(w1); i += 1; }
+    if (trim && !jump) cmds.push([x, y, TRIM]);
+    x += dx; y += dy;
+    cmds.push([x, y, (jump || trim) ? JUMP : STITCH]);
+  }
+  // drop colour changes that come before any stitch, and trailing ones
+  while (cmds.length && cmds[cmds.length - 1][2] !== STITCH) cmds.pop();
+  const blocks = cmds.filter(c => c[2] === COLOR_CHANGE).length + 1;
+  const threads = [];
+  for (let k = 0; k < blocks; k++) {
+    const idx = colorIdx[Math.min(k, colorIdx.length - 1)];
+    const c = PEC_PALETTE[idx % PEC_PALETTE.length];
+    threads.push(c === null || c === undefined ? 0x808080 : c);
+  }
+  let stitches = 0;
+  for (const c of cmds) if (c[2] === STITCH) stitches++;
+  return { label, cmds, threads, stitches };
+}
+
+/* Join several designs into one: parts = [{ cmds (mm, absolute), threads, kind, name }].
+   Each part keeps its own stitches; a thread change separates the parts. */
+function mergeDesigns(parts, opts) {
+  let out = [];
+  const threads = [], groups = [];
+  for (const pt of parts) {
+    const cmds = pt.cmds.filter(c => c[2] !== END);
+    if (!cmds.some(c => c[2] === STITCH)) continue;
+    if (out.length) { const l = out[out.length - 1]; out.push([l[0], l[1], TRIM], [l[0], l[1], COLOR_CHANGE]); }
+    if (cmds[0][2] !== JUMP) out.push([cmds[0][0], cmds[0][1], JUMP]);
+    let prev = null;
+    for (const c of cmds) {
+      // keep every stitch short enough for the machine (only matters for enlarged designs)
+      if (c[2] === STITCH && prev) {
+        const d = hyp(prev, c);
+        if (d > 12) { const n = Math.ceil(d / 7); for (let k = 1; k < n; k++) out.push([prev[0] + (c[0] - prev[0]) * k / n, prev[1] + (c[1] - prev[1]) * k / n, STITCH]); }
+      }
+      out.push(c);
+      prev = c;
+    }
+    threads.push(...pt.threads);
+    groups.push({ kind: pt.kind, name: pt.name || '', n: pt.threads.length });
+  }
+  if (!out.length) return null;
+  const l = out[out.length - 1];
+  out.push([l[0], l[1], TRIM], [l[0], l[1], END]);
+  let basted = false;
+  if (opts && opts.basting) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const c of out) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
+    const m = 2.5;
+    const bb = new Builder();
+    bb.points(runPath([[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m], [x0 - m, y0 - m]], 4.0));
+    bb.colorChange();
+    out = bb.cmds.concat(out);
+    threads.unshift(0xa8a8a8); groups.unshift({ kind: 'basting', name: '', n: 1 });
+    basted = true;
+  }
+  // jump threads to cut: jumps that leave a stitch within the same colour
+  let cuts = 0, last = null;
+  for (const c of out) {
+    if (c[2] === JUMP && last === STITCH) cuts++;
+    if (c[2] !== TRIM) last = c[2];
+  }
+  const res = finish({ cmds: out, trims: cuts }, threads, []);
+  res.groups = groups; res.basting = basted;
+  return res;
+}
+
 /* Fabric presets: density (lines per mm), satin and fill pull compensation (mm), underlay.
    Stretchy or thick fabrics get more pull compensation and underlay; denim gets less. */
 const FABRICS = {
@@ -1346,7 +1445,7 @@ const FABRICS = {
   fleece: { lines: 3.6, pull: 0.3, fillPull: 0.25, underlay: 'heavy' }
 };
 
-const Emb = { FABRICS, logoToLayer, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
+const Emb = { readPES, mergeDesigns, FABRICS, logoToLayer, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
 if (typeof module !== 'undefined' && module.exports) module.exports = Emb;
 root.Emb = Emb;
 

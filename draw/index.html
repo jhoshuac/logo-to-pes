@@ -71,7 +71,7 @@ header p { margin: 6px 0 0; color: var(--muted); max-width: 64ch; }
 .stage { position: relative; touch-action: none; border-radius: 8px; overflow: hidden; }
 .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #paint { cursor: crosshair; }
-#stitch, #overlay { pointer-events: none; }
+#stitch, #overlay, #under { pointer-events: none; }
 .textin { position: absolute; z-index: 5; font: 700 18px var(--font-body); border: 2px dashed var(--accent); background: rgba(255,255,255,.9); color: #111; padding: 2px 6px; border-radius: 4px; min-width: 120px; }
 .hint { color: var(--muted); font-size: 14px; margin: 0; }
 label { font-weight: 700; font-size: 14px; }
@@ -112,7 +112,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .msg.err { color: var(--bad); } .msg.ok { color: var(--good); }
 .stale { opacity: .5; }
 .selbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.selbar[hidden] { display: none; }
+.selbar { min-height: 34px; }
+.selbar[hidden] { display: flex; visibility: hidden; }   /* keeps its row so the canvas never jumps */
 .selbar .mini { width: 34px; height: 30px; font-size: 15px; }
 .mono3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .mono3 label { display: grid; gap: 4px; font-size: 12px; }
@@ -152,6 +153,8 @@ details summary { cursor: pointer; font-weight: 700; }
       <button class="tool" id="addImage" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span data-t="image">Image</span></button>
       <button class="tool" id="rmbg" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 2.6"/><path d="M8 15.5c1-3 2.5-4.5 4-4.5s3 1.5 4 4.5"/><circle cx="12" cy="8" r="2"/></svg><span data-t="rmbg">Remove background</span></button>
       <input type="file" id="imgfile" class="sr" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
+      <button class="tool" id="openPes" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13l2 2 3-4 3 5"/></svg><span data-t="openPes">Open .pes</span></button>
+      <input type="file" id="pesfile" class="sr" accept=".pes,.PES,.pec,.PEC">
       <div class="sep"></div>
       <button class="tool" id="undo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span data-t="undo">Undo</span></button>
       <button class="tool" id="redo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg><span data-t="redo">Redo</span></button>
@@ -164,7 +167,10 @@ details summary { cursor: pointer; font-weight: 700; }
           <button type="button" id="v-draw" aria-pressed="true" data-t="vDraw">Drawing</button>
           <button type="button" id="v-stitch" aria-pressed="false" data-t="vStitch">Stitches</button>
         </div>
-        <div class="selbar" id="selbar" hidden>
+
+        <label class="check"><input type="checkbox" id="grid" checked> <span data-t="grid">Grid, 10 mm squares</span></label>
+      </div>
+      <div class="selbar" id="selbar" hidden>
           <button class="btn" type="button" id="selDone" data-t="selDone">Done</button>
           <button class="btn" type="button" id="selDel" data-t="selDelete">Delete</button>
           <button class="mini" type="button" id="rotL" title="Rotate left 15°">⟲</button>
@@ -176,11 +182,10 @@ details summary { cursor: pointer; font-weight: 700; }
           <span class="num hint" id="selSize"></span>
           <span class="hint" data-t="selHint">Drag inside the dashed box to move it.</span>
         </div>
-        <label class="check"><input type="checkbox" id="grid" checked> <span data-t="grid">Grid, 10 mm squares</span></label>
-      </div>
       <div class="stagebox">
         <div class="hoop">
           <div class="stage" id="stage">
+            <canvas id="under"></canvas>
             <canvas id="paint" aria-label="Drawing area"></canvas>
             <canvas id="overlay"></canvas>
             <canvas id="stitch" hidden></canvas>
@@ -1661,6 +1666,105 @@ function makeZip(files) {
   return w.result();
 }
 
+/* ------------------------------------------------------------ reading .pes files
+   Every PES version carries a PEC block (the part Brother machines read), so that is what
+   we read. Returns stitches in 0.1 mm with the design's own thread colours. */
+function readPES(bytes) {
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const sig = String.fromCharCode(...u8.subarray(0, 8));
+  let p0;
+  if (sig === '#PEC0001') p0 = 8;
+  else if (sig.startsWith('#PES')) p0 = (u8[8] | (u8[9] << 8) | (u8[10] << 16) | (u8[11] << 24)) >>> 0;
+  else throw new Error('not-pes');
+  if (!(p0 > 0) || p0 + 532 > u8.length) throw new Error('broken-pes');
+  const label = String.fromCharCode(...u8.subarray(p0 + 3, p0 + 19)).replace(/[^\x20-\x7e]/g, '').trim();
+  const cc = u8[p0 + 48];
+  const count = cc === 0xff ? 1 : cc + 1;
+  const colorIdx = Array.from(u8.subarray(p0 + 49, p0 + 49 + count));
+  const blockLen = u8[p0 + 514] | (u8[p0 + 515] << 8) | (u8[p0 + 516] << 16);
+  const end = Math.min(u8.length, p0 + 512 + blockLen);
+  const s7 = b => (b > 63 ? b - 128 : b);
+  const s12 = b => { b &= 0xfff; return b > 0x7ff ? b - 0x1000 : b; };
+  const cmds = [];
+  let i = p0 + 528, x = 0, y = 0;
+  while (i < end) {
+    const v1 = u8[i], v2 = u8[i + 1];
+    if (v1 === 0xff || v2 === undefined) break;
+    if (v1 === 0xfe && v2 === 0xb0) { cmds.push([x, y, COLOR_CHANGE]); i += 3; continue; }
+    let jump = false, trim = false, dx, dy;
+    if (v1 & 0x80) { if (v1 & 0x20) trim = true; if (v1 & 0x10) jump = true; dx = s12((v1 << 8) | v2); i += 2; }
+    else { dx = s7(v1); i += 1; }
+    const w1 = u8[i];
+    if (w1 === undefined) break;
+    if (w1 & 0x80) { if (w1 & 0x20) trim = true; if (w1 & 0x10) jump = true; dy = s12((w1 << 8) | u8[i + 1]); i += 2; }
+    else { dy = s7(w1); i += 1; }
+    if (trim && !jump) cmds.push([x, y, TRIM]);
+    x += dx; y += dy;
+    cmds.push([x, y, (jump || trim) ? JUMP : STITCH]);
+  }
+  // drop colour changes that come before any stitch, and trailing ones
+  while (cmds.length && cmds[cmds.length - 1][2] !== STITCH) cmds.pop();
+  const blocks = cmds.filter(c => c[2] === COLOR_CHANGE).length + 1;
+  const threads = [];
+  for (let k = 0; k < blocks; k++) {
+    const idx = colorIdx[Math.min(k, colorIdx.length - 1)];
+    const c = PEC_PALETTE[idx % PEC_PALETTE.length];
+    threads.push(c === null || c === undefined ? 0x808080 : c);
+  }
+  let stitches = 0;
+  for (const c of cmds) if (c[2] === STITCH) stitches++;
+  return { label, cmds, threads, stitches };
+}
+
+/* Join several designs into one: parts = [{ cmds (mm, absolute), threads, kind, name }].
+   Each part keeps its own stitches; a thread change separates the parts. */
+function mergeDesigns(parts, opts) {
+  let out = [];
+  const threads = [], groups = [];
+  for (const pt of parts) {
+    const cmds = pt.cmds.filter(c => c[2] !== END);
+    if (!cmds.some(c => c[2] === STITCH)) continue;
+    if (out.length) { const l = out[out.length - 1]; out.push([l[0], l[1], TRIM], [l[0], l[1], COLOR_CHANGE]); }
+    if (cmds[0][2] !== JUMP) out.push([cmds[0][0], cmds[0][1], JUMP]);
+    let prev = null;
+    for (const c of cmds) {
+      // keep every stitch short enough for the machine (only matters for enlarged designs)
+      if (c[2] === STITCH && prev) {
+        const d = hyp(prev, c);
+        if (d > 12) { const n = Math.ceil(d / 7); for (let k = 1; k < n; k++) out.push([prev[0] + (c[0] - prev[0]) * k / n, prev[1] + (c[1] - prev[1]) * k / n, STITCH]); }
+      }
+      out.push(c);
+      prev = c;
+    }
+    threads.push(...pt.threads);
+    groups.push({ kind: pt.kind, name: pt.name || '', n: pt.threads.length });
+  }
+  if (!out.length) return null;
+  const l = out[out.length - 1];
+  out.push([l[0], l[1], TRIM], [l[0], l[1], END]);
+  let basted = false;
+  if (opts && opts.basting) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const c of out) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
+    const m = 2.5;
+    const bb = new Builder();
+    bb.points(runPath([[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m], [x0 - m, y0 - m]], 4.0));
+    bb.colorChange();
+    out = bb.cmds.concat(out);
+    threads.unshift(0xa8a8a8); groups.unshift({ kind: 'basting', name: '', n: 1 });
+    basted = true;
+  }
+  // jump threads to cut: jumps that leave a stitch within the same colour
+  let cuts = 0, last = null;
+  for (const c of out) {
+    if (c[2] === JUMP && last === STITCH) cuts++;
+    if (c[2] !== TRIM) last = c[2];
+  }
+  const res = finish({ cmds: out, trims: cuts }, threads, []);
+  res.groups = groups; res.basting = basted;
+  return res;
+}
+
 /* Fabric presets: density (lines per mm), satin and fill pull compensation (mm), underlay.
    Stretchy or thick fabrics get more pull compensation and underlay; denim gets less. */
 const FABRICS = {
@@ -1672,7 +1776,7 @@ const FABRICS = {
   fleece: { lines: 3.6, pull: 0.3, fillPull: 0.25, underlay: 'heavy' }
 };
 
-const Emb = { FABRICS, logoToLayer, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
+const Emb = { readPES, mergeDesigns, FABRICS, logoToLayer, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
 if (typeof module !== 'undefined' && module.exports) module.exports = Emb;
 root.Emb = Emb;
 
@@ -1717,6 +1821,11 @@ const T = {
     monoHint: 'Traditional order: first initial, last name initial in the middle, middle initial. It lands in the middle of the hoop, selected so you can move it.',
     rotL: 'Rotate left 15°', rotR: 'Rotate right 15°', flipH: 'Flip left to right', flipV: 'Flip upside down', smaller: 'Smaller', bigger: 'Bigger',
     bastingRow: 'Basting box (any thread)',
+    openPes: 'Open .pes', notPes: "That file couldn't be read as a .pes design.",
+    opened: (name, n, c) => `Opened ${name}: ${n} stitches, ${c} thread colors. Its stitches stay exactly as they are. Drag to move it, or rotate and flip it, and add text or drawings.`,
+    openedBig: 'Heads up: this design is bigger than the hoop you picked.',
+    scaleWarn: "Stitch files only resize well a little (about 80% to 120%), because the stitches aren't recalculated.",
+    fromFile: name => `From ${name}`,
     select: 'Select', selDone: 'Done', selDelete: 'Delete', selHint: 'Drag inside the dashed box to move it.',
     toLogo: 'Convert a logo', image: 'Image', wand: 'Erase area', rmbg: 'Remove background',
     bgRemoved: 'Background removed. Undo brings it back.', nothingThere: 'Nothing to erase there.',
@@ -1764,6 +1873,11 @@ const T = {
     monoHint: 'Orden tradicional: inicial del nombre, inicial del apellido en el medio, inicial del segundo nombre. Aparece en el centro del bastidor, seleccionado para moverlo.',
     rotL: 'Girar 15° a la izquierda', rotR: 'Girar 15° a la derecha', flipH: 'Voltear horizontal', flipV: 'Voltear vertical', smaller: 'Más pequeño', bigger: 'Más grande',
     bastingRow: 'Caja de hilván (cualquier hilo)',
+    openPes: 'Abrir .pes', notPes: 'No se pudo leer ese archivo como diseño .pes.',
+    opened: (name, n, c) => `Abriste ${name}: ${n} puntadas, ${c} colores de hilo. Sus puntadas quedan tal cual. Arrástralo para moverlo, gíralo o voltéalo, y agrega texto o dibujos.`,
+    openedBig: 'Ojo: este diseño es más grande que el bastidor elegido.',
+    scaleWarn: 'Los archivos de puntadas solo se pueden cambiar de tamaño un poco (de 80% a 120%), porque las puntadas no se recalculan.',
+    fromFile: name => `De ${name}`,
     select: 'Seleccionar', selDone: 'Listo', selDelete: 'Borrar', selHint: 'Arrastra dentro del recuadro para moverlo.',
     toLogo: 'Convertir un logo', image: 'Imagen', wand: 'Borrar zona', rmbg: 'Quitar fondo',
     bgRemoved: 'Fondo quitado. Deshacer lo devuelve.', nothingThere: 'No hay nada que borrar ahí.',
@@ -1804,12 +1918,13 @@ const PXMM = 8;                         // canvas pixels per mm
 
 const st = {
   sel: null, tool: 'brush', color: 0x000000, size: 3, tsize: 12, filled: false, hoop: '100x100', fabric: '#f1eee8', grid: true, lines: 3.3,
-  fabricKey: 'cotton', basting: false, font: 'block', tshape: 'straight', curve: 70,
+  fabricKey: 'cotton', basting: false, font: 'block', tshape: 'straight', curve: 70, layers: [], layerSel: -1,
   used: new Set(), undo: [], redo: [], result: null, stale: true, busy: false, order: null, view: 'draw', jobId: 0
 };
 const paint = $('paint'), overlay = $('overlay'), stitchCv = $('stitch'), stage = $('stage');
 const pctx = paint.getContext('2d', { willReadFrequently: true });
 const octx = overlay.getContext('2d');
+const under = $('under'), uctx = under.getContext('2d');
 
 /* ---------------- canvas size */
 function setHoop(key, keepDrawing) {
@@ -1817,8 +1932,13 @@ function setHoop(key, keepDrawing) {
   let old = null;
   if (keepDrawing && paint.width) { old = document.createElement('canvas'); old.width = paint.width; old.height = paint.height; old.getContext('2d').drawImage(paint, 0, 0); }
   st.hoop = key;
-  for (const c of [paint, overlay, stitchCv]) { c.width = w * PXMM; c.height = h * PXMM; }
-  if (old) pctx.drawImage(old, Math.round((paint.width - old.width) / 2), Math.round((paint.height - old.height) / 2));
+  for (const c of [under, paint, overlay, stitchCv]) { c.width = w * PXMM; c.height = h * PXMM; }
+  if (old) {
+    const dx = Math.round((paint.width - old.width) / 2), dy = Math.round((paint.height - old.height) / 2);
+    pctx.drawImage(old, dx, dy);
+    for (const L of st.layers) { L.x += dx / PXMM; L.y += dy / PXMM; }
+  }
+  drawLayers();
   fitStage(); drawOverlay();
 }
 function fitStage() {
@@ -1854,8 +1974,11 @@ function drawOverlay() {
     if (st.sel.img) octx.drawImage(st.sel.img, Math.round(st.sel.x), Math.round(st.sel.y));
     dashedRect(octx, st.sel.x, st.sel.y, st.sel.w, st.sel.h);
   }
-  $('selbar').hidden = !st.sel || st.view !== 'draw';
+  const L = st.layers[st.layerSel];
+  if (L && st.view === 'draw') { const b = layerBox(L); dashedRect(octx, b[0] * PXMM, b[1] * PXMM, (b[2] - b[0]) * PXMM, (b[3] - b[1]) * PXMM); }
+  $('selbar').hidden = !(st.sel || L) || st.view !== 'draw';
   if (st.sel) $('selSize').textContent = `${(st.sel.w / PXMM).toFixed(1)} × ${(st.sel.h / PXMM).toFixed(1)} mm`;
+  else if (L) { const b = layerBox(L); $('selSize').textContent = `${(b[2] - b[0]).toFixed(1)} × ${(b[3] - b[1]).toFixed(1)} mm` + (Math.abs(L.scale - 1) > 0.001 ? ` · ${Math.round(L.scale * 100)}%` : ''); }
   if (hover && (st.tool === 'brush' || st.tool === 'eraser') && st.view === 'draw') {
     octx.strokeStyle = 'rgba(0,0,0,0.6)'; octx.lineWidth = 1.5;
     octx.beginPath(); octx.arc(hover[0], hover[1], st.size * PXMM / 2, 0, Math.PI * 2); octx.stroke();
@@ -1893,8 +2016,8 @@ function deleteSel() {
   st.sel = null; changed(); drawOverlay();
 }
 function nudgeSel(dx, dy) { if (!st.sel) return; liftSel(); st.sel.x += dx; st.sel.y += dy; drawOverlay(); }
-$('selDone').onclick = () => commitSel();
-$('selDel').onclick = () => deleteSel();
+$('selDone').onclick = () => { commitSel(); st.layerSel = -1; drawOverlay(); };
+$('selDel').onclick = () => { if (st.layerSel >= 0) { st.layers.splice(st.layerSel, 1); st.layerSel = -1; drawLayers(); changed(); drawOverlay(); } else deleteSel(); };
 
 /* ---------------- helpers */
 const hexToRgb = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
@@ -1942,6 +2065,15 @@ paint.addEventListener('pointerdown', e => {
     drag = { mode: 'move', start: p, ox: st.sel.x, oy: st.sel.y };
     return;
   }
+  if (st.tool === 'select') {
+    const li = (st.layerSel >= 0 && inLayer(st.layerSel, p)) ? st.layerSel : hitLayer(p);
+    if (li >= 0) {
+      if (st.sel) commitSel();
+      st.layerSel = li; paint.setPointerCapture(e.pointerId);
+      const L = st.layers[li]; drag = { mode: 'layer', start: p, ox: L.x, oy: L.y }; drawOverlay(); return;
+    }
+    st.layerSel = -1;
+  }
   if (st.sel) commitSel();
   if (st.tool === 'select') { paint.setPointerCapture(e.pointerId); drag = { mode: 'select', a: p }; return; }
   if (st.tool === 'fill') { snapshot(); floodFill(Math.floor(p[0]), Math.floor(p[1])); st.used.add(st.color); changed(); return; }
@@ -1961,7 +2093,10 @@ paint.addEventListener('pointerdown', e => {
 paint.addEventListener('pointermove', e => {
   const p = pos(e);
   hover = p;
-  if (drag && drag.mode === 'move') {
+  if (drag && drag.mode === 'layer') {
+    const L = st.layers[st.layerSel];
+    if (L) { L.x = drag.ox + (p[0] - drag.start[0]) / PXMM; L.y = drag.oy + (p[1] - drag.start[1]) / PXMM; drawLayers(); }
+  } else if (drag && drag.mode === 'move') {
     st.sel.x = drag.ox + p[0] - drag.start[0]; st.sel.y = drag.oy + p[1] - drag.start[1];
   } else if (drag && drag.mode === 'select') {
     rubber = { tool: 'select', a: drag.a, b: p };
@@ -1982,6 +2117,7 @@ function toolCursor() { return st.tool === 'text' ? 'text' : (st.tool === 'fill'
 function endDrag(e) {
   if (!drag) return;
   if (drag.mode === 'move') { drag = null; drawOverlay(); return; }
+  if (drag.mode === 'layer') { drag = null; changed(); drawOverlay(); return; }
   if (drag.mode === 'select') {
     const a = drag.a, b = e ? pos(e) : a;
     const x = Math.max(0, Math.min(a[0], b[0])), y = Math.max(0, Math.min(a[1], b[1]));
@@ -2136,11 +2272,14 @@ const FONTS = {
   serif: { css: '"Abril Fatface", Georgia, serif', weight: 400, min: 7 },
   script: { css: '"Pacifico", "Brush Script MT", cursive', weight: 400, min: 8 }
 };
+let rendering = 0;                                   // text still waiting for its font
 function withFont(key, fn) {
   const F = FONTS[key];
-  const go = () => { try { fn(); } catch (e) { console.error(e); } };
+  rendering++;
+  const go = () => { try { fn(); } catch (e) { console.error(e); } finally { rendering--; } };
   if (document.fonts && document.fonts.load) document.fonts.load(`${F.weight} 40px ${F.css}`).then(go, go); else go();
 }
+if (document.fonts && document.fonts.load) Object.values(FONTS).forEach(F => document.fonts.load(`${F.weight} 40px ${F.css}`).catch(() => {}));
 function fontPx(key, capMM) {
   const F = FONTS[key], m = document.createElement('canvas').getContext('2d');
   m.font = `${F.weight} 100px ${F.css}`;
@@ -2284,12 +2423,79 @@ function transformSel(fn) {
   q.img = c; q.w = W; q.h = H; q.x = cx - W / 2; q.y = cy - H / 2;
   changed(); drawOverlay();
 }
-$('rotL').onclick = () => transformSel(q => { q.angle -= 15; });
-$('rotR').onclick = () => transformSel(q => { q.angle += 15; });
-$('flipH').onclick = () => transformSel(q => { q.fx *= -1; });
-$('flipV').onclick = () => transformSel(q => { q.fy *= -1; });
-$('selSmaller').onclick = () => transformSel(q => { q.scale = Math.max(0.1, q.scale / 1.1); });
-$('selBigger').onclick = () => transformSel(q => { q.scale = Math.min(10, q.scale * 1.1); });
+function transformLayer(fn) {
+  const L = st.layers[st.layerSel]; if (!L) return false;
+  fn(L); drawLayers(); changed(); drawOverlay();
+  if (L.scale < 0.795 || L.scale > 1.205) note(t('scaleWarn'));
+  return true;
+}
+$('rotL').onclick = () => transformLayer(L => { L.angle -= 15; }) || transformSel(q => { q.angle -= 15; });
+$('rotR').onclick = () => transformLayer(L => { L.angle += 15; }) || transformSel(q => { q.angle += 15; });
+$('flipH').onclick = () => transformLayer(L => { L.fx *= -1; }) || transformSel(q => { q.fx *= -1; });
+$('flipV').onclick = () => transformLayer(L => { L.fy *= -1; }) || transformSel(q => { q.fy *= -1; });
+$('selSmaller').onclick = () => transformLayer(L => { L.scale = Math.max(0.5, L.scale / 1.1); }) || transformSel(q => { q.scale = Math.max(0.1, q.scale / 1.1); });
+$('selBigger').onclick = () => transformLayer(L => { L.scale = Math.min(2, L.scale * 1.1); }) || transformSel(q => { q.scale = Math.min(10, q.scale * 1.1); });
+
+/* ---------------- opened .pes designs: kept as their own stitches, drawn under the drawing */
+function layerPoint(L, x, y) {
+  const a = L.angle * Math.PI / 180, sx = x * L.scale * L.fx, sy = y * L.scale * L.fy;
+  return [L.x + sx * Math.cos(a) - sy * Math.sin(a), L.y + sx * Math.sin(a) + sy * Math.cos(a)];
+}
+function layerBox(L) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [cx, cy] of [[-L.w / 2, -L.h / 2], [L.w / 2, -L.h / 2], [L.w / 2, L.h / 2], [-L.w / 2, L.h / 2]]) {
+    const q = layerPoint(L, cx, cy);
+    x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]);
+  }
+  return [x0, y0, x1, y1];
+}
+function inLayer(i, p) { const b = layerBox(st.layers[i]); return p[0] >= b[0] * PXMM && p[0] <= b[2] * PXMM && p[1] >= b[1] * PXMM && p[1] <= b[3] * PXMM; }
+function hitLayer(p) { for (let i = st.layers.length - 1; i >= 0; i--) if (inLayer(i, p)) return i; return -1; }
+function drawLayers() {
+  uctx.clearRect(0, 0, under.width, under.height);
+  uctx.lineCap = 'round';
+  for (const L of st.layers) {
+    const blocks = []; let path = new Path2D(), last = null, ci = 0;
+    for (const [x, y, c] of L.cmds) {
+      const q = layerPoint(L, x, y), px = q[0] * PXMM, py = q[1] * PXMM;
+      if (c === Emb.STITCH) { if (last) { path.moveTo(last[0], last[1]); path.lineTo(px, py); } last = [px, py]; }
+      else if (c === Emb.JUMP) last = [px, py];
+      else if (c === Emb.COLOR_CHANGE) { blocks.push([path, ci++]); path = new Path2D(); }
+    }
+    blocks.push([path, ci]);
+    for (const [pth, i] of blocks) {
+      const col = L.threads[Math.min(i, L.threads.length - 1)], rgb = [(col >> 16) & 255, (col >> 8) & 255, col & 255];
+      uctx.strokeStyle = `rgb(${rgb.map(v => Math.round(v * 0.58)).join(',')})`; uctx.lineWidth = 0.46 * PXMM; uctx.stroke(pth);
+      uctx.strokeStyle = `rgb(${rgb.join(',')})`; uctx.lineWidth = 0.32 * PXMM; uctx.stroke(pth);
+    }
+  }
+}
+$('openPes').onclick = () => $('pesfile').click();
+$('pesfile').onchange = e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  f.arrayBuffer().then(buf => {
+    let d;
+    try { d = Emb.readPES(new Uint8Array(buf)); } catch (err) { d = null; }
+    if (!d || !d.stitches) { note(t('notPes')); return; }
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const c of d.cmds) if (c[2] === Emb.STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const L = {
+      name: f.name, threads: d.threads, stitches: d.stitches,
+      cmds: d.cmds.map(([x, y, c]) => [(x - cx) / 10, (y - cy) / 10, c]),
+      w: (x1 - x0) / 10, h: (y1 - y0) / 10,
+      x: paint.width / PXMM / 2, y: paint.height / PXMM / 2, angle: 0, scale: 1, fx: 1, fy: 1
+    };
+    closeText(true); commitSel();
+    st.layers.push(L);
+    setTool('select');
+    st.layerSel = st.layers.length - 1;
+    drawLayers(); changed(); drawOverlay();
+    const [hw, hh] = HOOPS[st.hoop];
+    note(t('opened', f.name, d.stitches.toLocaleString(lang === 'es' ? 'es-CO' : 'en-US'), d.threads.length) + (L.w > hw || L.h > hh ? ' ' + t('openedBig') : ''));
+  });
+};
 
 /* ---------------- fabric presets and basting */
 function applyFabric(key, setLines) {
@@ -2307,7 +2513,7 @@ $('basting').onchange = e => { st.basting = e.target.checked; if (st.result && !
 document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
 function setTool(tool) {
   closeText(true);
-  if (tool !== 'select') commitSel();
+  if (tool !== 'select') { commitSel(); st.layerSel = -1; }
   st.tool = tool;
   document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === tool));
   $('toolHint').textContent = T[lang].hints[tool];
@@ -2351,13 +2557,21 @@ $('clear').onclick = () => {
   const lab = $('clear').querySelector('span');
   if (!clearArmed) { $('clear').classList.add('warn'); lab.textContent = t('clearSure'); clearArmed = setTimeout(() => { clearArmed = null; $('clear').classList.remove('warn'); lab.textContent = t('clear'); }, 3000); return; }
   clearTimeout(clearArmed); clearArmed = null; $('clear').classList.remove('warn'); lab.textContent = t('clear');
-  st.sel = null; snapshot(); pctx.clearRect(0, 0, paint.width, paint.height); st.used.clear(); st.order = null; changed(); drawOverlay();
+  st.sel = null; snapshot(); pctx.clearRect(0, 0, paint.width, paint.height); st.used.clear(); st.order = null;
+  st.layers = []; st.layerSel = -1; drawLayers(); changed(); drawOverlay();
 };
 document.addEventListener('keydown', e => {
   if (textBox || e.target.matches('input, select, textarea')) return;
   const k = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); (e.shiftKey ? $('redo') : $('undo')).click(); return; }
   if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); $('redo').click(); return; }
+  if (!st.sel && st.layerSel >= 0) {
+    if (k === 'delete' || k === 'backspace') { e.preventDefault(); $('selDel').click(); return; }
+    if (k === 'escape' || k === 'enter') { e.preventDefault(); $('selDone').click(); return; }
+    const stepMM = e.shiftKey ? 5 : 0.5;
+    const mv = { arrowleft: [-stepMM, 0], arrowright: [stepMM, 0], arrowup: [0, -stepMM], arrowdown: [0, stepMM] }[k];
+    if (mv) { e.preventDefault(); transformLayer(L => { L.x += mv[0]; L.y += mv[1]; }); return; }
+  }
   if (st.sel) {
     if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteSel(); return; }
     if (k === 'escape' || k === 'enter') { e.preventDefault(); commitSel(); return; }
@@ -2377,6 +2591,7 @@ function setView(v) {
   $('v-draw').setAttribute('aria-pressed', v === 'draw'); $('v-stitch').setAttribute('aria-pressed', v === 'stitch');
   stitchCv.hidden = v !== 'stitch';
   paint.style.visibility = v === 'stitch' ? 'hidden' : 'visible';
+  under.style.visibility = v === 'stitch' ? 'hidden' : 'visible';
   if (v === 'stitch') drawStitches();
   drawOverlay();
 }
@@ -2401,11 +2616,13 @@ function colorCounts() {
 }
 function makeStitches() {
   if (st.busy) return;
+  if (rendering) { setStatus('busy', t('busy')); setTimeout(makeStitches, 150); return; }
   commitSel();
   const counts = colorCounts();
   const minPx = 1.0 * PXMM * PXMM;                  // ignore colours covering under ~1 mm²
   let colors = [...counts.entries()].filter(([, n]) => n >= minPx).map(([c]) => c);
-  if (!colors.length) { setStatus('bad', t('empty')); return; }
+  if (!colors.length && !st.layers.length) { setStatus('bad', t('empty')); return; }
+  if (!colors.length) { st.jobId++; finishResult(null); return; }
   // keep the user's order where possible, otherwise biggest areas first
   const prev = (st.order || []).filter(c => colors.includes(c));
   const rest = colors.filter(c => !prev.includes(c)).sort((a, b) => counts.get(b) - counts.get(a));
@@ -2424,17 +2641,14 @@ function makeStitches() {
     order: colors.map((_, i) => i), angle: 45, satinMax: 4.5,
     density: 1 / st.lines, satinSpacing: Math.min(0.5, Math.max(0.25, 1 / st.lines + 0.05)),
     pull: Emb.FABRICS[st.fabricKey].pull, fillPull: Emb.FABRICS[st.fabricKey].fillPull, underlay: Emb.FABRICS[st.fabricKey].underlay,
-    basting: st.basting
+    basting: false
   };
   st.busy = true; setStatus('busy', t('busy')); $('make').disabled = true;
   const id = ++st.jobId;
   const done = res => {
     st.busy = false; $('make').disabled = false;
     if (id !== st.jobId) return;
-    st.result = res; st.stale = false;
-    if (!res.cmds.length) { setStatus('bad', t('empty')); return; }
-    setStatus('good', t('done'));
-    renderResults(); setView('stitch');
+    finishResult(res);
   };
   const fail = m => { st.busy = false; $('make').disabled = false; console.error(m); setStatus('bad', t('failed')); };
   if (worker) {
@@ -2442,6 +2656,15 @@ function makeStitches() {
     worker.onerror = () => { worker = null; st.busy = false; makeStitches(); };
     worker.postMessage({ type: 'digitize', id, params }, [params.rgba.buffer]);
   } else setTimeout(() => { try { done(Emb.digitize(params)); } catch (e) { fail(String(e)); } }, 30);
+}
+function finishResult(drawRes) {
+  const parts = st.layers.map(L => ({ kind: 'layer', name: L.name, threads: L.threads, cmds: L.cmds.map(([x, y, c]) => { const q = layerPoint(L, x, y); return [q[0], q[1], c]; }) }));
+  if (drawRes && drawRes.cmds.length) parts.push({ kind: 'drawing', name: '', threads: drawRes.threads, cmds: drawRes.cmds.map(([x, y, c]) => [x / 10 + drawRes.offset[0], y / 10 + drawRes.offset[1], c]) });
+  const res = Emb.mergeDesigns(parts, { basting: st.basting });
+  if (!res || !res.cmds.length) { st.result = null; setStatus('bad', t('empty')); return; }
+  st.result = res; st.stale = false;
+  setStatus('good', t('done'));
+  renderResults(); setView('stitch');
 }
 $('make').onclick = makeStitches;
 function setStatus(kind, text) { const s = $('status'); s.className = 'chip ' + kind; s.textContent = text; }
@@ -2461,23 +2684,25 @@ function renderResults() {
   $('r-cc').textContent = nf(r.colorChanges);
   $('r-tr').textContent = nf(r.trims);
   const box = $('order'); box.innerHTML = '';
-  const skip = r.basting ? 1 : 0;
-  if (skip) {
-    const row = document.createElement('div'); row.className = 'orow';
-    row.innerHTML = `<span class="step">1</span><span class="dot" style="background:${intToHex(r.threads[0])}"></span><span>${t('bastingRow')}</span>`;
-    box.appendChild(row);
+  let k = 0;
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  for (const g of r.groups || []) {
+    const cols = r.threads.slice(k, k + g.n);
+    cols.forEach((c, i) => {
+      const row = document.createElement('div'); row.className = 'orow';
+      const label = g.kind === 'basting' ? t('bastingRow') : g.kind === 'layer' ? `${esc(t('fromFile', g.name))}: ${Emb.brotherName(c)}` : Emb.brotherName(c);
+      row.innerHTML = `<span class="step">${k + i + 1}</span><span class="dot" style="background:${intToHex(c)}"></span><span>${label}</span>` +
+        (g.kind === 'drawing' ? `<button class="mini" type="button" aria-label="${t('earlier')}" ${i === 0 ? 'disabled' : ''}>▲</button>
+        <button class="mini" type="button" aria-label="${t('later')}" ${i === cols.length - 1 ? 'disabled' : ''}>▼</button>` : '');
+      if (g.kind === 'drawing') {
+        const [up, dn] = row.querySelectorAll('button');
+        const move = dir => { const o = cols.slice(); [o[i], o[i + dir]] = [o[i + dir], o[i]]; st.order = o; makeStitches(); };
+        up.onclick = () => move(-1); dn.onclick = () => move(1);
+      }
+      box.appendChild(row);
+    });
+    k += g.n;
   }
-  const design = r.threads.slice(skip);
-  design.forEach((c, i) => {
-    const row = document.createElement('div'); row.className = 'orow';
-    row.innerHTML = `<span class="step">${i + 1 + skip}</span><span class="dot" style="background:${intToHex(c)}"></span><span>${Emb.brotherName(c)}</span>
-      <button class="mini" type="button" aria-label="${t('earlier')}" ${i === 0 ? 'disabled' : ''}>▲</button>
-      <button class="mini" type="button" aria-label="${t('later')}" ${i === design.length - 1 ? 'disabled' : ''}>▼</button>`;
-    const [up, dn] = row.querySelectorAll('button');
-    const move = dir => { const o = design.slice(); [o[i], o[i + dir]] = [o[i + dir], o[i]]; st.order = o; makeStitches(); };
-    up.onclick = () => move(-1); dn.onclick = () => move(1);
-    box.appendChild(row);
-  });
 }
 function drawStitches() {
   const r = st.result, ctx = stitchCv.getContext('2d');
