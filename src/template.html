@@ -49,8 +49,12 @@ h2 { font-size: 15px; font-weight: 800; font-variation-settings: "CASL" 0.6; let
 .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 20px 40px; display: grid; gap: 18px; }
 header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 20px; padding-bottom: 14px; border-bottom: 2px dashed var(--accent); }
 header p { margin: 8px 0 0; color: var(--muted); max-width: 62ch; }
-.nav { color: var(--accent); font-weight: 700; text-decoration: none; }
-.nav:hover { text-decoration: underline; }
+.navbtn { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: var(--bg); text-decoration: none; font: 700 15px var(--font-body); padding: 10px 16px; border-radius: 999px; border: 2px solid var(--ink); }
+.navbtn svg { width: 20px; height: 20px; flex: none; }
+.navbtn:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.edit { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 16px; padding: 11px 16px; border: 2px solid var(--ink); background: var(--surface); }
+.btn.edit svg { width: 20px; height: 20px; }
+.btn.edit:disabled { opacity: .45; cursor: not-allowed; }
 .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); }
 .lang button { border: 0; background: transparent; color: var(--muted); font: 700 13px var(--font-body); padding: 6px 12px; cursor: pointer; }
 .lang button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
@@ -132,7 +136,7 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
       <p data-t="tagline">Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.</p>
     </div>
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-    <a class="nav" href="https://jhoshuac.github.io/logo-to-pes/draw/" data-t="navDraw">Draw your own design</a>
+    <a class="navbtn" href="./draw/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="M14 6l4 4"/></svg><span data-t="navDraw">Open the drawing editor</span></a>
     <div class="lang" role="group" aria-label="Language">
       <button id="lang-en" type="button" aria-pressed="true">EN</button>
       <button id="lang-es" type="button" aria-pressed="false">ES</button>
@@ -233,6 +237,8 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
       <div class="panel dl">
         <button class="btn primary" id="download" type="button" disabled data-t="download">Download .pes</button>
         <p class="hint" id="dlnote" data-t="dlNote">You'll get a .zip. Open it and copy the .pes file inside to your USB stick.</p>
+        <button class="btn edit" id="editLogo" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="M14 6l4 4"/></svg><span data-t="editLogo">Edit this logo in the drawing editor</span></button>
+        <p class="hint" data-t="editHint">Opens the logo in the editor in its thread colors, so you can add text, erase parts or move things around.</p>
         <p class="msg" id="dlmsg" role="status"></p>
         <ul class="tips">
           <li data-t="tip1">Sew a test on scrap fabric with stabilizer before the real garment.</li>
@@ -252,7 +258,8 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
 'use strict';
 const T = {
   en: {
-    title: 'Logo to PES', tagline: 'Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.', navDraw: 'Draw your own design',
+    title: 'Logo to PES', tagline: 'Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.', navDraw: 'Open the drawing editor', editLogo: 'Edit this logo in the drawing editor',
+    editHint: 'Opens the logo in the editor in its thread colors, so you can add text, erase parts or move things around.', editFail: "The editor couldn't be opened. Try again.",
     logo: 'Logo', choose: 'Choose an image', dropHint: 'or drop a PNG or JPG here',
     logoHint: "Flat logos with a few solid colors work best. Photos and color gradients won't stitch well.",
     size: 'Size', densityTitle: 'Stitch density', lighter: 'Lighter', denser: 'Denser, covers more',
@@ -277,7 +284,8 @@ const T = {
     badImage: "That file couldn't be opened as an image. Try a PNG or JPG.", failed: 'Something went wrong making stitches. Try a simpler image or fewer colors.'
   },
   es: {
-    title: 'Logo a PES', tagline: 'Convierte un logo de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.', navDraw: 'Dibuja tu propio diseño',
+    title: 'Logo a PES', tagline: 'Convierte un logo de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.', navDraw: 'Abrir el editor de dibujo', editLogo: 'Editar este logo en el editor de dibujo',
+    editHint: 'Abre el logo en el editor con sus colores de hilo, para agregar texto, borrar partes o mover cosas.', editFail: 'No se pudo abrir el editor. Inténtalo de nuevo.',
     logo: 'Logo', choose: 'Elegir imagen', dropHint: 'o suelta aquí un PNG o JPG',
     logoHint: 'Funcionan mejor los logos planos con pocos colores sólidos. Las fotos y los degradados no se bordan bien.',
     size: 'Tamaño', densityTitle: 'Densidad de puntada', lighter: 'Más ligera', denser: 'Más densa, cubre más',
@@ -497,7 +505,7 @@ function buildParams() {
 function run() {
   if (!state.img) return;
   if (state.busy) { state.pending = true; return; }
-  if (!state.colors.some(c => c.stitch)) { state.result = null; setStatus('bad', t('nothing')); drawPreview(); renderReadout(); $('download').disabled = true; return; }
+  if (!state.colors.some(c => c.stitch)) { state.result = null; setStatus('bad', t('nothing')); drawPreview(); renderReadout(); $('download').disabled = true; $('editLogo').disabled = true; return; }
   state.busy = true; state.pending = false;
   const id = ++state.jobId;
   setStatus('busy', t('busy'));
@@ -508,6 +516,7 @@ function run() {
     if (state.pending) { run(); return; }
     state.result = res; drawPreview(); renderReadout(); updateFitChip();
     $('download').disabled = !res.cmds.length;
+    $('editLogo').disabled = !res.cmds.length;
   };
   const fail = msg => { state.busy = false; console.error(msg); setStatus('bad', t('failed')); if (state.pending) run(); };
   if (worker) {
@@ -640,6 +649,26 @@ $('download').onclick = async () => {
   const url = URL.createObjectURL(new Blob([pes], { type: 'application/octet-stream' }));
   const a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+};
+
+/* ---------- open the logo in the drawing editor (handed over once, then forgotten) */
+$('editLogo').onclick = () => {
+  if (!state.img) return;
+  const PX = 8;                                     // the editor works at 8 px per mm
+  const W = Math.max(8, Math.round(state.wmm * PX)), H = Math.max(8, Math.round(state.hmm * PX));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(state.img, 0, 0, W, H);
+  const blur = Math.max(0, Math.min(3, Math.round(W / state.img.naturalWidth * 0.5)));
+  const layer = Emb.logoToLayer(ctx.getImageData(0, 0, W, H).data, W, H, 1 / PX,
+    state.colors.map(cc => ({ rgb: cc.rgb, stitch: cc.stitch, thread: cc.thread })), blur);
+  ctx.putImageData(new ImageData(layer, W, H), 0, 0);
+  const used = state.order.filter(j => state.colors[j].stitch).map(j => state.colors[j].thread);
+  try {
+    sessionStorage.setItem('pes-handoff', JSON.stringify({ v: 1, hoop: state.hoop, fabric: state.fabric, lines: state.lines, used, png: c.toDataURL('image/png') }));
+    location.href = './draw/';
+  } catch (e) { const m = $('dlmsg'); m.className = 'msg err'; m.textContent = t('editFail'); }
 };
 
 /* ---------- start blank on every visit */

@@ -40,8 +40,10 @@ h2 { font-size: 15px; font-weight: 800; font-variation-settings: "CASL" .6; lett
 header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 18px; padding-bottom: 12px; border-bottom: 2px dashed var(--accent); }
 header p { margin: 6px 0 0; color: var(--muted); max-width: 64ch; }
 .hright { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.nav { color: var(--accent); font-weight: 700; text-decoration: none; }
-.nav:hover { text-decoration: underline; }
+.navbtn { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: var(--bg); text-decoration: none; font: 700 15px var(--font-body); padding: 10px 16px; border-radius: 999px; border: 2px solid var(--ink); }
+.navbtn svg { width: 20px; height: 20px; flex: none; }
+.navbtn:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); }
 .lang button { border: 0; background: transparent; color: var(--muted); font: 700 13px var(--font-body); padding: 6px 12px; cursor: pointer; }
 .lang button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
@@ -120,7 +122,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       <p data-t="tagline">Draw a design in thread colors and save it as a .pes file for Brother and Baby Lock machines.</p>
     </div>
     <div class="hright">
-      <a class="nav" href="../" data-t="toLogo">Convert a logo instead</a>
+      <a class="navbtn" href="../"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span data-t="toLogo">Convert a logo</span></a>
       <div class="lang" role="group" aria-label="Language">
         <button id="lang-en" type="button" aria-pressed="true">EN</button>
         <button id="lang-es" type="button" aria-pressed="false">ES</button>
@@ -138,6 +140,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       <button class="tool" data-tool="ellipse" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="8" ry="6.5"/></svg><span data-t="ellipse">Circle</span></button>
       <button class="tool" data-tool="fill" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m5 11 7-7 7 7-7 7z"/><path d="M20 15c0 1.5-1 3-2 3s-2-1.5-2-3 2-4 2-4 2 2.5 2 4z" fill="currentColor"/></svg><span data-t="fill">Fill</span></button>
       <button class="tool" data-tool="text" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 6h14M12 6v13"/></svg><span data-t="text">Text</span></button>
+      <button class="tool" id="addImage" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span data-t="image">Image</span></button>
+      <input type="file" id="imgfile" class="sr" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
       <div class="sep"></div>
       <button class="tool" id="undo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span data-t="undo">Undo</span></button>
       <button class="tool" id="redo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg><span data-t="redo">Redo</span></button>
@@ -1141,20 +1145,14 @@ function analyzeColors(rgba, w, h, kMax) {
 /* ------------------------------------------------------------ main: image -> commands */
 /* params: rgba (working size W x H, already resized), mmpx, colors: [{rgb:[r,g,b], stitch:bool, thread:int}]
    order: array of colour indices in stitch order, angle, density (mm), satinMax (mm) */
-function digitize(p, progress) {
-  const { W, H, mmpx } = p;
-  const rgba = p.rgba;
-  const say = progress || (() => {});
+/* Each pixel -> index of the nearest colour (or -1 for transparent), with
+   anti-aliasing fringes and tiny specks handed to their neighbours. */
+function labelImage(rgba, W, H, mmpx, C, blurPx) {
   const N = W * H;
-  // 1. light blur to smooth up-scaled edges
-  const blurR = p.blurPx | 0;
   let img = new Float32Array(N * 3);
   const alpha = new Uint8Array(N);
   for (let i = 0; i < N; i++) { img[i * 3] = rgba[i * 4]; img[i * 3 + 1] = rgba[i * 4 + 1]; img[i * 3 + 2] = rgba[i * 4 + 2]; alpha[i] = rgba[i * 4 + 3] >= 128 ? 1 : 0; }
-  if (blurR > 0) img = boxBlur3(img, W, H, blurR);
-  // 2. nearest colour per pixel
-  say('colors');
-  const C = p.colors.map(c => c.rgb);
+  if ((blurPx | 0) > 0) img = boxBlur3(img, W, H, blurPx | 0);
   const labels = new Int16Array(N);
   for (let i = 0; i < N; i++) {
     if (!alpha[i]) { labels[i] = -1; continue; }
@@ -1165,7 +1163,6 @@ function digitize(p, progress) {
     }
     labels[i] = b;
   }
-  // 3. clean fringes and specks, give their pixels to the nearest neighbour colour
   const unassigned = new Uint8Array(N);
   const fringeR = 0.2 / mmpx, minArea = 0.5 / (mmpx * mmpx);
   for (let j = -1; j < C.length; j++) {
@@ -1179,6 +1176,28 @@ function digitize(p, progress) {
     for (let i = 0; i < N; i++) if (M[i] && (!kept[i] || small.has(lab[i]))) unassigned[i] = 1;
   }
   propagateLabels(labels, unassigned, W, H);
+  return labels;
+}
+
+/* A logo as a flat, editable layer: stitched colours become their thread colour,
+   fabric colours and transparent areas become transparent. Returns RGBA bytes. */
+function logoToLayer(rgba, W, H, mmpx, colors, blurPx) {
+  const labels = labelImage(rgba, W, H, mmpx, colors.map(c => c.rgb), blurPx);
+  const out = new Uint8ClampedArray(W * H * 4);
+  for (let i = 0; i < W * H; i++) {
+    const c = labels[i] >= 0 ? colors[labels[i]] : null;
+    if (!c || !c.stitch) continue;
+    out[i * 4] = (c.thread >> 16) & 255; out[i * 4 + 1] = (c.thread >> 8) & 255; out[i * 4 + 2] = c.thread & 255; out[i * 4 + 3] = 255;
+  }
+  return out;
+}
+
+function digitize(p, progress) {
+  const { W, H, mmpx } = p;
+  const say = progress || (() => {});
+  const N = W * H;
+  say('colors');
+  const labels = labelImage(p.rgba, W, H, mmpx, p.colors.map(c => c.rgb), p.blurPx);
 
   const stitched = new Set(p.order.filter(j => p.colors[j].stitch));
   // 4. keep narrow gaps of fabric open (>= ~1 mm) so the stitches don't close them up
@@ -1505,7 +1524,7 @@ function makeZip(files) {
   return w.result();
 }
 
-const Emb = { _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
+const Emb = { logoToLayer, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
 if (typeof module !== 'undefined' && module.exports) module.exports = Emb;
 root.Emb = Emb;
 
@@ -1534,7 +1553,7 @@ const T = {
   en: {
     title: 'Draw to PES', tagline: 'Draw a design in thread colors and save it as a .pes file for Brother and Baby Lock machines.',
     select: 'Select', selDone: 'Done', selDelete: 'Delete', selHint: 'Drag inside the dashed box to move it.',
-    toLogo: 'Convert a logo instead', densityTitle: 'Stitch density', lighter: 'Lighter', denser: 'Denser, covers more',
+    toLogo: 'Convert a logo', image: 'Image', badImage: "That file couldn't be opened as an image. Try a PNG or JPG.", densityTitle: 'Stitch density', lighter: 'Lighter', denser: 'Denser, covers more',
     densityHint: 'If the fabric shows through, move this toward Denser.', densityV: (v, mm) => `${v} lines/mm (${mm} mm)`, brush: 'Brush', eraser: 'Eraser', line: 'Line', rect: 'Box', ellipse: 'Circle', fill: 'Fill', text: 'Text',
     undo: 'Undo', redo: 'Redo', clear: 'New', clearSure: 'Sure?', vDraw: 'Drawing', vStitch: 'Stitches', grid: 'Grid, 10 mm squares',
     colors: 'Thread color', custom: 'or pick any color:', machineName: n => `Machine calls it: ${n}`,
@@ -1561,7 +1580,7 @@ const T = {
   es: {
     title: 'Dibujo a PES', tagline: 'Dibuja un diseño con colores de hilo y guárdalo como archivo .pes para máquinas Brother y Baby Lock.',
     select: 'Seleccionar', selDone: 'Listo', selDelete: 'Borrar', selHint: 'Arrastra dentro del recuadro para moverlo.',
-    toLogo: 'Mejor convertir un logo', densityTitle: 'Densidad de puntada', lighter: 'Más ligera', denser: 'Más densa, cubre más',
+    toLogo: 'Convertir un logo', image: 'Imagen', badImage: 'No se pudo abrir ese archivo como imagen. Prueba con un PNG o JPG.', densityTitle: 'Densidad de puntada', lighter: 'Más ligera', denser: 'Más densa, cubre más',
     densityHint: 'Si la tela se ve entre las puntadas, mueve esto hacia Más densa.', densityV: (v, mm) => `${v} líneas/mm (${mm} mm)`, brush: 'Pincel', eraser: 'Borrador', line: 'Línea', rect: 'Caja', ellipse: 'Círculo', fill: 'Rellenar', text: 'Texto',
     undo: 'Deshacer', redo: 'Rehacer', clear: 'Nuevo', clearSure: '¿Seguro?', vDraw: 'Dibujo', vStitch: 'Puntadas', grid: 'Cuadrícula de 10 mm',
     colors: 'Color de hilo', custom: 'o elige cualquier color:', machineName: n => `La máquina lo llama: ${n}`,
@@ -2072,6 +2091,68 @@ function applyLang() {
 $('lang-en').onclick = () => { lang = 'en'; applyLang(); };
 $('lang-es').onclick = () => { lang = 'es'; applyLang(); };
 
+/* ---------------- bring in a picture or logo as an editable layer */
+const rgbInt = c => (Math.round(c[0]) << 16) | (Math.round(c[1]) << 8) | Math.round(c[2]);
+function placeLayer(layerCanvas, used, order) {
+  closeText(true); commitSel();
+  snapshot();
+  const sc = Math.min(1, paint.width * 0.95 / layerCanvas.width, paint.height * 0.95 / layerCanvas.height);
+  const w = Math.round(layerCanvas.width * sc), h = Math.round(layerCanvas.height * sc);
+  const x = Math.round((paint.width - w) / 2), y = Math.round((paint.height - h) / 2);
+  pctx.save(); pctx.imageSmoothingEnabled = false;          // keep exact thread colours
+  pctx.drawImage(layerCanvas, x, y, w, h);
+  pctx.restore();
+  used.forEach(c => st.used.add(c));
+  if (order && order.length) st.order = order.slice();
+  st.tool = 'select'; setTool('select');
+  st.sel = { x, y, w, h, img: null };
+  changed(); drawOverlay();
+}
+function importImage(im) {
+  const nw = im.naturalWidth || im.width, nh = im.naturalHeight || im.height;
+  const s0 = Math.min(1, 320 / Math.max(nw, nh));
+  const aw = Math.max(1, Math.round(nw * s0)), ah = Math.max(1, Math.round(nh * s0));
+  const a = document.createElement('canvas'); a.width = aw; a.height = ah;
+  const actx = a.getContext('2d', { willReadFrequently: true }); actx.drawImage(im, 0, 0, aw, ah);
+  const an = Emb.analyzeColors(actx.getImageData(0, 0, aw, ah).data, aw, ah, 8);
+  const k = an.suggested, r = an.results[k], b = an.border[k];
+  let bg = -1;                                       // the colour around the edge is the background: leave it out
+  if (b && b.transparent < b.total * 0.5 && r.centers.length > 1) { const m = Math.max(...b.counts); if (m > b.total * 0.3) bg = b.counts.indexOf(m); }
+  const snap = c => Math.max(...c) < 50 ? 0x000000 : (Math.min(...c) > 225 ? 0xffffff : rgbInt(c));
+  const colors = r.centers.map((c, i) => ({ rgb: c, stitch: i !== bg, thread: snap(c) }));
+  const [hw, hh] = HOOPS[st.hoop];
+  let wmm = hw * 0.8, hmm = wmm * nh / nw;
+  if (hmm > hh * 0.8) { hmm = hh * 0.8; wmm = hmm * nw / nh; }
+  const W = Math.max(8, Math.round(wmm * PXMM)), H = Math.max(8, Math.round(hmm * PXMM));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(im, 0, 0, W, H);
+  const layer = Emb.logoToLayer(ctx.getImageData(0, 0, W, H).data, W, H, 1 / PXMM, colors, Math.max(0, Math.min(3, Math.round(W / nw * 0.5))));
+  ctx.putImageData(new ImageData(layer, W, H), 0, 0);
+  placeLayer(c, colors.filter(cc => cc.stitch).map(cc => cc.thread), null);
+}
+$('addImage').onclick = () => $('imgfile').click();
+$('imgfile').onchange = e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => { const im = new Image(); im.onload = () => importImage(im); im.onerror = () => setStatus('bad', t('badImage')); im.src = rd.result; };
+  rd.readAsDataURL(f);
+};
+/* a logo sent over from the logo page: used once, then forgotten */
+function takeHandoff() {
+  let h = null;
+  try { h = JSON.parse(sessionStorage.getItem('pes-handoff') || 'null'); sessionStorage.removeItem('pes-handoff'); } catch (e) { h = null; }
+  if (!h || !h.png) return;
+  if (HOOPS[h.hoop]) { $('hoop').value = h.hoop; setHoop(h.hoop, false); }
+  if (h.fabric) { st.fabric = h.fabric; $('fabric').value = h.fabric; stage.style.background = h.fabric; }
+  if (h.lines) { st.lines = h.lines; $('density').value = h.lines; showDensity(); }
+  const im = new Image();
+  im.onload = () => { const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; c.getContext('2d').drawImage(im, 0, 0); placeLayer(c, h.used || [], h.used || null); };
+  im.src = h.png;
+}
+
 /* ---------------- start */
 setHoop('100x100', false);
 $('hoop').value = '100x100'; $('fabric').value = st.fabric; $('density').value = st.lines; $('size').value = st.size; $('tsize').value = st.tsize; $('grid').checked = true;
@@ -2081,6 +2162,7 @@ setColor(st.color);
 setTool('brush');
 updateUndo();
 applyLang();
+takeHandoff();
 })();
 </script>
 </body>

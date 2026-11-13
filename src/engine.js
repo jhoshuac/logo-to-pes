@@ -896,20 +896,14 @@ function analyzeColors(rgba, w, h, kMax) {
 /* ------------------------------------------------------------ main: image -> commands */
 /* params: rgba (working size W x H, already resized), mmpx, colors: [{rgb:[r,g,b], stitch:bool, thread:int}]
    order: array of colour indices in stitch order, angle, density (mm), satinMax (mm) */
-function digitize(p, progress) {
-  const { W, H, mmpx } = p;
-  const rgba = p.rgba;
-  const say = progress || (() => {});
+/* Each pixel -> index of the nearest colour (or -1 for transparent), with
+   anti-aliasing fringes and tiny specks handed to their neighbours. */
+function labelImage(rgba, W, H, mmpx, C, blurPx) {
   const N = W * H;
-  // 1. light blur to smooth up-scaled edges
-  const blurR = p.blurPx | 0;
   let img = new Float32Array(N * 3);
   const alpha = new Uint8Array(N);
   for (let i = 0; i < N; i++) { img[i * 3] = rgba[i * 4]; img[i * 3 + 1] = rgba[i * 4 + 1]; img[i * 3 + 2] = rgba[i * 4 + 2]; alpha[i] = rgba[i * 4 + 3] >= 128 ? 1 : 0; }
-  if (blurR > 0) img = boxBlur3(img, W, H, blurR);
-  // 2. nearest colour per pixel
-  say('colors');
-  const C = p.colors.map(c => c.rgb);
+  if ((blurPx | 0) > 0) img = boxBlur3(img, W, H, blurPx | 0);
   const labels = new Int16Array(N);
   for (let i = 0; i < N; i++) {
     if (!alpha[i]) { labels[i] = -1; continue; }
@@ -920,7 +914,6 @@ function digitize(p, progress) {
     }
     labels[i] = b;
   }
-  // 3. clean fringes and specks, give their pixels to the nearest neighbour colour
   const unassigned = new Uint8Array(N);
   const fringeR = 0.2 / mmpx, minArea = 0.5 / (mmpx * mmpx);
   for (let j = -1; j < C.length; j++) {
@@ -934,6 +927,28 @@ function digitize(p, progress) {
     for (let i = 0; i < N; i++) if (M[i] && (!kept[i] || small.has(lab[i]))) unassigned[i] = 1;
   }
   propagateLabels(labels, unassigned, W, H);
+  return labels;
+}
+
+/* A logo as a flat, editable layer: stitched colours become their thread colour,
+   fabric colours and transparent areas become transparent. Returns RGBA bytes. */
+function logoToLayer(rgba, W, H, mmpx, colors, blurPx) {
+  const labels = labelImage(rgba, W, H, mmpx, colors.map(c => c.rgb), blurPx);
+  const out = new Uint8ClampedArray(W * H * 4);
+  for (let i = 0; i < W * H; i++) {
+    const c = labels[i] >= 0 ? colors[labels[i]] : null;
+    if (!c || !c.stitch) continue;
+    out[i * 4] = (c.thread >> 16) & 255; out[i * 4 + 1] = (c.thread >> 8) & 255; out[i * 4 + 2] = c.thread & 255; out[i * 4 + 3] = 255;
+  }
+  return out;
+}
+
+function digitize(p, progress) {
+  const { W, H, mmpx } = p;
+  const say = progress || (() => {});
+  const N = W * H;
+  say('colors');
+  const labels = labelImage(p.rgba, W, H, mmpx, p.colors.map(c => c.rgb), p.blurPx);
 
   const stitched = new Set(p.order.filter(j => p.colors[j].stitch));
   // 4. keep narrow gaps of fabric open (>= ~1 mm) so the stitches don't close them up
@@ -1260,7 +1275,7 @@ function makeZip(files) {
   return w.result();
 }
 
-const Emb = { _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
+const Emb = { logoToLayer, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
 if (typeof module !== 'undefined' && module.exports) module.exports = Emb;
 root.Emb = Emb;
 
