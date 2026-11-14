@@ -124,7 +124,26 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .stale { opacity: .5; }
 .selbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .selbar { min-height: 34px; }
-.selbar[hidden] { display: flex; visibility: hidden; }   /* keeps its row so the canvas never jumps */
+.textbar { display: grid; gap: 8px; margin: 10px 0 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.textbar[hidden] { display: none; }
+.tbrow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.tbrow[hidden] { display: none; }
+.tbrow label { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; }
+.tbrow select { width: auto; padding: 6px 8px; }
+.tbrow .mini { width: 34px; height: 30px; font-size: 18px; font-weight: 700; }
+.tbrow input[type=text] { flex: 1 1 180px; min-width: 140px; padding: 6px 8px; }
+.tbrow input[type=range] { flex: 1 1 160px; }
+.tbsize { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; }
+#tbSize { min-width: 4em; text-align: center; }
+.toprow { display: grid; }
+.toprow > * { grid-area: 1 / 1; }
+/* the bars share one row that keeps its height, so the canvas never jumps */
+.selbar[hidden], .simbar[hidden], .textbar[hidden] { display: flex; visibility: hidden; }
+.simbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 34px; }
+.simbar .btn { display: inline-flex; align-items: center; gap: 6px; }
+.simbar input[type=range] { flex: 1 1 140px; min-width: 120px; accent-color: var(--accent); }
+.simbar select { width: auto; padding: 6px 8px; }
+.siminfo { flex-basis: 100%; margin: 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.3em; }
 .selbar .mini { width: 34px; height: 30px; font-size: 15px; }
 .mono3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .mono3 label { display: grid; gap: 4px; font-size: 12px; }
@@ -197,6 +216,14 @@ details summary { cursor: pointer; font-weight: 700; }
         </div>
         <label class="check"><input type="checkbox" id="grid" checked> <span data-t="grid">Grid, 10 mm squares</span></label>
       </div>
+      <div class="toprow">
+      <div class="simbar" id="simbar" role="group" aria-label="Sewing preview" hidden>
+        <button class="btn" type="button" id="simPlay" aria-pressed="false" disabled>▶ Watch it sew</button>
+        <input type="range" id="simPos" min="0" max="0" value="0" step="1" aria-label="Sewing progress" disabled>
+        <select id="simSpeed" aria-label="Speed" disabled></select>
+        <button class="btn" type="button" id="simAll" disabled data-t="simAll">Show finished</button>
+        <p class="siminfo" id="simInfo"></p>
+      </div>
       <div class="selbar" id="selbar" hidden>
           <button class="btn" type="button" id="selDone" data-t="selDone">Done</button>
           <button class="btn" type="button" id="selDel" data-t="selDelete">Delete</button>
@@ -209,6 +236,7 @@ details summary { cursor: pointer; font-weight: 700; }
           <span class="num hint" id="selSize"></span>
           <span class="hint" data-t="selHint">Drag inside the dashed box to move it.</span>
         </div>
+      </div>
       <div class="stagebox">
         <div class="hoop">
           <div class="vpwrap">
@@ -222,6 +250,37 @@ details summary { cursor: pointer; font-weight: 700; }
             <canvas class="screen" id="overlay"></canvas>
           </div>
         </div>
+      </div>
+      <div class="textbar" id="textbar" role="group" aria-label="Text" hidden>
+        <div class="tbrow" id="tbTextRow" hidden>
+          <label for="tbText" data-t="tbText">Text</label>
+          <input type="text" id="tbText" autocomplete="off">
+        </div>
+        <div class="tbrow">
+          <label for="tbFont"><span data-t="font">Font</span>
+            <select id="tbFont">
+              <option value="block" data-t="font_block" style="font-family:'Archivo Black','Arial Black',sans-serif">Block</option>
+              <option value="rounded" data-t="font_rounded" style="font-family:Fredoka,'Arial Rounded MT Bold',sans-serif;font-weight:700">Rounded</option>
+              <option value="serif" data-t="font_serif" style="font-family:'Abril Fatface',Georgia,serif">Classic serif</option>
+              <option value="script" data-t="font_script" style="font-family:Pacifico,'Brush Script MT',cursive">Script</option>
+            </select>
+          </label>
+          <span class="tbsize"><span data-t="tbSize">Size</span>
+            <button class="mini" type="button" id="tbSmaller" aria-label="Smaller letters">−</button>
+            <span class="num" id="tbSizeV">12 mm</span>
+            <button class="mini" type="button" id="tbBigger" aria-label="Bigger letters">+</button>
+          </span>
+          <div class="seg" role="group" id="tbShape" aria-label="Shape">
+            <button type="button" data-shape="straight" aria-pressed="true" data-t="ts_straight">Straight</button>
+            <button type="button" data-shape="up" aria-pressed="false" data-t="ts_up">Arch up</button>
+            <button type="button" data-shape="down" aria-pressed="false" data-t="ts_down">Arch down</button>
+          </div>
+        </div>
+        <div class="tbrow" id="tbCurveRow" hidden>
+          <label for="tbCurve"><span data-t="curve">Curve</span>: <span class="num" id="tbCurveV"></span></label>
+          <input type="range" id="tbCurve" min="30" max="200" step="5" value="70">
+        </div>
+        <p class="hint" id="tbHint"></p>
       </div>
       <p class="hint" id="toolHint"></p>
       <p class="hint" id="zoomHint"></p>
@@ -2092,6 +2151,133 @@ if (typeof WorkerGlobalScope !== 'undefined' && root instanceof WorkerGlobalScop
 }
 })(typeof self !== 'undefined' ? self : globalThis);
 
+/* Sew-out simulation, shared by both pages: replays a design's stitches in the order
+   the machine sews them, pausing at each thread change. The page supplies the controls
+   and draws each frame; this file keeps time and position.
+
+   SewSim.model(result)  -> { seg (x0,y0,x1,y1 per stitch, in 0.1 mm), col (thread per
+                              stitch), starts (first stitch of each thread), jumps, n, colors }
+   SewSim.create(opts)   -> controller with load(result), stop(), isActive(), count()
+     opts: { play, pos, speed, all, info: elements; t(key, ...args); name(threadIndex);
+             render(n | null, frame) where n = stitches shown (null = show the finished design)
+             and frame = { model, needle: [x, y] in 0.1 mm, banner: text or null } } */
+const SewSim = (() => {
+  const STITCH = 0, JUMP = 1, COLOR_CHANGE = 5;
+  const SPEEDS = [25, 100, 300, 1000, 3000];         // stitches per second on screen
+  const MACHINE_SPM = 600;                            // the readout's estimate: 600 stitches a minute
+
+  function model(r) {
+    const seg = [], col = [], jumps = [], starts = [0];
+    let last = null, ci = 0;
+    for (const [x, y, c] of r.cmds) {
+      if (c === STITCH) {
+        if (last) { seg.push(last[0], last[1], x, y); col.push(ci); }
+        last = [x, y];
+      } else if (c === JUMP) {
+        // a jump longer than 1 mm leaves a thread across the top that has to be cut
+        if (last && Math.hypot(x - last[0], y - last[1]) > 10) jumps.push({ at: col.length, x0: last[0], y0: last[1], x1: x, y1: y, ci });
+        last = [x, y];
+      } else if (c === COLOR_CHANGE) { ci++; starts.push(col.length); }
+    }
+    return { seg: Float32Array.from(seg), col: Uint16Array.from(col), jumps, starts, n: col.length, colors: ci + 1 };
+  }
+
+  function create(o) {
+    let M = null, n = 0, active = false, playing = false, raf = 0, lastT = 0;
+    let holdUntil = 0, banner = null, infoT = 0;
+    const speedSel = o.speed;
+    speedSel.innerHTML = '';
+    ['simSlow', 'simMed', 'simFast', 'simFaster', 'simFastest'].forEach((k, i) => {
+      const op = document.createElement('option'); op.value = SPEEDS[i]; op.dataset.k = k; op.textContent = o.t(k); speedSel.appendChild(op);
+    });
+    const block = k => { let b = 0; while (b + 1 < M.starts.length && M.starts[b + 1] <= k) b++; return b; };
+    const needle = k => {
+      if (!M.n) return null;
+      if (k <= 0) return [M.seg[0], M.seg[1]];
+      const j = (Math.min(k, M.n) - 1) * 4;
+      return [M.seg[j + 2], M.seg[j + 3]];
+    };
+    function label() {
+      o.play.textContent = playing ? o.t('simPause') : active && n > 0 && n < M.n ? o.t('simResume') : active && n >= M.n ? o.t('simAgain') : o.t('simWatch');
+      o.play.setAttribute('aria-pressed', playing ? 'true' : 'false');
+      o.all.disabled = !active;
+    }
+    function info(force) {
+      const now = performance.now();
+      if (!force && now - infoT < 200) return;
+      infoT = now;
+      if (!M || !active) { o.info.textContent = M && M.n ? o.t('simIdle') : ''; return; }
+      const k = Math.floor(n), b = block(Math.min(k, M.n - 1));
+      const left = Math.max(0, Math.ceil((M.n - k) / MACHINE_SPM + (M.colors - 1 - b)));
+      o.info.textContent = banner || o.t('simInfo', b + 1, M.colors, o.name(b), k, M.n, left);
+    }
+    function frame() {
+      o.render(active ? Math.floor(n) : null, { model: M, needle: active ? needle(Math.floor(n)) : null, banner: active ? banner : null });
+      o.pos.value = Math.floor(n);
+      info();
+    }
+    function tick(t) {
+      raf = 0;
+      if (!playing) return;
+      const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
+      if (t < holdUntil) { frame(); raf = requestAnimationFrame(tick); return; }
+      if (banner) { banner = null; info(true); }
+      const prev = n;
+      n = Math.min(M.n, n + (+speedSel.value) * dt);
+      // stop at the start of the next thread colour, like the machine does
+      for (let b = 1; b < M.starts.length; b++) {
+        const s = M.starts[b];
+        if (s > prev && s <= n) { n = s; holdUntil = t + 1300; banner = o.t('simChange', b + 1, o.name(b)); info(true); break; }
+      }
+      if (n >= M.n) { n = M.n; playing = false; label(); frame(); info(true); return; }
+      frame();
+      raf = requestAnimationFrame(tick);
+    }
+    function play() {
+      if (!M || !M.n) return;
+      if (playing) { playing = false; label(); info(true); return; }
+      if (!active || n >= M.n) { n = 0; holdUntil = 0; banner = null; }
+      active = true; playing = true; lastT = performance.now();
+      label(); frame();
+      if (!raf) raf = requestAnimationFrame(tick);
+    }
+    function stop() {
+      playing = false; active = false; banner = null;
+      if (M) n = M.n;
+      label(); frame(); info(true);
+    }
+    o.play.onclick = play;
+    o.all.onclick = stop;
+    o.pos.oninput = () => {
+      if (!M || !M.n) return;
+      active = true; playing = false; banner = null; holdUntil = 0;
+      n = +o.pos.value;
+      label(); frame(); info(true);
+    };
+    return {
+      load(r) {
+        playing = false; active = false; banner = null;
+        M = r && r.cmds && r.cmds.length ? model(r) : null;
+        n = M ? M.n : 0;
+        o.pos.max = M ? M.n : 0; o.pos.value = n;
+        o.play.disabled = o.pos.disabled = speedSel.disabled = !M || !M.n;
+        if (M) speedSel.value = SPEEDS.find(v => v >= M.n / 30) || SPEEDS[SPEEDS.length - 1];
+        label(); info(true);
+      },
+      stop() { if (active) stop(); },
+      pause() { if (playing) { playing = false; label(); info(true); } },
+      isActive: () => active,
+      count: () => (active ? Math.floor(n) : null),
+      frameInfo: () => ({ model: M, needle: active ? needle(Math.floor(n)) : null, banner: active ? banner : null }),
+      relabel() {
+        for (const op of speedSel.options) op.textContent = o.t(op.dataset.k);
+        label(); info(true);
+      }
+    };
+  }
+  return { model, create, SPEEDS };
+})();
+
 </script>
 <script>
 (() => {
@@ -2135,6 +2321,11 @@ const T = {
     densityHint: 'If the fabric shows through, move this toward Denser.', densityV: (v, mm) => `${v} lines/mm (${mm} mm)`, brush: 'Brush', eraser: 'Eraser', line: 'Line', rect: 'Box', ellipse: 'Circle', fill: 'Fill', text: 'Text',
     undo: 'Undo', redo: 'Redo', clear: 'Clear all', cleared: 'Cleared. Press Undo to bring it back.', vDraw: 'Drawing', vStitch: 'Stitches', grid: 'Grid, 10 mm squares',
     zoomFit: 'Fit', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
+    simWatch: '▶ Watch it sew', simPause: '❚❚ Pause', simResume: '▶ Keep going', simAgain: '↻ Watch again', simAll: 'Show finished',
+    simSlow: 'Slow', simMed: 'Medium', simFast: 'Fast', simFaster: 'Faster', simFastest: 'Fastest', simBasting: 'basting box',
+    simIdle: 'Press Watch it sew to see the order the machine sews in, one stitch at a time. Drag the slider to jump to any point.',
+    simInfo: (b, n, name, k, N, left) => `Thread ${b} of ${n}: ${name} · stitch ${k.toLocaleString('en-US')} of ${N.toLocaleString('en-US')} · about ${left} min left on the machine`,
+    simChange: (b, name) => `The machine stops here: change to thread ${b}, ${name}`,
     zhMouseDraw: 'Zoom: pinch the trackpad, or Ctrl + scroll wheel. To move around, hold Space and drag, or use the scroll bars.',
     zhMouseStitch: 'Zoom: pinch the trackpad, or Ctrl + scroll wheel. Drag to move around.',
     zhTouchDraw: 'Zoom: pinch with two fingers. Drag with two fingers to move around.',
@@ -2159,7 +2350,10 @@ const T = {
       text: 'Tap where the text should start, type, then press Enter. The new text stays selected: drag it to move it. Letters under 5 mm tall are hard to sew.',
       select: 'Drag a box around anything (text, shapes, lines), then drag inside the box to move it. Delete removes it.'
     },
-    textPh: 'Type, then Enter'
+    textPh: 'Type, then Enter',
+    tbText: 'Text', tbSize: 'Size',
+    tbPlace: 'Tap where the text should go and type. The font and size here are used for it.',
+    tbEditing: 'Changes apply to the selected text. Press Done when it looks right.'
   },
   es: {
     title: 'Dibujo a PES', tagline: 'Dibuja un diseño con colores de hilo y guárdalo como archivo .pes para máquinas Brother y Baby Lock.',
@@ -2198,6 +2392,11 @@ const T = {
     densityHint: 'Si la tela se ve entre las puntadas, mueve esto hacia Más densa.', densityV: (v, mm) => `${v} líneas/mm (${mm} mm)`, brush: 'Pincel', eraser: 'Borrador', line: 'Línea', rect: 'Caja', ellipse: 'Círculo', fill: 'Rellenar', text: 'Texto',
     undo: 'Deshacer', redo: 'Rehacer', clear: 'Borrar todo', cleared: 'Todo borrado. Pulsa Deshacer para recuperarlo.', vDraw: 'Dibujo', vStitch: 'Puntadas', grid: 'Cuadrícula de 10 mm',
     zoomFit: 'Ajustar', zoomIn: 'Acercar', zoomOut: 'Alejar',
+    simWatch: '▶ Ver cómo se borda', simPause: '❚❚ Pausa', simResume: '▶ Seguir', simAgain: '↻ Ver otra vez', simAll: 'Ver terminado',
+    simSlow: 'Lento', simMed: 'Medio', simFast: 'Rápido', simFaster: 'Más rápido', simFastest: 'Rapidísimo', simBasting: 'caja de hilván',
+    simIdle: 'Pulsa Ver cómo se borda para ver el orden en que la máquina borda, puntada por puntada. Arrastra la barra para ir a cualquier punto.',
+    simInfo: (b, n, name, k, N, left) => `Hilo ${b} de ${n}: ${name} · puntada ${k.toLocaleString('es-CO')} de ${N.toLocaleString('es-CO')} · faltan unos ${left} min en la máquina`,
+    simChange: (b, name) => `La máquina se detiene aquí: cambia al hilo ${b}, ${name}`,
     zhMouseDraw: 'Zoom: pellizca el trackpad, o Ctrl + rueda del ratón. Para moverte, mantén la barra espaciadora y arrastra, o usa las barras de desplazamiento.',
     zhMouseStitch: 'Zoom: pellizca el trackpad, o Ctrl + rueda del ratón. Arrastra para moverte.',
     zhTouchDraw: 'Zoom: pellizca con dos dedos. Arrastra con dos dedos para moverte.',
@@ -2222,7 +2421,10 @@ const T = {
       text: 'Toca donde empieza el texto, escribe y pulsa Enter. El texto queda seleccionado: arrástralo para moverlo. Las letras de menos de 5 mm son difíciles de bordar.',
       select: 'Arrastra un recuadro alrededor de lo que quieras (texto, formas, líneas) y luego arrastra dentro para moverlo. Borrar lo elimina.'
     },
-    textPh: 'Escribe y pulsa Enter'
+    textPh: 'Escribe y pulsa Enter',
+    tbText: 'Texto', tbSize: 'Tamaño',
+    tbPlace: 'Toca donde va el texto y escribe. Se usan la letra y el tamaño de aquí.',
+    tbEditing: 'Los cambios se aplican al texto seleccionado. Pulsa Listo cuando se vea bien.'
   }
 };
 let lang = (navigator.language || 'en').toLowerCase().startsWith('es') ? 'es' : 'en';
@@ -2373,6 +2575,8 @@ function drawOverlay() {
   if (L && st.view === 'draw') { const b = layerBox(L); dashedRect(octx, b[0] * PXMM, b[1] * PXMM, (b[2] - b[0]) * PXMM, (b[3] - b[1]) * PXMM); }
   $('selbar').hidden = !(st.sel || L) || st.view !== 'draw';
   $('impbox').hidden = !(st.sel && st.sel.imp && st.view === 'draw');
+  const tbShow = st.view === 'draw' && (st.tool === 'text' || !!(st.sel && st.sel.txt));
+  if ($('textbar').hidden === tbShow) { $('textbar').hidden = !tbShow; if (tbShow) syncTextUI(); }
   if (st.sel) $('selSize').textContent = `${(st.sel.w / PXMM).toFixed(1)} × ${(st.sel.h / PXMM).toFixed(1)} mm`;
   else if (L) { const b = layerBox(L); $('selSize').textContent = `${(b[2] - b[0]).toFixed(1)} × ${(b[3] - b[1]).toFixed(1)} mm` + (Math.abs(L.scale - 1) > 0.001 ? ` · ${Math.round(L.scale * 100)}%` : ''); }
   if (hover && (st.tool === 'brush' || st.tool === 'eraser') && st.view === 'draw') {
@@ -2404,9 +2608,11 @@ function liftSel() {
 function commitSel() {
   const q = st.sel; if (!q) return;
   st.sel = null;
+  if (q.txt) setTimeout(syncTextUI, 0);
   if (q.img) {
     pctx.drawImage(q.img, Math.round(q.x), Math.round(q.y));
     if (q.imp) impSewn(q.imp).forEach(c => { if (c.stitch) st.used.add(c.thread); });
+    if (q.txt) st.used.add(q.txt.color);
     changed();
   }
   drawOverlay();
@@ -2751,6 +2957,7 @@ function openText(p, e) {
   inp.style.left = (e.clientX - r.left) + 'px'; inp.style.top = (e.clientY - r.top) + 'px';
   stage.appendChild(inp);
   textBox = { inp, p };
+  styleTextBox();
   inp.focus(); requestAnimationFrame(() => inp.focus());
   inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); closeText(true); } else if (ev.key === 'Escape') closeText(false); });
   inp.addEventListener('blur', () => setTimeout(() => { if (textBox && textBox.inp === inp) closeText(true); }, 0));
@@ -2761,16 +2968,75 @@ function closeText(commit) {
   const s = inp.value.trim(); inp.remove();
   if (!commit || !s) return;
   if (st.sel && st.sel.img) commitSel();
-  const color = st.color, shape = st.tshape;
-  withFont(st.font, () => {
-    const layer = renderTextLayer(s, st.font, st.tsize, shape, st.curve, color);
+  const txt = { text: s, font: st.font, size: st.tsize, shape: st.tshape, curve: st.curve, color: st.color };
+  withFont(txt.font, () => {
+    const layer = renderTextLayer(txt.text, txt.font, txt.size, txt.shape, txt.curve, txt.color);
     if (!layer) return;
     // straight text starts where you tapped; arched text is centred there
-    const x = shape === 'straight' ? Math.round(p[0]) : Math.round(p[0] - layer.width / 2);
-    const y = shape === 'straight' ? Math.round(p[1]) : Math.round(p[1] - layer.height / 2);
-    putLayer(layer, x, y, [color]);
+    const x = txt.shape === 'straight' ? Math.round(p[0]) : Math.round(p[0] - layer.width / 2);
+    const y = txt.shape === 'straight' ? Math.round(p[1]) : Math.round(p[1] - layer.height / 2);
+    // it stays editable text (font, size, shape, words) while selected; Done puts it down
+    if (st.sel) commitSel();
+    snapshot();
+    st.used.add(txt.color);
+    st.sel = { x, y, w: layer.width, h: layer.height, img: layer, src: layer, angle: 0, scale: 1, fx: 1, fy: 1, txt };
+    changed(); drawOverlay(); syncTextUI();
   });
 }
+function styleTextBox() {
+  if (!textBox) return;
+  const F = FONTS[st.font], k = fitW * zoom / paint.width;
+  textBox.inp.style.font = `${F.weight} ${Math.max(14, Math.min(96, fontPx(st.font, st.tsize) * k))}px ${F.css}`;
+  textBox.inp.style.color = intToHex(st.color);
+}
+/* the text options: they set what new text looks like, and change selected text */
+const TSIZES = [4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, 40, 45, 50, 60, 70, 80];
+const textSel = () => (st.sel && st.sel.txt ? st.sel : null);
+function syncTextUI() {
+  const q = textSel(), o = q ? q.txt : { font: st.font, size: st.tsize, shape: st.tshape, curve: st.curve };
+  $('tbFont').value = o.font; $('font').value = o.font;
+  $('tbSizeV').textContent = o.size + ' mm';
+  $('tsize').value = Math.min(40, o.size); $('tsizeV').textContent = o.size + ' mm';
+  for (const g of ['#tshape', '#tbShape']) document.querySelectorAll(g + ' [data-shape]').forEach(b => b.setAttribute('aria-pressed', b.dataset.shape === o.shape));
+  $('curveField').hidden = $('tbCurveRow').hidden = o.shape === 'straight';
+  $('curve').value = $('tbCurve').value = o.curve;
+  $('curveV').textContent = $('tbCurveV').textContent = t('curveV', o.curve);
+  $('tbTextRow').hidden = !q;
+  if (q && document.activeElement !== $('tbText')) $('tbText').value = q.txt.text;
+  const min = FONTS[o.font].min;
+  $('tbHint').textContent = (q ? t('tbEditing') : t('tbPlace')) + (o.size < min ? ' ' + t('tooSmall', min) : '');
+  const w = $('tsizeWarn'); w.hidden = o.size >= min; w.textContent = t('tooSmall', min);
+  $('fontMin').textContent = t('fontMin', min);
+}
+function setTextOpt(key, v) {
+  if (key === 'font') st.font = v; else if (key === 'size') st.tsize = v; else if (key === 'shape') st.tshape = v; else if (key === 'curve') st.curve = v;
+  const q = textSel();
+  if (q && v !== '' && v != null) { q.txt[key] = v; rerenderText(); }
+  styleTextBox(); syncTextUI();
+}
+function rerenderText() {
+  const q = textSel(); if (!q) return;
+  const o = q.txt;
+  withFont(o.font, () => {
+    if (st.sel !== q) return;
+    const layer = renderTextLayer(o.text, o.font, o.size, o.shape, o.curve, o.color);
+    if (!layer) return;
+    q.src = layer; q.scale = 1;
+    placeTransformed(q);
+  });
+}
+function sizeStep(dir) {
+  const cur = textSel() ? textSel().txt.size : st.tsize;
+  const next = dir > 0 ? TSIZES.find(v => v > cur) : [...TSIZES].reverse().find(v => v < cur);
+  if (next) setTextOpt('size', next);
+}
+$('tbFont').onchange = e => setTextOpt('font', e.target.value);
+$('tbSmaller').onclick = () => sizeStep(-1);
+$('tbBigger').onclick = () => sizeStep(1);
+$('tbCurve').oninput = e => setTextOpt('curve', +e.target.value);
+document.querySelectorAll('#tbShape [data-shape]').forEach(b => b.addEventListener('click', () => setTextOpt('shape', b.dataset.shape)));
+$('tbText').oninput = e => { const v = e.target.value; if (v.trim() && textSel()) { textSel().txt.text = v; rerenderText(); } };
+$('tbText').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } };
 
 /* ---------------- lettering: fonts, arcs, monograms */
 const FONTS = {
@@ -2888,15 +3154,13 @@ function showFont() {
   $('fontMin').textContent = t('fontMin', n);
   const w = $('tsizeWarn'); w.hidden = st.tsize >= n; w.textContent = t('tooSmall', n);
 }
-$('font').onchange = e => { st.font = e.target.value; showFont(); };
+$('font').onchange = e => setTextOpt('font', e.target.value);
 document.querySelectorAll('#tshape [data-shape]').forEach(b => b.addEventListener('click', () => {
-  st.tshape = b.dataset.shape;
-  document.querySelectorAll('#tshape [data-shape]').forEach(x => x.setAttribute('aria-pressed', x === b));
-  $('curveField').hidden = st.tshape === 'straight';
-  if (st.tool !== 'text') setTool('text');
+  setTextOpt('shape', b.dataset.shape);
+  if (st.tool !== 'text' && !textSel()) setTool('text');
 }));
 function showCurve() { $('curveV').textContent = t('curveV', st.curve); }
-$('curve').oninput = e => { st.curve = +e.target.value; showCurve(); };
+$('curve').oninput = e => setTextOpt('curve', +e.target.value);
 
 /* ---------------- rotate, flip and resize a selection (always redrawn from the original pixels) */
 function snapToThreads(c) {
@@ -2919,10 +3183,21 @@ function transformSel(fn) {
     q.scale = Math.max(0.1, Math.min(q.scale, 1.25 * Math.max(paint.width, paint.height) / Math.max(im.w, im.h)));
     rerenderImport(); return;
   }
+  if (st.sel.txt) {
+    const q = st.sel;
+    fn(q);
+    // bigger / smaller changes the letter size, so the letters are redrawn sharp
+    if (q.scale !== 1) { q.txt.size = Math.max(3, Math.min(120, Math.round(q.txt.size * q.scale))); st.tsize = q.txt.size; q.scale = 1; syncTextUI(); rerenderText(); }
+    else placeTransformed(q);
+    return;
+  }
   liftSel();
   const q = st.sel;
   if (!q.src) { q.src = q.img; q.angle = 0; q.scale = 1; q.fx = 1; q.fy = 1; }
   fn(q);
+  placeTransformed(q);
+}
+function placeTransformed(q) {
   const s = q.src, a = q.angle * Math.PI / 180;
   const w0 = s.width * q.scale, h0 = s.height * q.scale;
   const W = Math.max(1, Math.ceil(Math.abs(w0 * Math.cos(a)) + Math.abs(h0 * Math.sin(a))));
@@ -2931,7 +3206,7 @@ function transformSel(fn) {
   const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.translate(W / 2, H / 2); ctx.rotate(a); ctx.scale(q.fx * q.scale, q.fy * q.scale);
   ctx.drawImage(s, -s.width / 2, -s.height / 2);
-  snapToThreads(c);
+  if (q.angle % 360 || q.scale !== 1) snapToThreads(c);
   const cx = q.x + q.w / 2, cy = q.y + q.h / 2;
   q.img = c; q.w = W; q.h = H; q.x = cx - W / 2; q.y = cy - H / 2;
   changed(); drawOverlay();
@@ -3055,11 +3330,15 @@ function setColor(c) {
   $('curName').textContent = t('machineName', Emb.brotherName(c));
   $('custom').value = intToHex(c);
   renderSwatches();
+  // with text selected, a thread colour recolours that text
+  const q = textSel();
+  if (q && q.txt.color !== c) { q.txt.color = c; st.used.add(c); rerenderText(); return; }
   if (st.tool === 'eraser') setTool('brush');
+  styleTextBox();
 }
 $('custom').oninput = e => setColor(parseInt(e.target.value.slice(1), 16));
 $('size').oninput = e => { st.size = +e.target.value; $('sizeV').textContent = st.size + ' mm'; drawOverlay(); };
-$('tsize').oninput = e => { st.tsize = +e.target.value; $('tsizeV').textContent = st.tsize + ' mm'; showFont(); };
+$('tsize').oninput = e => setTextOpt('size', +e.target.value);
 $('m-outline').onclick = () => { st.filled = false; $('m-outline').setAttribute('aria-pressed', true); $('m-filled').setAttribute('aria-pressed', false); };
 $('m-filled').onclick = () => { st.filled = true; $('m-outline').setAttribute('aria-pressed', false); $('m-filled').setAttribute('aria-pressed', true); };
 $('hoop').onchange = e => { commitSel(); snapshot(); setHoop(e.target.value, true); st.undo = []; st.redo = []; updateUndo(); changed(); };
@@ -3116,6 +3395,8 @@ function setView(v) {
   paint.style.visibility = v === 'stitch' ? 'hidden' : 'visible';
   under.style.visibility = v === 'stitch' ? 'hidden' : 'visible';
   vp.classList.toggle('sview', v === 'stitch');
+  $('simbar').hidden = v !== 'stitch' || !st.result;
+  if (v !== 'stitch' && sim) sim.stop();
   showZoomHint();
   if (v === 'stitch') drawStitches();
   drawOverlay();
@@ -3190,8 +3471,8 @@ function finishResult(drawRes) {
   const parts = st.layers.map(L => ({ kind: 'layer', name: L.name, threads: L.threads, cmds: L.cmds.map(([x, y, c]) => { const q = layerPoint(L, x, y); return [q[0], q[1], c]; }) }));
   if (drawRes && drawRes.cmds.length) parts.push({ kind: 'drawing', name: '', threads: drawRes.threads, cmds: drawRes.cmds.map(([x, y, c]) => [x / 10 + drawRes.offset[0], y / 10 + drawRes.offset[1], c]) });
   const res = Emb.mergeDesigns(parts, { basting: st.basting });
-  if (!res || !res.cmds.length) { st.result = null; setStatus('bad', t('empty')); return; }
-  st.result = res; st.stale = false;
+  if (!res || !res.cmds.length) { st.result = null; sim.load(null); setStatus('bad', t('empty')); return; }
+  st.result = res; st.stale = false; sim.load(res);
   setStatus('good', t('done'));
   renderResults(); setView('stitch');
 }
@@ -3242,12 +3523,13 @@ let stitchModelCache = null;
 function stitchModel(r) {
   if (stitchModelCache && stitchModelCache.r === r) return stitchModelCache;
   const ox = r.offset[0], oy = r.offset[1];
-  const blocks = []; let blk = { ci: 0, runs: [] }, run = null, last = null;
+  const blocks = []; let blk = { ci: 0, runs: [] }, run = null, last = null, count = 0;
   for (const [x, y, c] of r.cmds) {
     const px = ox + x / 10, py = oy + y / 10;
     if (c === Emb.STITCH) {
       if (last) {
-        if (!run || run.n >= STITCH_RUN) { run = { seg: new Float32Array(STITCH_RUN * 4), n: 0, x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, path: null }; blk.runs.push(run); }
+        if (!run || run.n >= STITCH_RUN) { run = { seg: new Float32Array(STITCH_RUN * 4), n: 0, start: count, x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, path: null }; blk.runs.push(run); }
+        count++;
         run.seg.set([last[0], last[1], px, py], run.n * 4); run.n++;
         run.x0 = Math.min(run.x0, last[0], px); run.x1 = Math.max(run.x1, last[0], px);
         run.y0 = Math.min(run.y0, last[1], py); run.y1 = Math.max(run.y1, last[1], py);
@@ -3264,7 +3546,12 @@ function stitchModel(r) {
   });
   return (stitchModelCache = { r, blocks, colors });
 }
-function runPath(run) {
+function runPath(run, upto) {
+  if (upto != null && upto < run.n) {         // part of a run, while the sew-out preview is playing
+    const p = new Path2D(), a = run.seg;
+    for (let i = 0; i < upto; i++) { const j = i * 4; p.moveTo(a[j], a[j + 1]); p.lineTo(a[j + 2], a[j + 3]); }
+    return p;
+  }
   if (!run.path) {
     const p = new Path2D(), a = run.seg;
     for (let i = 0; i < run.n; i++) { const j = i * 4; p.moveTo(a[j], a[j + 1]); p.lineTo(a[j + 2], a[j + 3]); }
@@ -3272,36 +3559,95 @@ function runPath(run) {
   }
   return run.path;
 }
+/* While the sew-out preview plays, the stitches sewn so far stay on an off-screen
+   layer and only the new ones are added each frame; zooming or scrolling redraws it. */
+const simOff = document.createElement('canvas');
+let simOffKey = '', simOffN = 0, resultSerial = 0;
+function drawSimStitches(ctx, dpr, r, m) {
+  const M = sim.frameInfo().model, n = sim.count() || 0, SM = stitchModel(r);
+  if (!r.serial) r.serial = ++resultSerial;
+  const key = [stitchView.width, stitchView.height, dpr, m, vp.scrollLeft, vp.scrollTop, st.fabric, r.serial].join('|');
+  const oc = simOff.getContext('2d');
+  if (key !== simOffKey || n < simOffN) {
+    simOffKey = key; simOffN = 0;
+    if (simOff.width !== stitchView.width || simOff.height !== stitchView.height) { simOff.width = stitchView.width; simOff.height = stitchView.height; }
+    oc.setTransform(1, 0, 0, 1, 0, 0);
+    oc.fillStyle = st.fabric; oc.fillRect(0, 0, simOff.width, simOff.height);
+  }
+  if (n > simOffN) {
+    const ox = r.offset[0], oy = r.offset[1], S = M.seg;
+    oc.setTransform(dpr * m, 0, 0, dpr * m, -dpr * vp.scrollLeft, -dpr * vp.scrollTop);
+    oc.lineCap = 'round'; oc.lineJoin = 'round';
+    const vx0 = vp.scrollLeft / m - 1, vy0 = vp.scrollTop / m - 1, vx1 = (vp.scrollLeft + vp.clientWidth) / m + 1, vy1 = (vp.scrollTop + vp.clientHeight) / m + 1;
+    const fine = m >= 16, holes = m >= 28, hr = Math.max(0.035, 1.2 / m);
+    let i = simOffN;
+    while (i < n) {
+      const ci = M.col[i], col = SM.colors[ci];
+      let j = i;
+      const p = fine ? null : new Path2D();
+      for (; j < n && M.col[j] === ci; j++) {
+        const q = j * 4, x0 = ox + S[q] / 10, y0 = oy + S[q + 1] / 10, x1 = ox + S[q + 2] / 10, y1 = oy + S[q + 3] / 10;
+        if (Math.max(x0, x1) < vx0 || Math.min(x0, x1) > vx1 || Math.max(y0, y1) < vy0 || Math.min(y0, y1) > vy1) continue;
+        if (!fine) { p.moveTo(x0, y0); p.lineTo(x1, y1); continue; }
+        // one stitch as a shaded thread, as in the zoomed-in preview
+        const len = Math.hypot(x1 - x0, y1 - y0);
+        oc.beginPath(); oc.moveTo(x0, y0); oc.lineTo(x1, y1);
+        oc.strokeStyle = col.dark; oc.lineWidth = 0.44; oc.stroke();
+        oc.strokeStyle = col.shade; oc.lineWidth = 0.34; oc.stroke();
+        if (len > 0.05) {
+          let nx = -(y1 - y0) / len, ny = (x1 - x0) / len;
+          if (nx + ny > 0) { nx = -nx; ny = -ny; }
+          oc.strokeStyle = col.base; oc.lineWidth = 0.2;
+          oc.beginPath(); oc.moveTo(x0 + nx * 0.03, y0 + ny * 0.03); oc.lineTo(x1 + nx * 0.03, y1 + ny * 0.03); oc.stroke();
+          oc.strokeStyle = col.light; oc.lineWidth = 0.07;
+          oc.beginPath(); oc.moveTo(x0 + nx * 0.06, y0 + ny * 0.06); oc.lineTo(x1 + nx * 0.06, y1 + ny * 0.06); oc.stroke();
+        }
+        if (holes) { oc.fillStyle = col.hole; oc.beginPath(); oc.arc(x1, y1, hr, 0, Math.PI * 2); oc.fill(); }
+      }
+      if (!fine) {
+        oc.strokeStyle = col.dark; oc.lineWidth = 0.46; oc.stroke(p);
+        oc.strokeStyle = col.base; oc.lineWidth = 0.32; oc.stroke(p);
+      }
+      i = j;
+    }
+    simOffN = n;
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(simOff, 0, 0);
+}
 function drawStitches() {
   if (st.view !== 'stitch') return;
   const dpr = syncScreen(stitchView), ctx = stitchView.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = st.fabric; ctx.fillRect(0, 0, stitchView.width, stitchView.height);
   const r = st.result, m = cssPerMM();
-  if (r && r.cmds.length) {
+  if (r && r.cmds.length && sim && sim.isActive()) drawSimStitches(ctx, dpr, r, m);
+  else if (r && r.cmds.length) {
     const M = stitchModel(r);
     ctx.setTransform(dpr * m, 0, 0, dpr * m, -dpr * vp.scrollLeft, -dpr * vp.scrollTop);
     const pad = 0.5, vx0 = vp.scrollLeft / m - pad, vy0 = vp.scrollTop / m - pad;
     const vx1 = (vp.scrollLeft + vp.clientWidth) / m + pad, vy1 = (vp.scrollTop + vp.clientHeight) / m + pad;
+    const lim = sim ? sim.count() : null;     // sew-out preview: only the stitches sewn so far
+    const upto = q => lim == null ? q.n : Math.max(0, Math.min(q.n, lim - q.start));
     const vis = []; let count = 0;
     for (const b of M.blocks) {
-      const runs = b.runs.filter(q => q.x1 >= vx0 && q.x0 <= vx1 && q.y1 >= vy0 && q.y0 <= vy1);
+      const runs = b.runs.filter(q => upto(q) > 0 && q.x1 >= vx0 && q.x0 <= vx1 && q.y1 >= vy0 && q.y0 <= vy1);
       if (runs.length) { vis.push([b, runs]); for (const q of runs) count += q.n; }
     }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     if (m < 16 || count > 9000) {
       for (const [b, runs] of vis) {
         const col = M.colors[b.ci];
-        ctx.strokeStyle = col.dark; ctx.lineWidth = 0.46; for (const q of runs) ctx.stroke(runPath(q));
-        ctx.strokeStyle = col.base; ctx.lineWidth = 0.32; for (const q of runs) ctx.stroke(runPath(q));
+        ctx.strokeStyle = col.dark; ctx.lineWidth = 0.46; for (const q of runs) ctx.stroke(runPath(q, upto(q)));
+        ctx.strokeStyle = col.base; ctx.lineWidth = 0.32; for (const q of runs) ctx.stroke(runPath(q, upto(q)));
       }
     } else {
       const holes = m >= 28, hr = Math.max(0.035, 1.2 / m);
       for (const [b, runs] of vis) {
         const col = M.colors[b.ci];
         for (const q of runs) {
-          const a = q.seg;
-          for (let i = 0; i < q.n; i++) {
+          const a = q.seg, qn = upto(q);
+          for (let i = 0; i < qn; i++) {
             const j = i * 4, x0 = a[j], y0 = a[j + 1], x1 = a[j + 2], y1 = a[j + 3];
             const len = Math.hypot(x1 - x0, y1 - y0);
             ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
@@ -3320,17 +3666,56 @@ function drawStitches() {
           }
           if (holes) {
             ctx.fillStyle = col.hole; ctx.beginPath();
-            for (let i = 0; i < q.n; i++) { const j = i * 4; ctx.moveTo(a[j + 2] + hr, a[j + 3]); ctx.arc(a[j + 2], a[j + 3], hr, 0, Math.PI * 2); }
-            if (q.n) { ctx.moveTo(a[0] + hr, a[1]); ctx.arc(a[0], a[1], hr, 0, Math.PI * 2); }
+            for (let i = 0; i < qn; i++) { const j = i * 4; ctx.moveTo(a[j + 2] + hr, a[j + 3]); ctx.arc(a[j + 2], a[j + 3], hr, 0, Math.PI * 2); }
+            if (qn) { ctx.moveTo(a[0] + hr, a[1]); ctx.arc(a[0], a[1], hr, 0, Math.PI * 2); }
             ctx.fill();
           }
         }
       }
     }
   }
+  const f = sim && sim.isActive() && r ? sim.frameInfo() : null;
+  if (f && f.model) {
+    const ox = r.offset[0], oy = r.offset[1], n = sim.count() || 0;
+    // jump threads left across the top, to be cut after sewing
+    ctx.setTransform(dpr * m, 0, 0, dpr * m, -dpr * vp.scrollLeft, -dpr * vp.scrollTop);
+    ctx.lineWidth = Math.max(0.12, 1 / m); ctx.lineCap = 'round';
+    for (const jmp of f.model.jumps) {
+      if (jmp.at > n) break;
+      const c = r.threads[jmp.ci] || 0;
+      ctx.strokeStyle = `rgba(${(c >> 16) & 255},${(c >> 8) & 255},${c & 255},0.85)`;
+      ctx.beginPath(); ctx.moveTo(ox + jmp.x0 / 10, oy + jmp.y0 / 10); ctx.lineTo(ox + jmp.x1 / 10, oy + jmp.y1 / 10); ctx.stroke();
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (f.needle && n < f.model.n) drawNeedle(ctx, (ox + f.needle[0] / 10) * m - vp.scrollLeft, (oy + f.needle[1] / 10) * m - vp.scrollTop);
+    if (f.banner) drawBanner(ctx, f.banner, vp.clientWidth);
+  }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawScaleBar(ctx, m, vp.clientWidth, vp.clientHeight);
 }
+function drawNeedle(ctx, x, y) {
+  ctx.save();
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.strokeStyle = '#d23b33'; ctx.stroke();
+  ctx.fillStyle = '#d23b33'; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawBanner(ctx, text, w) {
+  ctx.save();
+  ctx.font = '700 14px ' + getComputedStyle(document.body).fontFamily;
+  const bw = Math.min(w - 20, ctx.measureText(text).width + 28), h = 32, x = (w - bw) / 2, y = 12;
+  ctx.fillStyle = 'rgba(17,17,17,0.86)';
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, bw, h, h / 2) : ctx.rect(x, y, bw, h); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, w / 2, y + h / 2, bw - 20);
+  ctx.restore();
+}
+var sim = SewSim.create({   // var: drawStitches can run before this line on first load
+  play: $('simPlay'), pos: $('simPos'), speed: $('simSpeed'), all: $('simAll'), info: $('simInfo'), t,
+  name: b => st.result && st.result.basting && b === 0 ? t('simBasting') : Emb.brotherName(st.result ? st.result.threads[b] : 0),
+  render: () => { if (st.view === 'stitch') drawStitches(); }
+});
 
 /* ---------------- download */
 let downloadsCap = null;
@@ -3358,7 +3743,8 @@ function applyLang() {
   document.title = t('title');
   $('toolHint').textContent = T[lang].hints[st.tool];
   $('curName').textContent = t('machineName', Emb.brotherName(st.color));
-  showDensity(); showFont(); showCurve(); showZoomHint();
+  showDensity(); showFont(); showCurve(); showZoomHint(); syncTextUI();
+  if (sim) sim.relabel();
   if (st.sel && st.sel.imp) renderImpPanel();
   $('fabricTip').textContent = t('tip_' + st.fabricKey);
   for (const [id, k] of [['rotL', 'rotL'], ['rotR', 'rotR'], ['flipH', 'flipH'], ['flipV', 'flipV'], ['selSmaller', 'smaller'], ['selBigger', 'bigger'], ['zoomIn', 'zoomIn'], ['zoomOut', 'zoomOut']]) { $(id).title = t(k); $(id).setAttribute('aria-label', t(k)); }

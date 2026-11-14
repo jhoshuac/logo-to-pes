@@ -112,6 +112,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .preview { position: sticky; top: 12px; display: grid; gap: 12px; }
 .hoopbox { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 10px; }
 canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; display: block; border-radius: 8px; }
+.simbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 4px; }
+.simbar .btn { display: inline-flex; align-items: center; gap: 6px; }
+.simbar input[type=range] { flex: 1 1 140px; min-width: 120px; accent-color: var(--accent); }
+.simbar select { width: auto; padding: 6px 8px; }
+.siminfo { min-height: 1.4em; margin: 0 0 10px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
 .tile { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); }
 .tile.wide { grid-column: span 2; }
@@ -268,6 +273,13 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
         </div>
         <div class="tapbar" id="tapbar" hidden><span data-t="tapNow">Tap any part of the preview to remove it.</span><button class="btn" type="button" id="tapDone" data-t="tapDone">Done</button></div>
         <canvas id="stage" width="800" height="800" aria-label="Stitch preview"></canvas>
+        <div class="simbar" role="group" aria-label="Sewing preview">
+          <button class="btn" type="button" id="simPlay" aria-pressed="false" disabled>▶ Watch it sew</button>
+          <input type="range" id="simPos" min="0" max="0" value="0" step="1" aria-label="Sewing progress" disabled>
+          <select id="simSpeed" aria-label="Speed" disabled></select>
+          <button class="btn" type="button" id="simAll" disabled data-t="simAll">Show finished</button>
+        </div>
+        <p class="siminfo" id="simInfo"></p>
         <div class="readout">
           <div class="tile wide"><div class="v" id="r-size">–</div><div class="k" data-t="rSize">↕ height × ↔ width</div></div>
           <div class="tile"><div class="v" id="r-st">–</div><div class="k" data-t="rSt">stitches</div></div>
@@ -2013,6 +2025,133 @@ if (typeof WorkerGlobalScope !== 'undefined' && root instanceof WorkerGlobalScop
 }
 })(typeof self !== 'undefined' ? self : globalThis);
 
+/* Sew-out simulation, shared by both pages: replays a design's stitches in the order
+   the machine sews them, pausing at each thread change. The page supplies the controls
+   and draws each frame; this file keeps time and position.
+
+   SewSim.model(result)  -> { seg (x0,y0,x1,y1 per stitch, in 0.1 mm), col (thread per
+                              stitch), starts (first stitch of each thread), jumps, n, colors }
+   SewSim.create(opts)   -> controller with load(result), stop(), isActive(), count()
+     opts: { play, pos, speed, all, info: elements; t(key, ...args); name(threadIndex);
+             render(n | null, frame) where n = stitches shown (null = show the finished design)
+             and frame = { model, needle: [x, y] in 0.1 mm, banner: text or null } } */
+const SewSim = (() => {
+  const STITCH = 0, JUMP = 1, COLOR_CHANGE = 5;
+  const SPEEDS = [25, 100, 300, 1000, 3000];         // stitches per second on screen
+  const MACHINE_SPM = 600;                            // the readout's estimate: 600 stitches a minute
+
+  function model(r) {
+    const seg = [], col = [], jumps = [], starts = [0];
+    let last = null, ci = 0;
+    for (const [x, y, c] of r.cmds) {
+      if (c === STITCH) {
+        if (last) { seg.push(last[0], last[1], x, y); col.push(ci); }
+        last = [x, y];
+      } else if (c === JUMP) {
+        // a jump longer than 1 mm leaves a thread across the top that has to be cut
+        if (last && Math.hypot(x - last[0], y - last[1]) > 10) jumps.push({ at: col.length, x0: last[0], y0: last[1], x1: x, y1: y, ci });
+        last = [x, y];
+      } else if (c === COLOR_CHANGE) { ci++; starts.push(col.length); }
+    }
+    return { seg: Float32Array.from(seg), col: Uint16Array.from(col), jumps, starts, n: col.length, colors: ci + 1 };
+  }
+
+  function create(o) {
+    let M = null, n = 0, active = false, playing = false, raf = 0, lastT = 0;
+    let holdUntil = 0, banner = null, infoT = 0;
+    const speedSel = o.speed;
+    speedSel.innerHTML = '';
+    ['simSlow', 'simMed', 'simFast', 'simFaster', 'simFastest'].forEach((k, i) => {
+      const op = document.createElement('option'); op.value = SPEEDS[i]; op.dataset.k = k; op.textContent = o.t(k); speedSel.appendChild(op);
+    });
+    const block = k => { let b = 0; while (b + 1 < M.starts.length && M.starts[b + 1] <= k) b++; return b; };
+    const needle = k => {
+      if (!M.n) return null;
+      if (k <= 0) return [M.seg[0], M.seg[1]];
+      const j = (Math.min(k, M.n) - 1) * 4;
+      return [M.seg[j + 2], M.seg[j + 3]];
+    };
+    function label() {
+      o.play.textContent = playing ? o.t('simPause') : active && n > 0 && n < M.n ? o.t('simResume') : active && n >= M.n ? o.t('simAgain') : o.t('simWatch');
+      o.play.setAttribute('aria-pressed', playing ? 'true' : 'false');
+      o.all.disabled = !active;
+    }
+    function info(force) {
+      const now = performance.now();
+      if (!force && now - infoT < 200) return;
+      infoT = now;
+      if (!M || !active) { o.info.textContent = M && M.n ? o.t('simIdle') : ''; return; }
+      const k = Math.floor(n), b = block(Math.min(k, M.n - 1));
+      const left = Math.max(0, Math.ceil((M.n - k) / MACHINE_SPM + (M.colors - 1 - b)));
+      o.info.textContent = banner || o.t('simInfo', b + 1, M.colors, o.name(b), k, M.n, left);
+    }
+    function frame() {
+      o.render(active ? Math.floor(n) : null, { model: M, needle: active ? needle(Math.floor(n)) : null, banner: active ? banner : null });
+      o.pos.value = Math.floor(n);
+      info();
+    }
+    function tick(t) {
+      raf = 0;
+      if (!playing) return;
+      const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
+      if (t < holdUntil) { frame(); raf = requestAnimationFrame(tick); return; }
+      if (banner) { banner = null; info(true); }
+      const prev = n;
+      n = Math.min(M.n, n + (+speedSel.value) * dt);
+      // stop at the start of the next thread colour, like the machine does
+      for (let b = 1; b < M.starts.length; b++) {
+        const s = M.starts[b];
+        if (s > prev && s <= n) { n = s; holdUntil = t + 1300; banner = o.t('simChange', b + 1, o.name(b)); info(true); break; }
+      }
+      if (n >= M.n) { n = M.n; playing = false; label(); frame(); info(true); return; }
+      frame();
+      raf = requestAnimationFrame(tick);
+    }
+    function play() {
+      if (!M || !M.n) return;
+      if (playing) { playing = false; label(); info(true); return; }
+      if (!active || n >= M.n) { n = 0; holdUntil = 0; banner = null; }
+      active = true; playing = true; lastT = performance.now();
+      label(); frame();
+      if (!raf) raf = requestAnimationFrame(tick);
+    }
+    function stop() {
+      playing = false; active = false; banner = null;
+      if (M) n = M.n;
+      label(); frame(); info(true);
+    }
+    o.play.onclick = play;
+    o.all.onclick = stop;
+    o.pos.oninput = () => {
+      if (!M || !M.n) return;
+      active = true; playing = false; banner = null; holdUntil = 0;
+      n = +o.pos.value;
+      label(); frame(); info(true);
+    };
+    return {
+      load(r) {
+        playing = false; active = false; banner = null;
+        M = r && r.cmds && r.cmds.length ? model(r) : null;
+        n = M ? M.n : 0;
+        o.pos.max = M ? M.n : 0; o.pos.value = n;
+        o.play.disabled = o.pos.disabled = speedSel.disabled = !M || !M.n;
+        if (M) speedSel.value = SPEEDS.find(v => v >= M.n / 30) || SPEEDS[SPEEDS.length - 1];
+        label(); info(true);
+      },
+      stop() { if (active) stop(); },
+      pause() { if (playing) { playing = false; label(); info(true); } },
+      isActive: () => active,
+      count: () => (active ? Math.floor(n) : null),
+      frameInfo: () => ({ model: M, needle: active ? needle(Math.floor(n)) : null, banner: active ? banner : null }),
+      relabel() {
+        for (const op of speedSel.options) op.textContent = o.t(op.dataset.k);
+        label(); info(true);
+      }
+    };
+  }
+  return { model, create, SPEEDS };
+})();
+
 </script>
 <script>
 (() => {
@@ -2050,6 +2189,11 @@ const T = {
     preview: 'Stitch preview', busy: 'Making stitches…', fits: h => `Fits the ${h} hoop`, tooBig: h => `Too big for the ${h} hoop`,
     nothing: 'Turn on at least one color to stitch', rSize: '↕ height × ↔ width (mm)', rSt: 'stitches', rCc: 'thread changes',
     rTr: 'jump threads to cut', rMin: 'minutes to sew (about)',
+    simWatch: '▶ Watch it sew', simPause: '❚❚ Pause', simResume: '▶ Keep going', simAgain: '↻ Watch again', simAll: 'Show finished',
+    simSlow: 'Slow', simMed: 'Medium', simFast: 'Fast', simFaster: 'Faster', simFastest: 'Fastest', simBasting: 'basting box',
+    simIdle: 'Press Watch it sew to see the order the machine sews in, one stitch at a time. Drag the slider to jump to any point.',
+    simInfo: (b, n, name, k, N, left) => `Thread ${b} of ${n}: ${name} · stitch ${k.toLocaleString('en-US')} of ${N.toLocaleString('en-US')} · about ${left} min left on the machine`,
+    simChange: (b, name) => `The machine stops here: change to thread ${b}, ${name}`,
     download: 'Download .pes', dlNote: "You'll get a .zip. Open it and copy the .pes file inside to your USB stick.",
     dlNoteDirect: 'The .pes file downloads directly. Copy it to your USB stick.',
     saved: 'Saved. Unzip it and copy the .pes file to your USB stick.', declined: 'Download canceled.', dlFail: "The download didn't start. Try again.",
@@ -2090,6 +2234,11 @@ const T = {
     preview: 'Vista previa de puntadas', busy: 'Creando puntadas…', fits: h => `Cabe en el bastidor de ${h}`, tooBig: h => `Demasiado grande para el bastidor de ${h}`,
     nothing: 'Activa al menos un color para bordar', rSize: '↕ alto × ↔ ancho (mm)', rSt: 'puntadas', rCc: 'cambios de hilo',
     rTr: 'hilos de salto para cortar', rMin: 'minutos de bordado (aprox.)',
+    simWatch: '▶ Ver cómo se borda', simPause: '❚❚ Pausa', simResume: '▶ Seguir', simAgain: '↻ Ver otra vez', simAll: 'Ver terminado',
+    simSlow: 'Lento', simMed: 'Medio', simFast: 'Rápido', simFaster: 'Más rápido', simFastest: 'Rapidísimo', simBasting: 'caja de hilván',
+    simIdle: 'Pulsa Ver cómo se borda para ver el orden en que la máquina borda, puntada por puntada. Arrastra la barra para ir a cualquier punto.',
+    simInfo: (b, n, name, k, N, left) => `Hilo ${b} de ${n}: ${name} · puntada ${k.toLocaleString('es-CO')} de ${N.toLocaleString('es-CO')} · faltan unos ${left} min en la máquina`,
+    simChange: (b, name) => `La máquina se detiene aquí: cambia al hilo ${b}, ${name}`,
     download: 'Descargar .pes', dlNote: 'Recibirás un .zip. Ábrelo y copia el archivo .pes a tu memoria USB.',
     dlNoteDirect: 'El archivo .pes se descarga directamente. Cópialo a tu memoria USB.',
     saved: 'Guardado. Descomprímelo y copia el archivo .pes a tu memoria USB.', declined: 'Descarga cancelada.', dlFail: 'La descarga no empezó. Inténtalo de nuevo.',
@@ -2123,6 +2272,7 @@ function applyLang() {
   renderKSelect(); renderColors(); updateInches(); renderReadout(); showDensity(); renderBg();
   $('fabricTip').textContent = t('tip_' + state.fabricKey);
   if (!state.img) { setStatus('idle', t('start')); drawPreview(); }
+  if (sim) sim.relabel();
   $('dlnote').textContent = downloadsCap === false ? t('dlNoteDirect') : t('dlNote');
 }
 $('lang-en').onclick = () => { lang = 'en'; applyLang(); };
@@ -2348,7 +2498,7 @@ function buildParams() {
 function run() {
   if (!state.img) return;
   if (state.busy) { state.pending = true; return; }
-  if (!state.colors.some(c => c.stitch)) { state.result = null; setStatus('bad', t('nothing')); drawPreview(); renderReadout(); $('download').disabled = true; $('editLogo').disabled = true; return; }
+  if (!state.colors.some(c => c.stitch)) { state.result = null; sim.load(null); setStatus('bad', t('nothing')); drawPreview(); renderReadout(); $('download').disabled = true; $('editLogo').disabled = true; return; }
   state.busy = true; state.pending = false;
   const id = ++state.jobId;
   setStatus('busy', t('busy'));
@@ -2357,7 +2507,7 @@ function run() {
   const done = res => {
     state.busy = false;
     if (state.pending) { run(); return; }
-    state.result = res; drawPreview(); renderReadout(); updateFitChip();
+    state.result = res; sim.load(res); drawPreview(); renderReadout(); updateFitChip();
     $('download').disabled = !res.cmds.length;
     $('editLogo').disabled = !res.cmds.length;
   };
@@ -2391,7 +2541,8 @@ function drawPreview() {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const totW = hw + ring * 2 + 6, totH = hh + ring * 2 + 6;
   const cssH = cssW * totH / totW;
-  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  const CW = Math.round(cssW * dpr), CH = Math.round(cssH * dpr);
+  if (cv.width !== CW || cv.height !== CH) { cv.width = CW; cv.height = CH; }
   cv.style.height = cssH + 'px';
   const ctx = cv.getContext('2d');
   const s = cv.width / totW;                       // px per mm
@@ -2424,6 +2575,7 @@ function drawPreview() {
   if (!r || !r.cmds.length) return;
   const ox = fx + (hw - r.width) / 2 * s, oy = fy + (hh - r.height) / 2 * s;
   state.pv = { ox, oy, s };
+  if (sim && sim.isActive()) { drawSimFrame(ctx, r, ox, oy, s); return; }
   const k = s / 10;                                 // commands are in 0.1 mm
   const blocks = [];
   let path = new Path2D(), last = null, ci = 0;
@@ -2444,6 +2596,75 @@ function drawPreview() {
     ctx.lineWidth = Math.max(0.6, 0.32 * s); ctx.stroke(p);
   }
 }
+/* ---------------- sew-out simulation (only when Watch it sew is pressed) */
+const simLayer = document.createElement('canvas');
+let simKey = '', simDrawn = 0;
+function threadRGB(i) { const col = liveThread(i, state.result.threads[i]); return [(col >> 16) & 255, (col >> 8) & 255, col & 255]; }
+function drawSimFrame(ctx, r, ox, oy, s) {
+  const f = sim.frameInfo(), M = f.model, n = sim.count() || 0, k = s / 10;
+  if (!M) return;
+  // stitches sewn so far are kept on a layer and only the new ones are added each frame
+  const key = [ctx.canvas.width, ctx.canvas.height, ox, oy, s, r.cmds.length, r.threads.map((_, i) => liveThread(i, 0)).join()].join('|');
+  if (key !== simKey || n < simDrawn) {
+    simKey = key; simDrawn = 0;
+    simLayer.width = ctx.canvas.width; simLayer.height = ctx.canvas.height;
+  }
+  const lc = simLayer.getContext('2d');
+  lc.lineCap = 'round';
+  let i = simDrawn;
+  while (i < n) {
+    const ci = M.col[i];
+    let j = i;
+    const p = new Path2D();
+    while (j < n && M.col[j] === ci) { const q = j * 4; p.moveTo(ox + M.seg[q] * k, oy + M.seg[q + 1] * k); p.lineTo(ox + M.seg[q + 2] * k, oy + M.seg[q + 3] * k); j++; }
+    const rgb = threadRGB(ci);
+    lc.strokeStyle = `rgb(${rgb.map(v => Math.round(v * 0.58)).join(',')})`; lc.lineWidth = Math.max(1, 0.46 * s); lc.stroke(p);
+    lc.strokeStyle = `rgb(${rgb.join(',')})`; lc.lineWidth = Math.max(0.6, 0.32 * s); lc.stroke(p);
+    i = j;
+  }
+  simDrawn = n;
+  ctx.drawImage(simLayer, 0, 0);
+  // jump threads left across the top, to be cut after sewing
+  ctx.lineWidth = Math.max(0.6, 0.12 * s);
+  for (const jmp of M.jumps) {
+    if (jmp.at > n) break;
+    const rgb = threadRGB(jmp.ci);
+    ctx.strokeStyle = `rgba(${rgb.join(',')},0.85)`;
+    ctx.beginPath(); ctx.moveTo(ox + jmp.x0 * k, oy + jmp.y0 * k); ctx.lineTo(ox + jmp.x1 * k, oy + jmp.y1 * k); ctx.stroke();
+  }
+  if (f.needle && n < M.n) drawNeedle(ctx, ox + f.needle[0] * k, oy + f.needle[1] * k, s);
+  if (f.banner) drawBanner(ctx, f.banner, s);
+}
+function drawNeedle(ctx, x, y, s) {
+  const r = Math.max(5, 1.6 * s);
+  ctx.save();
+  ctx.lineWidth = Math.max(2, 0.5 * s); ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = Math.max(1, 0.25 * s); ctx.strokeStyle = '#d23b33';
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#d23b33'; ctx.beginPath(); ctx.arc(x, y, Math.max(2, 0.45 * s), 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawBanner(ctx, text, s) {
+  ctx.save();
+  const fs = Math.max(13, Math.round(3.6 * s));
+  ctx.font = `700 ${fs}px ${getComputedStyle(document.body).fontFamily}`;
+  const w = Math.min(ctx.canvas.width - 20, ctx.measureText(text).width + fs * 1.4), h = fs * 2.1;
+  const x = (ctx.canvas.width - w) / 2, y = ctx.canvas.height * 0.06;
+  ctx.fillStyle = 'rgba(17,17,17,0.86)'; roundRect(ctx, x, y, w, h, h / 2); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, ctx.canvas.width / 2, y + h / 2, w - fs);
+  ctx.restore();
+}
+var sim = SewSim.create({   // var: drawPreview can run before this line on first load
+  play: $('simPlay'), pos: $('simPos'), speed: $('simSpeed'), all: $('simAll'), info: $('simInfo'), t,
+  name: b => {
+    const r = state.result;
+    if (r && r.colorsUsed && r.colorsUsed[b] === -1) return t('simBasting');
+    return Emb.brotherName(liveThread(b, r ? r.threads[b] : 0));
+  },
+  render: () => drawPreview()
+});
 function liveThread(i, fallback) {
   const stitched = state.order.filter(j => state.colors[j] && state.colors[j].stitch);
   const ci = state.result && state.result.colorsUsed ? state.result.colorsUsed[i] : stitched[i];

@@ -9,7 +9,6 @@ Features found in embroidery programs (Brother PE-Design, Hatch, Embrilliance, I
 | Thin lines as running / triple (bean) stitch | Fine details sewn as a thin line instead of being widened to a 1 mm satin | Plain stitches, works on any machine |
 | Appliqué | Placement line, tack-down and satin border so a fabric piece fills a large area | Uses the machine's color stops to pause for placing and trimming the fabric |
 | More lettering fonts | More choices beyond the 4 in the editor | Each with its smallest sewable size |
-| Sew-out simulator | Watch the stitches sew in order before going to the machine | Runs in the browser only |
 | Print a real-size template | Paper template to position the design on the garment | Runs in the browser only |
 
 ## Low priority (not useful on the SE625)
@@ -34,3 +33,5 @@ Features found in embroidery programs (Brother PE-Design, Hatch, Embrilliance, I
 - Background removal also takes the background's shades (drop shadows, glows, soft edges), on both pages
 - Thicken thin lines (under 1 mm) so they sew, on both pages; a Picture panel in the editor to choose which colors of an imported picture are sewn, with sharp resizing from the original
 - Better automatic colors for colorful logos: colors are learned from flat areas only (no soft edges), measured against the design rather than the whole picture, up to 12 colors
+- Watch it sew: a sew-out replay on both pages (button only), with thread-change stops and jump threads
+- Text bar under the hoop (font, size, shape, words, color), and text stays editable until Done
