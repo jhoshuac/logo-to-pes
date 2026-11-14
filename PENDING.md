@@ -8,7 +8,6 @@ Features found in embroidery programs (Brother PE-Design, Hatch, Embrilliance, I
 |---|---|---|
 | Thin lines as running / triple (bean) stitch | Fine details sewn as a thin line instead of being widened to a 1 mm satin | Plain stitches, works on any machine |
 | Appliqué | Placement line, tack-down and satin border so a fabric piece fills a large area | Uses the machine's color stops to pause for placing and trimming the fabric |
-| More lettering fonts | More choices beyond the 4 in the editor | Each with its smallest sewable size |
 | Print a real-size template | Paper template to position the design on the garment | Runs in the browser only |
 
 ## Low priority (not useful on the SE625)
