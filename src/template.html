@@ -543,10 +543,12 @@ function renderKSelect() {
   const sel = $('kcount');
   sel.disabled = !state.analysis;
   if (!state.analysis) return;
-  const opts = [['auto', t('auto', state.analysis.suggested)]];
-  for (let k = 1; k <= 12; k++) if (state.analysis.results[k]) opts.push([String(k), String(k)]);
+  const an = state.analysis, ch = Emb.colorChoices(an);
+  const opts = [['auto', t('auto', an.results[an.suggested].centers.length)]];
+  for (const [k, m] of ch.list) opts.push([String(k), String(m)]);
   sel.innerHTML = '';
   for (const [v, l] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = l; sel.appendChild(o); }
+  if (state.kChoice !== 'auto') state.kChoice = String(ch.kFor(+state.kChoice));
   sel.value = state.kChoice;
 }
 $('kcount').onchange = e => { state.kChoice = e.target.value; setColorsForK(); schedule(); };

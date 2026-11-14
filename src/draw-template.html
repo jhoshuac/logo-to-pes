@@ -2195,9 +2195,11 @@ function renderImpPanel() {
   const q = st.sel; if (!q || !q.imp) return;
   const imp = q.imp, an = imp.an;
   const sel = $('impK'); sel.innerHTML = '';
-  const opts = [['auto', t('impAuto', an.suggested)]];
-  for (let k = 1; k <= 12; k++) if (an.results[k]) opts.push([String(k), String(k)]);
+  const ch = Emb.colorChoices(an);
+  const opts = [['auto', t('impAuto', an.results[an.suggested].centers.length)]];
+  for (const [k, m] of ch.list) opts.push([String(k), String(m)]);
   for (const [v, l] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = l; sel.appendChild(o); }
+  if (imp.k !== 'auto') imp.k = ch.kFor(imp.k);
   sel.value = String(imp.k);
   const box = $('impColors'); box.innerHTML = '';
   imp.colors.map((_, i) => i).sort((a, b) => imp.colors[b].share - imp.colors[a].share).forEach(i => {

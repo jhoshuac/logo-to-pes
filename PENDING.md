@@ -36,3 +36,5 @@ Features found in embroidery programs (Brother PE-Design, Hatch, Embrilliance, I
 - Text bar under the hoop (font, size, shape, words, color), and text stays editable until Done
 - 32 embroidery fonts (Open Font License / Apache 2.0) in four groups, with a See all fonts gallery
 - Satin tips follow the shape out to a point; pull compensation scales with column width
+- Outlines and thin lines in cartoons and logos are kept: outline colors are found even when they never form a flat area, an outline between two colors is no longer mistaken for a soft edge, dark outlines are no longer taken for a shade of a white background, and the detail steps run even with Thicken thin lines off
+- Small round parts (eyes, dots, nostrils) are sewn as a small fill instead of disappearing; the color-count menu lists real color counts

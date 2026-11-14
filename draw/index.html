@@ -1347,13 +1347,34 @@ function analyzeColors(rgba, w, h, kMax) {
     }
     return true;
   };
+  // ...and from the middle of thin lines (outlines): a pixel that differs from both sides
+  // while the two sides match each other. A soft edge between two colours does not.
+  const diff = (i, j) => Math.abs(rgba[i] - rgba[j]) + Math.abs(rgba[i + 1] - rgba[j + 1]) + Math.abs(rgba[i + 2] - rgba[j + 2]);
+  const ridgeAt = (x, y) => {
+    const i = (y * w + x) * 4;
+    for (const r of [1, 2]) for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [1, -1]]) {
+      const xa = x - dx * r, ya = y - dy * r, xb = x + dx * r, yb = y + dy * r;
+      if (xa < 0 || ya < 0 || xb < 0 || yb < 0 || xa >= w || xb >= w || ya >= h || yb >= h) continue;
+      const a = (ya * w + xa) * 4, b = (yb * w + xb) * 4;
+      if (rgba[a + 3] < 128 || rgba[b + 3] < 128) continue;
+      if (!(diff(a, b) < 60 && diff(i, a) > 120 && diff(i, b) > 120)) continue;
+      // and it is the middle of the line, not its soft edge: nothing next to it across the
+      // line is further from the sides' colour
+      if (r === 2) {
+        const n1 = ((y - dy) * w + (x - dx)) * 4, n2 = ((y + dy) * w + (x + dx)) * 4;
+        if (diff(n1, a) > diff(i, a) + 10 || diff(n2, b) > diff(i, b) + 10) continue;
+      }
+      return true;
+    }
+    return false;
+  };
   const s = [], sAll = [];
   let transparent = 0, total = 0;
   for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
     const i = (y * w + x) * 4; total++;
     if (rgba[i + 3] < 128) { transparent++; continue; }
     sAll.push(rgba[i], rgba[i + 1], rgba[i + 2]);
-    if (flatAt(x, y)) s.push(rgba[i], rgba[i + 1], rgba[i + 2]);
+    if (flatAt(x, y) || ridgeAt(x, y)) s.push(rgba[i], rgba[i + 1], rgba[i + 2]);
   }
   const samples = Float64Array.from(s.length >= 0.3 * sAll.length && s.length >= 300 ? s : sAll);
   const n = samples.length / 3;
@@ -1361,26 +1382,53 @@ function analyzeColors(rgba, w, h, kMax) {
   const results = {}, border = {};
   let suggested = 1;
   const dist = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-  for (let k = 1; k <= kMax; k++) {
-    if (n < k) break;
-    const r = kmeans(samples, k, 14, lcg(7 + k));
-    // drop empty clusters
-    const keep = r.counts.map((c, i) => i).filter(i => r.counts[i] > 0);
-    r.centers = keep.map(i => r.centers[i]); r.counts = keep.map(i => r.counts[i]);
-    results[k] = r;
-    const C = r.centers, m = C.length;
-    // every pixel -> nearest colour, for the edge count and the shape tests below
-    const lab = new Int16Array(N), cnt = new Array(m).fill(0);
+  const between = (C, i, a, b) => {
+    const ab = [C[b][0] - C[a][0], C[b][1] - C[a][1], C[b][2] - C[a][2]];
+    const ai = [C[i][0] - C[a][0], C[i][1] - C[a][1], C[i][2] - C[a][2]];
+    const L2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2 || 1;
+    const t = (ab[0] * ai[0] + ab[1] * ai[1] + ab[2] * ai[2]) / L2;
+    return t > 0.1 && t < 0.9 && Math.hypot(ai[0] - t * ab[0], ai[1] - t * ab[1], ai[2] - t * ab[2]) < Math.max(30, 0.25 * Math.sqrt(L2));
+  };
+  // every pixel -> nearest colour, with counts and how solid each colour is (the share of its
+  // pixels whose 4 neighbours are the same colour; soft edges are 1-2 px slivers and score ~0)
+  const labelAll = C => {
+    const m = C.length, lab = new Int16Array(N), cnt = new Array(m).fill(0), core = new Array(m).fill(0);
     for (let i = 0; i < N; i++) {
       if (rgba[i * 4 + 3] < 128) { lab[i] = -1; continue; }
       let b = 0, bd = Infinity;
       for (let j = 0; j < m; j++) { const d = (rgba[i * 4] - C[j][0]) ** 2 + (rgba[i * 4 + 1] - C[j][1]) ** 2 + (rgba[i * 4 + 2] - C[j][2]) ** 2; if (d < bd) { bd = d; b = j; } }
       lab[i] = b; cnt[b]++;
     }
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x, L = lab[i];
+      if (L >= 0 && lab[i - 1] === L && lab[i + 1] === L && lab[i - w] === L && lab[i + w] === L) core[L]++;
+    }
+    return { lab, cnt, core };
+  };
+  const bestSize = {};
+  for (let k = 1; k <= kMax; k++) {
+    if (n < k) break;
+    const r = kmeans(samples, k, 14, lcg(7 + k));
+    let C = r.centers.filter((_, i) => r.counts[i] > 0);
+    let L = labelAll(C);
+    // soft edges are not thread colours: a thin colour that sits between two others is dropped
+    // and its pixels go to whichever real colour is nearer
+    if (C.length > 2) {
+      const drop = new Set();
+      for (let i = 0; i < C.length; i++) {
+        if (L.core[i] / Math.max(1, L.cnt[i]) >= 0.15) continue;
+        let isB = false;
+        for (let a = 0; a < C.length && !isB; a++) for (let b = a + 1; b < C.length && !isB; b++) if (a !== i && b !== i && between(C, i, a, b)) isB = true;
+        if (isB) drop.add(i);
+      }
+      if (drop.size && drop.size < C.length) { C = C.filter((_, i) => !drop.has(i)); L = labelAll(C); }
+    }
+    const m = C.length;
+    results[k] = { centers: C, counts: L.cnt };
     // which colour owns the image border (likely the fabric / background)
     const bc = new Array(m).fill(0);
     let bt = 0;
-    const visit = i => { if (lab[i] < 0) bt++; else bc[lab[i]]++; };
+    const visit = i => { if (L.lab[i] < 0) bt++; else bc[L.lab[i]]++; };
     for (let x = 0; x < w; x++) { visit(x); visit((h - 1) * w + x); }
     for (let y = 1; y < h - 1; y++) { visit(y * w); visit(y * w + w - 1); }
     const bTotal = 2 * w + 2 * (h - 2);
@@ -1390,39 +1438,38 @@ function analyzeColors(rgba, w, h, kMax) {
     if (bt < bTotal * 0.5) { const mx = Math.max(...bc); if (mx > bTotal * 0.3) bgi = bc.indexOf(mx); }
     // shares are measured against the design itself, not the background around it
     let fgN = 0;
-    for (let j = 0; j < m; j++) if (j !== bgi) fgN += cnt[j];
+    for (let j = 0; j < m; j++) if (j !== bgi) fgN += L.cnt[j];
     fgN = Math.max(1, fgN);
-    // how solid each colour is: the share of its pixels whose 4 neighbours are the same colour.
-    // Soft edges (anti-aliasing) are 1-2 px slivers and score near 0.
-    const core = new Array(m).fill(0);
-    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
-      const i = y * w + x, L = lab[i];
-      if (L >= 0 && lab[i - 1] === L && lab[i + 1] === L && lab[i - w] === L && lab[i + w] === L) core[L]++;
-    }
-    let ok = m === k;
+    let ok = m >= 2;
     for (let i = 0; i < m && ok; i++) {
       for (let j = i + 1; j < m && ok; j++) if (dist(C[i], C[j]) < 40) ok = false;
       if (i === bgi || !ok) continue;
       // tiny colours are usually noise, but a clearly different one (small text, an eye) counts from less
       let near = Infinity;
       for (let j = 0; j < m; j++) if (j !== i) near = Math.min(near, dist(C[i], C[j]));
-      if (cnt[i] / fgN < (near > 90 ? 0.006 : 0.02) || cnt[i] < 12) { ok = false; break; }
-      // blend test: a thin colour sitting on the line between two others is anti-aliasing
-      const solid = core[i] / Math.max(1, cnt[i]);
-      if (solid >= 0.15) continue;
-      for (let a = 0; a < m && ok; a++) for (let b = a + 1; b < m && ok; b++) {
-        if (a === i || b === i) continue;
-        const ab = [C[b][0] - C[a][0], C[b][1] - C[a][1], C[b][2] - C[a][2]];
-        const ai = [C[i][0] - C[a][0], C[i][1] - C[a][1], C[i][2] - C[a][2]];
-        const L2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2 || 1;
-        const t = (ab[0] * ai[0] + ab[1] * ai[1] + ab[2] * ai[2]) / L2;
-        const px = ai[0] - t * ab[0], py = ai[1] - t * ab[1], pz = ai[2] - t * ab[2];
-        if (t > 0.1 && t < 0.9 && Math.hypot(px, py, pz) < Math.max(30, 0.25 * Math.sqrt(L2))) ok = false;
-      }
+      if (L.cnt[i] / fgN < (near > 90 ? 0.006 : 0.02) || L.cnt[i] < 12) ok = false;
     }
-    if (ok) suggested = k;
+    // the suggestion is the count with the most real colours (the smallest k that reaches it)
+    if (ok && !(m in bestSize)) bestSize[m] = k;
   }
+  const sizes = Object.keys(bestSize).map(Number);
+  if (sizes.length) suggested = bestSize[Math.max(...sizes)];
   return { results, suggested: Math.max(1, suggested), border, transparentShare: transparent / Math.max(1, total) };
+}
+
+/* Menu choices for the number of colours: one per distinct palette size (the smallest k that
+   gives it), since soft-edge colours are dropped and some k give the same palette size.
+   Returns [[k, size], ...]; a k that is not listed maps to the listed k of the same size. */
+function colorChoices(an) {
+  const out = [], seen = new Map();
+  for (let k = 1; k <= 12; k++) {
+    const r = an.results[k];
+    if (!r) continue;
+    const m = r.centers.length;
+    if (!seen.has(m)) { seen.set(m, k); out.push([k, m]); }
+  }
+  out.sort((a, b) => a[1] - b[1]);
+  return { list: out, kFor: k => (an.results[k] ? seen.get(an.results[k].centers.length) : k) };
 }
 
 /* ------------------------------------------------------------ main: image -> commands */
@@ -1435,7 +1482,7 @@ function labelImage(rgba, W, H, mmpx, C, blurPx, skip, detail) {
   let img = new Float32Array(N * 3);
   const alpha = new Uint8Array(N);
   for (let i = 0; i < N; i++) { img[i * 3] = rgba[i * 4]; img[i * 3 + 1] = rgba[i * 4 + 1]; img[i * 3 + 2] = rgba[i * 4 + 2]; alpha[i] = rgba[i * 4 + 3] >= 128 ? 1 : 0; }
-  if (detail) {
+  if (detail && detail.srcPx > 0) {
     // sharpen at the scale of one source pixel: in a small picture a thin line is a faint
     // blend that would otherwise go to the background; this brings it back to its colour
     const r = Math.max(1, Math.round(0.8 * (detail.srcPx || 1)));
@@ -1462,7 +1509,7 @@ function labelImage(rgba, W, H, mmpx, C, blurPx, skip, detail) {
     for (let i = 0; i < N; i++) if (labels[i] === j) { M[i] = 1; cnt++; }
     if (!cnt) continue;
     const kept = openMask(M, W, H, fringeR);
-    if (detail && j >= 0) protectThin(M, kept, labels, j, W, H, 0.3 / (mmpx * mmpx), !!(detail.fabric && detail.fabric[j]));
+    if (detail && j >= 0) protectThin(M, kept, labels, j, W, H, 0.3 / (mmpx * mmpx), !!(detail.fabric && detail.fabric[j]), C, img);
     const { lab, comps } = labelComponents(kept, W, H);
     const small = new Set(comps.filter(c => c.count < minArea).map(c => c.id));
     for (let i = 0; i < N; i++) if (M[i] && (!kept[i] || small.has(lab[i]))) unassigned[i] = 1;
@@ -1475,16 +1522,17 @@ function labelImage(rgba, W, H, mmpx, C, blurPx, skip, detail) {
    soft-edge sliver squeezed between two other colours, but wrong for a thin line on the
    background or a thin gap between two shapes of one colour: those touch just one other
    colour. Put such parts back into kept (in place). */
-function protectThin(M, kept, labels, j, W, H, minCount, isFabric) {
+function protectThin(M, kept, labels, j, W, H, minCount, isFabric, C, img) {
   const N = W * H, thin = new Uint8Array(N);
   let any = false;
   for (let i = 0; i < N; i++) if (M[i] && !kept[i]) { thin[i] = 1; any = true; }
   if (!any) return;
   const { lab, comps } = labelComponents(thin, W, H);
-  const touch = new Map(), attached = new Uint8Array(comps.length + 1);
+  const touch = new Map(), attached = new Uint8Array(comps.length + 1), sum = new Float64Array((comps.length + 1) * 3);
   for (let i = 0; i < N; i++) {
     if (!thin[i]) continue;
     const x = i % W, y = (i / W) | 0, id = lab[i];
+    if (img) for (let c = 0; c < 3; c++) sum[id * 3 + c] += img[i * 3 + c];
     for (const n of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1]) {
       if (n >= 0 && kept[n]) attached[id] = 1;
       if (n < 0 || M[n]) continue;
@@ -1496,7 +1544,28 @@ function protectThin(M, kept, labels, j, W, H, minCount, isFabric) {
   // a thin gap of fabric only counts when it opens onto a wider fabric area (a slit between
   // feathers); an isolated sliver of the background colour inside a shape is a highlight,
   // and leaving it out would make a hole
-  const keep = new Set(comps.filter(c => c.count >= minCount && (touch.get(c.id) || new Set()).size === 1 && (!isFabric || attached[c.id])).map(c => c.id));
+  // between two or more colours it's an outline unless its colour sits between theirs (a soft
+  // edge). Judge by the picture's own pixels there, not the colour they were matched to: the
+  // blend of yellow and black can be nearest to red, and is still a soft edge
+  const between = (S, id) => {
+    const L = [...S].filter(v => v >= 0);
+    const n = (comps[id - 1] && comps[id - 1].count) || 1;
+    const X = img ? [sum[id * 3] / n, sum[id * 3 + 1] / n, sum[id * 3 + 2] / n] : C[j];
+    for (let a = 0; a < L.length; a++) for (let b = a + 1; b < L.length; b++) {
+      const P = C[L[a]], Q = C[L[b]];
+      const ab = [Q[0] - P[0], Q[1] - P[1], Q[2] - P[2]], ax = [X[0] - P[0], X[1] - P[1], X[2] - P[2]];
+      const L2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2 || 1;
+      const t = (ab[0] * ax[0] + ab[1] * ax[1] + ab[2] * ax[2]) / L2;
+      if (t > 0.05 && t < 0.95 && Math.hypot(ax[0] - t * ab[0], ax[1] - t * ab[1], ax[2] - t * ab[2]) < Math.max(35, 0.3 * Math.sqrt(L2))) return true;
+    }
+    return false;
+  };
+  const keep = new Set(comps.filter(c => {
+    if (c.count < minCount) return false;
+    const S = touch.get(c.id) || new Set();
+    if (S.size === 1) return !isFabric || attached[c.id];
+    return !isFabric && !!C && !between(S, c.id);
+  }).map(c => c.id));
   if (!keep.size) return;
   for (let i = 0; i < N; i++) if (thin[i] && keep.has(lab[i])) kept[i] = 1;
 }
@@ -1632,8 +1701,11 @@ function backgroundSet(an, k, rgba, w, h) {
   const chroma = c => Math.max(...c) - Math.min(...c);
   const similar = j => {
     const p = C[j], q = C[bg];
-    if (chroma(q) < 30) return chroma(p) < 30;                 // grey/white background: grey shades
-    return chroma(p) >= 18 && angle(p, q) < 14;                 // same hue, lighter or darker
+    if (chroma(q) < 30) return chroma(p) < 30 && Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 150;   // grey/white background: light-to-mid grey shades, not dark outlines
+    // same hue, lighter or darker; a darker shade may drift a little more (shadow lines mixed
+    // with soft edges). Black or grey outlines are not a shade of a coloured background.
+    const lum = c => 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
+    return chroma(p) >= 18 && (angle(p, q) < 14 || (angle(p, q) < 25 && lum(p) < lum(q)));
   };
   const set = new Set([bg]);
   for (let j = 0; j < n; j++) {
@@ -1676,10 +1748,15 @@ function backgroundSet(an, k, rgba, w, h) {
   // darker shades (shadows) and soft edges go too: they hug the design's edges, and each
   // patch of them also touches the background (a shadow or a gap opens onto it). Text in a
   // similar colour sitting inside a design shape doesn't touch the background, so it stays.
-  for (let pass = 0, more = true; pass < 4 && more; pass++) {
-    more = false;
+  // soft edges first (pass 0, 2, ...), then shades (pass 1, 3, ...): a soft edge around dark
+  // lettering must not make the lettering look like a shadow hugging the design. Stop after
+  // a soft-edge pass and a shade pass in a row add nothing.
+  for (let pass = 0, quiet = 0; pass < 10 && quiet < 2; pass++) {
+    let more = false;
+    const blendPass = pass % 2 === 0;
     for (let j = 0; j < n; j++) {
       const isBlend = sliver(j) && blend(j);
+      if (isBlend !== blendPass) continue;
       if (set.has(j) || !(similar(j) || isBlend) || !area[j] || area[j] > 0.6 * area[bg]) continue;
       const fg = new Uint8Array(N), bgm = new Uint8Array(N), M = new Uint8Array(N);
       for (let i = 0; i < N; i++) {
@@ -1692,6 +1769,9 @@ function backgroundSet(an, k, rgba, w, h) {
       if (hug / area[j] < 0.5) continue;
       // a soft edge is safe to drop: its pixels go to the nearest colour that is left
       if (isBlend) { set.add(j); more = true; continue; }
+      // thin shading lines in the background's own hue (dark creases between shapes) go too;
+      // a solid area in that colour (lettering) has to touch the background as well
+      if (core[j] / area[j] < 0.3) { set.add(j); more = true; continue; }
       // real background areas only, not the 1-2 px soft edges that look like background
       const touch = dilate(openMask(bgm, w, h, 1.5), w, h, 1.5);
       const { lab: cl, comps } = labelComponents(M, w, h);
@@ -1701,6 +1781,7 @@ function backgroundSet(an, k, rgba, w, h) {
       for (const c of comps) if (hit[c.id]) onBg += c.count;
       if (onBg / area[j] >= 0.5) { set.add(j); more = true; }
     }
+    quiet = more ? 0 : quiet + 1;
   }
   return [...set];
 }
@@ -1716,10 +1797,11 @@ function mergeSkips(colors) {
 /* A logo as a flat, editable layer: stitched colours become their thread colour,
    fabric colours and transparent areas become transparent. Returns RGBA bytes. */
 function logoToLayer(rgba, W, H, mmpx, colors, blurPx, removal, opts) {
-  const detail = opts && opts.boldMM ? { srcPx: opts.srcPx || 1, fabric: colors.map(c => !c.stitch) } : null;
+  // thin lines and gaps are always looked after; "Thicken thin lines" (boldMM) also widens them
+  const detail = { srcPx: opts && opts.srcPx || 0, fabric: colors.map(c => !c.stitch) };
   const labels = labelImage(rgba, W, H, mmpx, colors.map(c => c.rgb), blurPx, mergeSkips(colors), detail);
   applyRemovals(labels, W, H, removal);
-  if (detail) refineDetail(labels, W, H, mmpx, new Set(colors.map((c, j) => c.stitch ? j : -1).filter(j => j >= 0)), opts.boldMM);
+  if (opts && opts.boldMM) refineDetail(labels, W, H, mmpx, new Set(colors.map((c, j) => c.stitch ? j : -1).filter(j => j >= 0)), opts.boldMM);
   const out = new Uint8ClampedArray(W * H * 4);
   for (let i = 0; i < W * H; i++) {
     const c = labels[i] >= 0 ? colors[labels[i]] : null;
@@ -1734,7 +1816,7 @@ function digitize(p, progress) {
   const say = progress || (() => {});
   const N = W * H;
   say('colors');
-  const labels = labelImage(p.rgba, W, H, mmpx, p.colors.map(c => c.rgb), p.blurPx, mergeSkips(p.colors), p.boldMM ? { srcPx: p.srcPx || 1, fabric: p.colors.map(c => !c.stitch) } : null);
+  const labels = labelImage(p.rgba, W, H, mmpx, p.colors.map(c => c.rgb), p.blurPx, mergeSkips(p.colors), { srcPx: p.srcPx || 0, fabric: p.colors.map(c => !c.stitch) });
   applyRemovals(labels, W, H, { removeEdge: !!p.removeEdge, seeds: p.removeSeeds || [] });
 
   const stitched = new Set(p.order.filter(j => p.colors[j].stitch));
@@ -1789,6 +1871,18 @@ function digitize(p, progress) {
       const r = orderNetworks(blocks, cur);
       for (const s of r.seqs) b.points(s);
       if (r.seqs.length) cur = b.cur;
+    }
+    // a small round part (an eye, a dot, the tittle of an i) is too narrow for fill and its
+    // skeleton is only a point or a stub that the satin step prunes away; fill those instead
+    // of losing them
+    {
+      const live = new Uint8Array(N);
+      if (nCount) for (const [, , path] of pruneEdges(skeletonGraph(narrowSk, W, H).edges, 1.2 / mmpx)) for (const q of path) live[q] = 1;
+      const rc = labelComponents(R, W, H);
+      const ok = new Uint8Array(rc.comps.length + 2);
+      for (let i = 0; i < N; i++) if (R[i] && (fillMask[i] || live[i])) ok[rc.lab[i]] = 1;
+      const add = new Set(rc.comps.filter(c => !ok[c.id] && c.count * mmpx * mmpx > 0.6).map(c => c.id));
+      if (add.size) for (let i = 0; i < N; i++) if (R[i] && add.has(rc.lab[i])) fillMask[i] = 1;
     }
     const { lab, comps } = labelComponents(fillMask, W, H);
     const left = comps.filter(c => c.count * mmpx * mmpx > 0.6);
@@ -2190,7 +2284,7 @@ const FABRICS = {
   fleece: { lines: 3.6, pull: 0.3, fillPull: 0.25, underlay: 'heavy' }
 };
 
-const Emb = { readPES, mergeDesigns, FABRICS, logoToLayer, backgroundSet, boldThinLines, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks, labelImage }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
+const Emb = { readPES, mergeDesigns, FABRICS, logoToLayer, backgroundSet, boldThinLines, colorChoices, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks, labelImage }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
 if (typeof module !== 'undefined' && module.exports) module.exports = Emb;
 root.Emb = Emb;
 
@@ -4096,9 +4190,11 @@ function renderImpPanel() {
   const q = st.sel; if (!q || !q.imp) return;
   const imp = q.imp, an = imp.an;
   const sel = $('impK'); sel.innerHTML = '';
-  const opts = [['auto', t('impAuto', an.suggested)]];
-  for (let k = 1; k <= 12; k++) if (an.results[k]) opts.push([String(k), String(k)]);
+  const ch = Emb.colorChoices(an);
+  const opts = [['auto', t('impAuto', an.results[an.suggested].centers.length)]];
+  for (const [k, m] of ch.list) opts.push([String(k), String(m)]);
   for (const [v, l] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = l; sel.appendChild(o); }
+  if (imp.k !== 'auto') imp.k = ch.kFor(imp.k);
   sel.value = String(imp.k);
   const box = $('impColors'); box.innerHTML = '';
   imp.colors.map((_, i) => i).sort((a, b) => imp.colors[b].share - imp.colors[a].share).forEach(i => {
