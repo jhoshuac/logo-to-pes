@@ -35,3 +35,5 @@ Features found in embroidery programs (Brother PE-Design, Hatch, Embrilliance, I
 - Better automatic colors for colorful logos: colors are learned from flat areas only (no soft edges), measured against the design rather than the whole picture, up to 12 colors
 - Watch it sew: a sew-out replay on both pages (button only), with thread-change stops and jump threads
 - Text bar under the hoop (font, size, shape, words, color), and text stays editable until Done
+- 32 embroidery fonts (Open Font License / Apache 2.0) in four groups, with a See all fonts gallery
+- Satin tips follow the shape out to a point; pull compensation scales with column width

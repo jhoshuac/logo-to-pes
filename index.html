@@ -642,7 +642,8 @@ function satinPath(xy, w, pull, base) {
   const r = resample(xy, w, spacing / 2);
   return r.P.map((p, i) => {
     const side = i % 2 ? 1 : -1;
-    const h = (r.W[i] + pull) / 2 * side;
+    // pull compensation in proportion to the column: full on wide satin, little on a narrow tip
+    const h = (r.W[i] + Math.min(pull, Math.max(0.08, 0.25 * r.W[i]))) / 2 * side;
     return [p[0] + r.N[i][0] * h, p[1] + r.N[i][1] * h];
   });
 }
@@ -667,6 +668,40 @@ function extendTip(xy, w, atEnd, dist) {
   return [X, WW];
 }
 
+/* Continue a satin column from a free end of its centre line out to where the shape
+   really ends, following the shape's own width, so a tapering point stays a point.
+   (The centre line stops short of a sharp tip.) Falls back to extendTip. */
+function traceTip(xy, w, atEnd, D, W, H, mmpx) {
+  if (!atEnd) {
+    const [a, b] = traceTip(xy.slice().reverse(), w.slice().reverse(), true, D, W, H, mmpx);
+    return [a.reverse(), b.reverse()];
+  }
+  if (xy.length < 3) return [xy, w];
+  const j = Math.max(0, xy.length - 6);
+  let dx = xy[xy.length - 1][0] - xy[j][0], dy = xy[xy.length - 1][1] - xy[j][1];
+  const nd = Math.hypot(dx, dy);
+  if (nd < 1e-6) return extendTip(xy, w, true, w[w.length - 1] / 2 * 0.8);
+  dx /= nd; dy /= nd;
+  const last = xy[xy.length - 1], X = xy.slice(), WW = w.slice();
+  const step = 0.1, maxDist = 8;
+  let dPrev = (w[w.length - 1] / mmpx + 1) / 2;
+  for (let t = step; t <= maxDist; t += step) {
+    const px = last[0] + dx * t, py = last[1] + dy * t;
+    const ix = Math.round(px / mmpx), iy = Math.round(py / mmpx);
+    if (ix < 0 || iy < 0 || ix >= W || iy >= H) break;
+    const d = D[iy * W + ix];
+    if (d < 0.75) break;                      // left the shape
+    if (d > dPrev + 0.6) break;               // getting wider: this end joins a body, not a tip
+    dPrev = Math.min(dPrev, d);
+    X.push([px, py]); WW.push(Math.max(0, 2 * d - 1) * mmpx);
+  }
+  if (X.length === xy.length) return extendTip(xy, w, true, w[w.length - 1] / 2 * 0.8);
+  // finish on a fine point just past the last inside sample
+  const e = X[X.length - 1];
+  X.push([e[0] + dx * 0.15, e[1] + dy * 0.15]); WW.push(0.1);
+  return [X, WW];
+}
+
 /* ------------------------------------------------------------ satin network */
 function networkBlocks(sk, D, W, H, mmpx, opt) {
   const { nodePos, edges: raw } = skeletonGraph(sk, W, H);
@@ -677,6 +712,7 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
   const E = edges.map(([a, b, path]) => {
     let xy = path.map(p => [(p % W) * mmpx, ((p / W) | 0) * mmpx]);
     let w = path.map(p => Math.max(0, 2 * D[p] - 1) * mmpx);
+    const tipA = deg.get(a) === 1 && opt.tips, tipB = deg.get(b) === 1 && opt.tips;
     if (xy.length >= k) {           // moving-average smoothing
       const h = k >> 1, n = xy.length;
       const sx = [], sw = [];
@@ -691,9 +727,29 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       sx[0] = xy[0]; sx[n - 1] = xy[n - 1];
       xy = sx; w = sw;
     }
-    w = w.map(v => Math.min(opt.maxW + 0.3, Math.max(opt.minW, v + opt.extraW)));
-    if (deg.get(a) === 1) [xy, w] = extendTip(xy, w, false, w[0] / 2 * 0.8);
-    if (deg.get(b) === 1) [xy, w] = extendTip(xy, w, true, w[w.length - 1] / 2 * 0.8);
+    // the minimum width fades out over the last 1.5 mm before a free end, so a tapering
+    // point (a feather tip) stays pointed instead of ending in a blunt 1 mm blob
+    const n = xy.length, fromA = new Array(n).fill(0), fromB = new Array(n).fill(0);
+    for (let i = 1; i < n; i++) fromA[i] = fromA[i - 1] + Math.hypot(xy[i][0] - xy[i - 1][0], xy[i][1] - xy[i - 1][1]);
+    for (let i = n - 2; i >= 0; i--) fromB[i] = fromB[i + 1] + Math.hypot(xy[i][0] - xy[i + 1][0], xy[i][1] - xy[i + 1][1]);
+    if (tipA) [xy, w] = traceTip(xy, w, false, D, W, H, mmpx);
+    if (tipB) [xy, w] = traceTip(xy, w, true, D, W, H, mmpx);
+    if (tipA || tipB) {             // recompute distances along the longer path
+      fromA.length = fromB.length = 0;
+      const m = xy.length; for (let i = 0; i < m; i++) { fromA.push(0); fromB.push(0); }
+      for (let i = 1; i < m; i++) fromA[i] = fromA[i - 1] + Math.hypot(xy[i][0] - xy[i - 1][0], xy[i][1] - xy[i - 1][1]);
+      for (let i = m - 2; i >= 0; i--) fromB[i] = fromB[i + 1] + Math.hypot(xy[i][0] - xy[i + 1][0], xy[i][1] - xy[i + 1][1]);
+    }
+    const freeA = deg.get(a) === 1, freeB = deg.get(b) === 1, TAPER = 1.5;
+    w = w.map((v, i) => {
+      let d = Infinity;
+      if (freeA) d = Math.min(d, fromA[i]);
+      if (freeB) d = Math.min(d, fromB[i]);
+      const minW = opt.minW * Math.max(opt.tips ? 0.15 : 0.35, Math.min(1, d / TAPER));
+      return Math.min(opt.maxW + 0.3, Math.max(minW, v + opt.extraW));
+    });
+    if (deg.get(a) === 1 && !tipA) [xy, w] = extendTip(xy, w, false, w[0] / 2 * 0.8);
+    if (deg.get(b) === 1 && !tipB) [xy, w] = extendTip(xy, w, true, w[w.length - 1] / 2 * 0.8);
     return { a, b, xy, w };
   });
   const adj = new Map();
@@ -1600,7 +1656,7 @@ function digitize(p, progress) {
     b.travel = { mask: tm, W, H, mmpx };
     let st0 = b.cmds.length;
     if (nCount) {
-      const blocks = networkBlocks(narrowSk, D, W, H, mmpx, { pruneMM: 1.2, minW: 0.9, maxW: p.satinMax, extraW: 0, pull: p.pull === undefined ? 0.2 : p.pull, satinSpacing: p.satinSpacing || 0.4, underlay: p.underlay || 'normal' });
+      const blocks = networkBlocks(narrowSk, D, W, H, mmpx, { tips: true, pruneMM: 1.2, minW: 0.9, maxW: p.satinMax, extraW: 0, pull: p.pull === undefined ? 0.2 : p.pull, satinSpacing: p.satinSpacing || 0.4, underlay: p.underlay || 'normal' });
       const r = orderNetworks(blocks, cur);
       for (const s of r.seqs) b.points(s);
       if (r.seqs.length) cur = b.cur;
@@ -2005,7 +2061,7 @@ const FABRICS = {
   fleece: { lines: 3.6, pull: 0.3, fillPull: 0.25, underlay: 'heavy' }
 };
 
-const Emb = { readPES, mergeDesigns, FABRICS, logoToLayer, backgroundSet, boldThinLines, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
+const Emb = { readPES, mergeDesigns, FABRICS, logoToLayer, backgroundSet, boldThinLines, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks, labelImage }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
 if (typeof module !== 'undefined' && module.exports) module.exports = Emb;
 root.Emb = Emb;
 

@@ -6,7 +6,7 @@
 <title>Draw to PES</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Archivo+Black&family=Fredoka:wght@700&family=Pacifico&family=Atkinson+Hyperlegible:wght@400;700&family=Recursive:slnt,wght,CASL,MONO@-15..0,300..900,0..1,0..1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Archivo+Black&family=Fredoka:wght@700&family=Pacifico&family=Alfa+Slab+One&family=Cinzel:wght@700&family=Playfair+Display:wght@800&family=Oswald:wght@700&family=Montserrat:wght@800&family=Lobster&family=Kaushan+Script&family=Dancing+Script:wght@700&family=Great+Vibes&family=Satisfy&family=Courgette&family=Graduate&family=Bebas+Neue&family=Stardos+Stencil:wght@700&family=Bangers&family=Rye&family=UnifrakturCook:wght@700&family=Chewy&family=Luckiest+Guy&family=Shrikhand&family=Cinzel+Decorative:wght@900&family=Henny+Penny&family=Mountains+of+Christmas:wght@700&family=Berkshire+Swash&family=Emilys+Candy&family=Creepster&family=Pirata+One&family=Uncial+Antiqua&family=Atkinson+Hyperlegible:wght@400;700&family=Recursive:slnt,wght,CASL,MONO@-15..0,300..900,0..1,0..1&display=swap" rel="stylesheet">
 <style>
 :root {
   /* layout: tool strip | hoop canvas | colors and stitch panel; tools wrap above the canvas on phones */
@@ -133,6 +133,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .tbrow .mini { width: 34px; height: 30px; font-size: 18px; font-weight: 700; }
 .tbrow input[type=text] { flex: 1 1 180px; min-width: 140px; padding: 6px 8px; }
 .tbrow input[type=range] { flex: 1 1 160px; }
+.fontgal summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--accent); }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; max-height: 360px; overflow: auto; padding: 2px; }
+.fgroup { grid-column: 1 / -1; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-top: 6px; }
+.fcard { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 8px 10px; cursor: pointer; text-align: left; display: grid; gap: 2px; min-height: 64px; }
+.fcard[aria-pressed="true"] { border: 2px solid var(--accent); padding: 7px 9px; }
+.fcard .fs { font-size: 24px; line-height: 1.2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fcard .fn { font: 600 12px var(--font-body); color: var(--muted); }
 .tbsize { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; }
 #tbSize { min-width: 4em; text-align: center; }
 .toprow { display: grid; }
@@ -258,12 +265,7 @@ details summary { cursor: pointer; font-weight: 700; }
         </div>
         <div class="tbrow">
           <label for="tbFont"><span data-t="font">Font</span>
-            <select id="tbFont">
-              <option value="block" data-t="font_block" style="font-family:'Archivo Black','Arial Black',sans-serif">Block</option>
-              <option value="rounded" data-t="font_rounded" style="font-family:Fredoka,'Arial Rounded MT Bold',sans-serif;font-weight:700">Rounded</option>
-              <option value="serif" data-t="font_serif" style="font-family:'Abril Fatface',Georgia,serif">Classic serif</option>
-              <option value="script" data-t="font_script" style="font-family:Pacifico,'Brush Script MT',cursive">Script</option>
-            </select>
+            <select id="tbFont"></select>
           </label>
           <span class="tbsize"><span data-t="tbSize">Size</span>
             <button class="mini" type="button" id="tbSmaller" aria-label="Smaller letters">−</button>
@@ -276,6 +278,10 @@ details summary { cursor: pointer; font-weight: 700; }
             <button type="button" data-shape="down" aria-pressed="false" data-t="ts_down">Arch down</button>
           </div>
         </div>
+        <details class="fontgal" id="fontGal">
+          <summary data-t="fontGal">See all fonts</summary>
+          <div class="fgrid" id="fontGrid"></div>
+        </details>
         <div class="tbrow" id="tbCurveRow" hidden>
           <label for="tbCurve"><span data-t="curve">Curve</span>: <span class="num" id="tbCurveV"></span></label>
           <input type="range" id="tbCurve" min="30" max="200" step="5" value="70">
@@ -339,12 +345,7 @@ details summary { cursor: pointer; font-weight: 700; }
         <h2 id="h-text" data-t="textTitle">Text and monograms</h2>
         <div class="field">
           <label for="font" data-t="font">Font</label>
-          <select id="font">
-            <option value="block" data-t="font_block">Block</option>
-            <option value="rounded" data-t="font_rounded">Rounded</option>
-            <option value="serif" data-t="font_serif">Classic serif</option>
-            <option value="script" data-t="font_script">Script</option>
-          </select>
+          <select id="font"></select>
           <span class="hint" id="fontMin"></span>
         </div>
         <div class="field">
@@ -506,7 +507,8 @@ const T = {
       select: 'Drag a box around anything (text, shapes, lines), then drag inside the box to move it. Delete removes it.'
     },
     textPh: 'Type, then Enter',
-    tbText: 'Text', tbSize: 'Size',
+    tbText: 'Text', tbSize: 'Size', fontGal: 'See all fonts', fontMinShort: n => `from ${n} mm`,
+    fgClassic: 'Classic', fgScript: 'Script', fgSport: 'Sport & vintage', fgFun: 'Fun & storybook',
     tbPlace: 'Tap where the text should go and type. The font and size here are used for it.',
     tbEditing: 'Changes apply to the selected text. Press Done when it looks right.'
   },
@@ -577,7 +579,8 @@ const T = {
       select: 'Arrastra un recuadro alrededor de lo que quieras (texto, formas, líneas) y luego arrastra dentro para moverlo. Borrar lo elimina.'
     },
     textPh: 'Escribe y pulsa Enter',
-    tbText: 'Texto', tbSize: 'Tamaño',
+    tbText: 'Texto', tbSize: 'Tamaño', fontGal: 'Ver todas las letras', fontMinShort: n => `desde ${n} mm`,
+    fgClassic: 'Clásicas', fgScript: 'Manuscritas', fgSport: 'Deportivas y vintage', fgFun: 'Divertidas y de cuento',
     tbPlace: 'Toca donde va el texto y escribe. Se usan la letra y el tamaño de aquí.',
     tbEditing: 'Los cambios se aplican al texto seleccionado. Pulsa Listo cuando se vea bien.'
   }
@@ -1194,12 +1197,93 @@ $('tbText').oninput = e => { const v = e.target.value; if (v.trim() && textSel()
 $('tbText').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } };
 
 /* ---------------- lettering: fonts, arcs, monograms */
+/* All Google Fonts under the Open Font License or Apache 2.0, so designs sewn with them
+   can be sold. min = smallest letter height (mm) that sews cleanly. */
 const FONTS = {
-  block: { css: '"Archivo Black", "Arial Black", sans-serif', weight: 400, min: 5 },
-  rounded: { css: '"Fredoka", "Arial Rounded MT Bold", sans-serif', weight: 700, min: 6 },
-  serif: { css: '"Abril Fatface", Georgia, serif', weight: 400, min: 7 },
-  script: { css: '"Pacifico", "Brush Script MT", cursive', weight: 400, min: 8 }
+  // classic
+  block:      { fam: 'Archivo Black', w: 400, fb: '"Arial Black", sans-serif', min: 5, en: 'Block', es: 'Bloque' },
+  sans:       { fam: 'Montserrat', w: 800, fb: 'Arial, sans-serif', min: 5, en: 'Bold sans', es: 'Sans gruesa' },
+  condensed:  { fam: 'Oswald', w: 700, fb: '"Arial Narrow", sans-serif', min: 6, en: 'Tall condensed', es: 'Alta condensada' },
+  slab:       { fam: 'Alfa Slab One', w: 400, fb: 'Rockwell, serif', min: 5, en: 'Slab serif', es: 'Egipcia' },
+  serif:      { fam: 'Abril Fatface', w: 400, fb: 'Georgia, serif', min: 7, en: 'Classic serif', es: 'Clásica con remates' },
+  elegant:    { fam: 'Playfair Display', w: 800, fb: 'Georgia, serif', min: 6, en: 'Elegant serif', es: 'Serif elegante' },
+  roman:      { fam: 'Cinzel', w: 700, fb: 'Georgia, serif', min: 6, en: 'Roman capitals', es: 'Capitales romanas' },
+  // script
+  script:     { fam: 'Pacifico', w: 400, fb: '"Brush Script MT", cursive', min: 8, en: 'Script', es: 'Manuscrita' },
+  lobster:    { fam: 'Lobster', w: 400, fb: 'cursive', min: 8, en: 'Retro script', es: 'Manuscrita retro' },
+  courgette:  { fam: 'Courgette', w: 400, fb: 'cursive', min: 8, en: 'Soft cursive', es: 'Cursiva suave' },
+  brush:      { fam: 'Kaushan Script', w: 400, fb: 'cursive', min: 9, en: 'Brush script', es: 'Pincel' },
+  dancing:    { fam: 'Dancing Script', w: 700, fb: 'cursive', min: 9, en: 'Handwriting', es: 'Caligrafía' },
+  satisfy:    { fam: 'Satisfy', w: 400, fb: 'cursive', min: 10, en: 'Signature', es: 'Firma' },
+  vibes:      { fam: 'Great Vibes', w: 400, fb: 'cursive', min: 12, en: 'Wedding script', es: 'Script de boda' },
+  // sport and vintage
+  varsity:    { fam: 'Graduate', w: 400, fb: 'serif', min: 6, en: 'Varsity / college', es: 'Universitaria' },
+  athletic:   { fam: 'Bebas Neue', w: 400, fb: 'Impact, sans-serif', min: 6, en: 'Athletic', es: 'Deportiva' },
+  stencil:    { fam: 'Stardos Stencil', w: 700, fb: 'sans-serif', min: 7, en: 'Stencil', es: 'Esténcil' },
+  comic:      { fam: 'Bangers', w: 400, fb: 'Impact, sans-serif', min: 6, en: 'Comic', es: 'Cómic' },
+  western:    { fam: 'Rye', w: 400, fb: 'serif', min: 8, en: 'Western', es: 'Del oeste' },
+  oldenglish: { fam: 'UnifrakturCook', w: 700, fb: 'serif', min: 9, en: 'Old English', es: 'Gótica' },
+  celtic:     { fam: 'Uncial Antiqua', w: 400, fb: 'serif', min: 7, en: 'Celtic', es: 'Celta' },
+  // fun and storybook
+  rounded:    { fam: 'Fredoka', w: 700, fb: '"Arial Rounded MT Bold", sans-serif', min: 6, en: 'Rounded', es: 'Redondeada' },
+  bubble:     { fam: 'Chewy', w: 400, fb: 'sans-serif', min: 6, en: 'Bubble', es: 'Burbuja' },
+  cartoon:    { fam: 'Luckiest Guy', w: 400, fb: 'sans-serif', min: 6, en: 'Cartoon', es: 'Caricatura' },
+  groovy:     { fam: 'Shrikhand', w: 400, fb: 'cursive', min: 7, en: 'Groovy 70s', es: 'Retro 70s' },
+  fairytale:  { fam: 'Cinzel Decorative', w: 900, fb: 'serif', min: 8, en: 'Fairy tale', es: 'Cuento de hadas' },
+  storybook:  { fam: 'Henny Penny', w: 400, fb: 'cursive', min: 9, en: 'Storybook', es: 'Libro de cuentos' },
+  whimsical:  { fam: 'Mountains of Christmas', w: 700, fb: 'cursive', min: 9, en: 'Whimsical', es: 'Fantasía' },
+  fancy:      { fam: 'Berkshire Swash', w: 400, fb: 'serif', min: 9, en: 'Fancy swash', es: 'Adornada' },
+  candy:      { fam: 'Emilys Candy', w: 400, fb: 'cursive', min: 9, en: 'Candy', es: 'Dulce' },
+  spooky:     { fam: 'Creepster', w: 400, fb: 'cursive', min: 8, en: 'Spooky', es: 'Terror' },
+  pirate:     { fam: 'Pirata One', w: 400, fb: 'serif', min: 8, en: 'Pirate', es: 'Pirata' }
 };
+for (const F of Object.values(FONTS)) { F.css = `"${F.fam}", ${F.fb}`; F.weight = F.w; }
+const FONT_GROUPS = [
+  ['fgClassic', ['block', 'sans', 'condensed', 'slab', 'serif', 'elegant', 'roman']],
+  ['fgScript', ['script', 'lobster', 'courgette', 'brush', 'dancing', 'satisfy', 'vibes']],
+  ['fgSport', ['varsity', 'athletic', 'stencil', 'comic', 'western', 'oldenglish', 'celtic']],
+  ['fgFun', ['rounded', 'bubble', 'cartoon', 'groovy', 'fairytale', 'storybook', 'whimsical', 'fancy', 'candy', 'spooky', 'pirate']]
+];
+const fontName = k => FONTS[k][lang] || FONTS[k].en;
+function renderFontSelects() {
+  for (const id of ['font', 'tbFont']) {
+    const sel = $(id), cur = sel.value || st.font;
+    sel.innerHTML = '';
+    for (const [g, keys] of FONT_GROUPS) {
+      const og = document.createElement('optgroup'); og.label = t(g);
+      for (const k of keys) {
+        const o = document.createElement('option'); o.value = k; o.textContent = fontName(k);
+        o.style.fontFamily = FONTS[k].css; o.style.fontWeight = FONTS[k].w;
+        og.appendChild(o);
+      }
+      sel.appendChild(og);
+    }
+    sel.value = cur;
+  }
+  if ($('fontGal').open) renderFontGrid();
+}
+/* every font at once, showing the words being written (or the font's name) */
+function renderFontGrid() {
+  const box = $('fontGrid'), q = textSel(), cur = q ? q.txt.font : st.font;
+  const sample = q ? q.txt.text : '';
+  box.innerHTML = '';
+  for (const [g, keys] of FONT_GROUPS) {
+    const h = document.createElement('div'); h.className = 'fgroup'; h.textContent = t(g); box.appendChild(h);
+    for (const k of keys) {
+      const F = FONTS[k];
+      if (document.fonts && document.fonts.load) document.fonts.load(`${F.w} 24px ${F.css}`).catch(() => {});
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'fcard'; b.setAttribute('aria-pressed', k === cur);
+      const s1 = document.createElement('span'); s1.className = 'fs'; s1.style.fontFamily = F.css; s1.style.fontWeight = F.w;
+      s1.textContent = sample || fontName(k);
+      const s2 = document.createElement('span'); s2.className = 'fn'; s2.textContent = fontName(k) + ' · ' + t('fontMinShort', F.min);
+      b.append(s1, s2);
+      b.onclick = () => { setTextOpt('font', k); box.querySelectorAll('.fcard').forEach(x => x.setAttribute('aria-pressed', x === b)); };
+      box.appendChild(b);
+    }
+  }
+}
+$('fontGal').addEventListener('toggle', () => { if ($('fontGal').open) renderFontGrid(); });
 let rendering = 0;                                   // text still waiting for its font
 function withFont(key, fn) {
   const F = FONTS[key];
@@ -1207,7 +1291,7 @@ function withFont(key, fn) {
   const go = () => { try { fn(); } catch (e) { console.error(e); } finally { rendering--; } };
   if (document.fonts && document.fonts.load) document.fonts.load(`${F.weight} 40px ${F.css}`).then(go, go); else go();
 }
-if (document.fonts && document.fonts.load) Object.values(FONTS).forEach(F => document.fonts.load(`${F.weight} 40px ${F.css}`).catch(() => {}));
+if (document.fonts && document.fonts.load) document.fonts.load(`${FONTS.block.weight} 40px ${FONTS.block.css}`).catch(() => {});
 function fontPx(key, capMM) {
   const F = FONTS[key], m = document.createElement('canvas').getContext('2d');
   m.font = `${F.weight} 100px ${F.css}`;
@@ -1898,7 +1982,7 @@ function applyLang() {
   document.title = t('title');
   $('toolHint').textContent = T[lang].hints[st.tool];
   $('curName').textContent = t('machineName', Emb.brotherName(st.color));
-  showDensity(); showFont(); showCurve(); showZoomHint(); syncTextUI();
+  renderFontSelects(); showDensity(); showFont(); showCurve(); showZoomHint(); syncTextUI();
   if (sim) sim.relabel();
   if (st.sel && st.sel.imp) renderImpPanel();
   $('fabricTip').textContent = t('tip_' + st.fabricKey);
