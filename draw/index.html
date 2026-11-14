@@ -1312,11 +1312,18 @@ function analyzeColors(rgba, w, h, kMax) {
    order: array of colour indices in stitch order, angle, density (mm), satinMax (mm) */
 /* Each pixel -> index of the nearest colour (or -1 for transparent), with
    anti-aliasing fringes and tiny specks handed to their neighbours. */
-function labelImage(rgba, W, H, mmpx, C, blurPx, skip) {
+function labelImage(rgba, W, H, mmpx, C, blurPx, skip, detail) {
   const N = W * H;
   let img = new Float32Array(N * 3);
   const alpha = new Uint8Array(N);
   for (let i = 0; i < N; i++) { img[i * 3] = rgba[i * 4]; img[i * 3 + 1] = rgba[i * 4 + 1]; img[i * 3 + 2] = rgba[i * 4 + 2]; alpha[i] = rgba[i * 4 + 3] >= 128 ? 1 : 0; }
+  if (detail) {
+    // sharpen at the scale of one source pixel: in a small picture a thin line is a faint
+    // blend that would otherwise go to the background; this brings it back to its colour
+    const r = Math.max(1, Math.round(0.8 * (detail.srcPx || 1)));
+    const bl = boxBlur3(img, W, H, r);
+    for (let i = 0; i < N * 3; i++) img[i] = Math.max(0, Math.min(255, img[i] + 1.2 * (img[i] - bl[i])));
+  }
   if ((blurPx | 0) > 0) img = boxBlur3(img, W, H, blurPx | 0);
   const labels = new Int16Array(N);
   for (let i = 0; i < N; i++) {
@@ -1337,12 +1344,43 @@ function labelImage(rgba, W, H, mmpx, C, blurPx, skip) {
     for (let i = 0; i < N; i++) if (labels[i] === j) { M[i] = 1; cnt++; }
     if (!cnt) continue;
     const kept = openMask(M, W, H, fringeR);
+    if (detail && j >= 0) protectThin(M, kept, labels, j, W, H, 0.3 / (mmpx * mmpx), !!(detail.fabric && detail.fabric[j]));
     const { lab, comps } = labelComponents(kept, W, H);
     const small = new Set(comps.filter(c => c.count < minArea).map(c => c.id));
     for (let i = 0; i < N; i++) if (M[i] && (!kept[i] || small.has(lab[i]))) unassigned[i] = 1;
   }
   propagateLabels(labels, unassigned, W, H);
   return labels;
+}
+
+/* The fringe cleanup drops parts of a colour thinner than ~0.4 mm. That's right for a
+   soft-edge sliver squeezed between two other colours, but wrong for a thin line on the
+   background or a thin gap between two shapes of one colour: those touch just one other
+   colour. Put such parts back into kept (in place). */
+function protectThin(M, kept, labels, j, W, H, minCount, isFabric) {
+  const N = W * H, thin = new Uint8Array(N);
+  let any = false;
+  for (let i = 0; i < N; i++) if (M[i] && !kept[i]) { thin[i] = 1; any = true; }
+  if (!any) return;
+  const { lab, comps } = labelComponents(thin, W, H);
+  const touch = new Map(), attached = new Uint8Array(comps.length + 1);
+  for (let i = 0; i < N; i++) {
+    if (!thin[i]) continue;
+    const x = i % W, y = (i / W) | 0, id = lab[i];
+    for (const n of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1]) {
+      if (n >= 0 && kept[n]) attached[id] = 1;
+      if (n < 0 || M[n]) continue;
+      let set = touch.get(id);
+      if (!set) touch.set(id, set = new Set());
+      set.add(labels[n]);
+    }
+  }
+  // a thin gap of fabric only counts when it opens onto a wider fabric area (a slit between
+  // feathers); an isolated sliver of the background colour inside a shape is a highlight,
+  // and leaving it out would make a hole
+  const keep = new Set(comps.filter(c => c.count >= minCount && (touch.get(c.id) || new Set()).size === 1 && (!isFabric || attached[c.id])).map(c => c.id));
+  if (!keep.size) return;
+  for (let i = 0; i < N; i++) if (thin[i] && keep.has(lab[i])) kept[i] = 1;
 }
 
 /* Remove areas: the background that touches the picture's edge (opts.removeEdge) and any
@@ -1395,7 +1433,7 @@ function applyRemovals(labels, W, H, opts) {
 /* Lines thinner than minMM can't be sewn: they break up or vanish. Thicken them to
    about minMM, growing only into fabric (never over another stitched colour). Wide
    shapes keep their outline; only genuinely thin parts (lines, small dots, tips) grow. */
-function boldThinLines(labels, W, H, mmpx, stitched, minMM) {
+function boldThinLines(labels, W, H, mmpx, stitched, minMM, protect) {
   const r = minMM / 2 / mmpx;
   if (!(r >= 1)) return 0;
   const N = W * H;
@@ -1422,9 +1460,40 @@ function boldThinLines(labels, W, H, mmpx, stitched, minMM) {
     }
     if (!ns) continue;
     const grow = dilate(seeds, W, H, r);
-    for (let i = 0; i < N; i++) if (grow[i] && !stitched.has(labels[i])) { labels[i] = L; grown++; }
+    for (let i = 0; i < N; i++) if (grow[i] && !stitched.has(labels[i]) && !(protect && protect[i])) { labels[i] = L; grown++; }
   }
   return grown;
+}
+
+/* Detail mode: open narrow gaps of fabric to about 0.7 mm by trimming the wide shapes
+   beside them (never a thin line), then thicken thin lines to minMM without filling
+   those gaps back in. */
+function refineDetail(labels, W, H, mmpx, stitched, minMM) {
+  const N = W * H, B = new Uint8Array(N);
+  let hasB = false;
+  for (let i = 0; i < N; i++) if (!stitched.has(labels[i])) { B[i] = 1; hasB = true; }
+  if (hasB) {
+    const rg = 0.35 / mmpx, D = distIn(B, W, H);
+    const nearWide = dilate(openMask(B, W, H, rg, D), W, H, 0.6 * rg);
+    const seeds = new Uint8Array(N);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x, d = D[i];
+      if (!B[i] || d >= rg || nearWide[i]) continue;
+      let top = true;
+      for (let dy = -1; dy <= 1 && top; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if ((dx || dy) && xx >= 0 && yy >= 0 && xx < W && yy < H && D[yy * W + xx] > d) { top = false; break; }
+      }
+      if (top) seeds[i] = 1;
+    }
+    const S = new Uint8Array(N);
+    for (let i = 0; i < N; i++) S[i] = B[i] ? 0 : 1;
+    const wideS = openMask(S, W, H, 0.5 / mmpx);
+    const widen = dilate(seeds, W, H, rg);
+    for (let i = 0; i < N; i++) if (widen[i] && !B[i] && wideS[i]) { labels[i] = -1; B[i] = 1; }
+  }
+  const protect = hasB ? andNot(B, openMask(B, W, H, 0.45 / mmpx)) : null;
+  boldThinLines(labels, W, H, mmpx, stitched, minMM, protect);
 }
 
 /* Which colours are background: the colour that owns the picture's edge, other colours
@@ -1529,9 +1598,10 @@ function mergeSkips(colors) {
 /* A logo as a flat, editable layer: stitched colours become their thread colour,
    fabric colours and transparent areas become transparent. Returns RGBA bytes. */
 function logoToLayer(rgba, W, H, mmpx, colors, blurPx, removal, opts) {
-  const labels = labelImage(rgba, W, H, mmpx, colors.map(c => c.rgb), blurPx, mergeSkips(colors));
+  const detail = opts && opts.boldMM ? { srcPx: opts.srcPx || 1, fabric: colors.map(c => !c.stitch) } : null;
+  const labels = labelImage(rgba, W, H, mmpx, colors.map(c => c.rgb), blurPx, mergeSkips(colors), detail);
   applyRemovals(labels, W, H, removal);
-  if (opts && opts.boldMM) boldThinLines(labels, W, H, mmpx, new Set(colors.map((c, j) => c.stitch ? j : -1).filter(j => j >= 0)), opts.boldMM);
+  if (detail) refineDetail(labels, W, H, mmpx, new Set(colors.map((c, j) => c.stitch ? j : -1).filter(j => j >= 0)), opts.boldMM);
   const out = new Uint8ClampedArray(W * H * 4);
   for (let i = 0; i < W * H; i++) {
     const c = labels[i] >= 0 ? colors[labels[i]] : null;
@@ -1546,16 +1616,17 @@ function digitize(p, progress) {
   const say = progress || (() => {});
   const N = W * H;
   say('colors');
-  const labels = labelImage(p.rgba, W, H, mmpx, p.colors.map(c => c.rgb), p.blurPx, mergeSkips(p.colors));
+  const labels = labelImage(p.rgba, W, H, mmpx, p.colors.map(c => c.rgb), p.blurPx, mergeSkips(p.colors), p.boldMM ? { srcPx: p.srcPx || 1, fabric: p.colors.map(c => !c.stitch) } : null);
   applyRemovals(labels, W, H, { removeEdge: !!p.removeEdge, seeds: p.removeSeeds || [] });
 
   const stitched = new Set(p.order.filter(j => p.colors[j].stitch));
-  if (p.boldMM) boldThinLines(labels, W, H, mmpx, stitched, p.boldMM);
-  // 4. keep narrow gaps of fabric open (>= ~1 mm) so the stitches don't close them up
+  // 4. keep narrow gaps of fabric open so the stitches don't close them up (in detail
+  // mode they open wider, and thin lines are thickened without filling them)
   const B = new Uint8Array(N);
   let hasB = false;
   for (let i = 0; i < N; i++) if (!stitched.has(labels[i])) { B[i] = 1; hasB = true; }
-  if (hasB) {
+  if (p.boldMM) refineDetail(labels, W, H, mmpx, stitched, p.boldMM);
+  else if (hasB) {
     const narrow = andNot(B, openMask(B, W, H, 0.5 / mmpx));
     const widen = dilate(narrow, W, H, 0.15 / mmpx);
     for (let i = 0; i < N; i++) if (widen[i] && !B[i]) labels[i] = -1;
@@ -3365,7 +3436,7 @@ function renderImport(q) {
   ctx.drawImage(imp.im, -w0 / 2, -h0 / 2, w0, h0);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   const blur = Math.max(0, Math.min(3, Math.round(w0 / imp.nw * 0.5)));
-  const layer = Emb.logoToLayer(ctx.getImageData(0, 0, W, H).data, W, H, 1 / PXMM, impSewn(imp), blur, keepsInside(imp) ? { edgeOf: imp.bgMain } : null, { boldMM: imp.bold ? 1.0 : 0 });
+  const layer = Emb.logoToLayer(ctx.getImageData(0, 0, W, H).data, W, H, 1 / PXMM, impSewn(imp), blur, keepsInside(imp) ? { edgeOf: imp.bgMain } : null, { boldMM: imp.bold ? 1.0 : 0, srcPx: w0 / imp.nw });
   ctx.putImageData(new ImageData(layer, W, H), 0, 0);
   return c;
 }

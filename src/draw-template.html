@@ -1717,7 +1717,7 @@ function renderImport(q) {
   ctx.drawImage(imp.im, -w0 / 2, -h0 / 2, w0, h0);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   const blur = Math.max(0, Math.min(3, Math.round(w0 / imp.nw * 0.5)));
-  const layer = Emb.logoToLayer(ctx.getImageData(0, 0, W, H).data, W, H, 1 / PXMM, impSewn(imp), blur, keepsInside(imp) ? { edgeOf: imp.bgMain } : null, { boldMM: imp.bold ? 1.0 : 0 });
+  const layer = Emb.logoToLayer(ctx.getImageData(0, 0, W, H).data, W, H, 1 / PXMM, impSewn(imp), blur, keepsInside(imp) ? { edgeOf: imp.bgMain } : null, { boldMM: imp.bold ? 1.0 : 0, srcPx: w0 / imp.nw });
   ctx.putImageData(new ImageData(layer, W, H), 0, 0);
   return c;
 }

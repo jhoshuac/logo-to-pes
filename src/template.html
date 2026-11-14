@@ -623,7 +623,7 @@ function buildParams() {
     removeEdge: state.bgMode !== 'keep', removeSeeds: state.seeds.slice(),
     density: 1 / state.lines, satinSpacing: Math.min(0.5, Math.max(0.25, 1 / state.lines + 0.05)),
     pull: Emb.FABRICS[state.fabricKey].pull, fillPull: Emb.FABRICS[state.fabricKey].fillPull, underlay: Emb.FABRICS[state.fabricKey].underlay,
-    basting: state.basting, boldMM: state.bold ? 1.0 : 0
+    basting: state.basting, boldMM: state.bold ? 1.0 : 0, srcPx: up
   };
 }
 function run() {
@@ -800,7 +800,7 @@ $('editLogo').onclick = () => {
   const blur = Math.max(0, Math.min(3, Math.round(W / state.img.naturalWidth * 0.5)));
   const layer = Emb.logoToLayer(ctx.getImageData(0, 0, W, H).data, W, H, 1 / PX,
     state.colors.map(cc => ({ rgb: cc.rgb, stitch: cc.stitch, thread: cc.thread, merge: !!cc.merge })), blur,
-    { removeEdge: state.bgMode !== 'keep', seeds: state.seeds }, { boldMM: state.bold ? 1.0 : 0 });
+    { removeEdge: state.bgMode !== 'keep', seeds: state.seeds }, { boldMM: state.bold ? 1.0 : 0, srcPx: W / state.img.naturalWidth });
   ctx.putImageData(new ImageData(layer, W, H), 0, 0);
   const used = state.order.filter(j => state.colors[j].stitch).map(j => state.colors[j].thread);
   try {
