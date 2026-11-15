@@ -299,7 +299,7 @@ details summary { cursor: pointer; font-weight: 700; }
         <p class="hint" data-t="impHint">Tap a color to sew it or leave it out. Left-out colors show the fabric.</p>
         <div class="impcolors" id="impColors"></div>
         <label class="check" id="impInsideRow" hidden><input type="checkbox" id="impInside"> <span id="impInsideLbl">Keep the background color where it's inside the design</span></label>
-        <label class="check"><input type="checkbox" id="impBold" checked> <span data-t="impBold">Thicken thin lines so they sew (at least 1 mm)</span></label>
+        <label class="check"><input type="checkbox" id="impBold"> <span data-t="impBold">Thicken thin lines (at least 1 mm)</span></label>
         <p class="hint" data-t="impSize">While the picture is selected, the − and + buttons above resize it from the original picture, so details stay sharp. Press Done when it's in place.</p>
       </section>
     </div>
@@ -469,7 +469,7 @@ const T = {
     impTitle: 'Picture', impColorsN: 'Colors', impAuto: n => `Automatic (${n})`,
     impHint: 'Tap a color to sew it or leave it out. Left-out colors show the fabric.',
     impSewn: 'sewn', impOff: 'left out', impBg: 'background, left out',
-    impBold: 'Thicken thin lines so they sew (at least 1 mm)',
+    impBold: 'Thicken thin lines (at least 1 mm)',
     impInside: n => `Keep ${n} where it's inside the design (sparkles, highlights)`,
     impSize: "While the picture is selected, the − and + buttons above resize it from the original picture, so details stay sharp. Press Done when it's in place.",
     fromFile: name => `From ${name}`,
@@ -543,7 +543,7 @@ const T = {
     impTitle: 'Imagen', impColorsN: 'Colores', impAuto: n => `Automático (${n})`,
     impHint: 'Toca un color para bordarlo o dejarlo fuera. Los colores que quedan fuera muestran la tela.',
     impSewn: 'se borda', impOff: 'fuera', impBg: 'fondo, fuera',
-    impBold: 'Engrosar líneas finas para que se borden (mínimo 1 mm)',
+    impBold: 'Engrosar líneas finas (mínimo 1 mm)',
     impInside: n => `Mantener ${n} donde está dentro del diseño (destellos, brillos)`,
     impSize: 'Mientras la imagen está seleccionada, los botones − y + de arriba le cambian el tamaño desde la imagen original, así los detalles quedan nítidos. Pulsa Listo cuando esté en su lugar.',
     fromFile: name => `De ${name}`,
@@ -1778,6 +1778,20 @@ function colorCounts() {
   }
   return counts;
 }
+/* how solid each colour's areas are: the share of its pixels whose neighbours 3 px away on
+   all four sides are the same colour (near 1 for a filled shape, near 0 for an outline) */
+function colorSolidity(colors) {
+  const w = paint.width, h = paint.height, d = pctx.getImageData(0, 0, w, h).data;
+  const key = i => d[i + 3] < 128 ? -1 : (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+  const n = new Map(colors.map(c => [c, 0])), core = new Map(colors.map(c => [c, 0])), r = 3;
+  for (let y = r; y < h - r; y += 2) for (let x = r; x < w - r; x += 2) {
+    const i = (y * w + x) * 4, c = key(i);
+    if (!n.has(c)) continue;
+    n.set(c, n.get(c) + 1);
+    if (key(i - 4 * r) === c && key(i + 4 * r) === c && key(i - 4 * r * w) === c && key(i + 4 * r * w) === c) core.set(c, core.get(c) + 1);
+  }
+  return new Map(colors.map(c => [c, core.get(c) / Math.max(1, n.get(c))]));
+}
 function makeStitches() {
   if (st.busy) return;
   if (rendering) { setStatus('busy', t('busy')); setTimeout(makeStitches, 150); return; }
@@ -1787,9 +1801,11 @@ function makeStitches() {
   let colors = [...counts.entries()].filter(([, n]) => n >= minPx).map(([c]) => c);
   if (!colors.length && !st.layers.length) { setStatus('bad', t('empty')); return; }
   if (!colors.length) { st.jobId++; finishResult(null); return; }
-  // keep the user's order where possible, otherwise biggest areas first
+  // keep the user's order where possible, otherwise solid areas before thin lines (outlines
+  // are sewn last, on top), and bigger areas first among equals
   const prev = (st.order || []).filter(c => colors.includes(c));
-  const rest = colors.filter(c => !prev.includes(c)).sort((a, b) => counts.get(b) - counts.get(a));
+  const sol = colorSolidity(colors);
+  const rest = colors.filter(c => !prev.includes(c)).sort((a, b) => (Math.round((sol.get(b) - sol.get(a)) * 5)) || (counts.get(b) - counts.get(a)));
   st.order = [...prev, ...rest];
   colors = st.order.slice();
   const [hw, hh] = HOOPS[st.hoop];
@@ -1805,7 +1821,7 @@ function makeStitches() {
     order: colors.map((_, i) => i), angle: 45, satinMax: st.satinOn ? 4.5 : 0,
     density: 1 / st.lines, satinSpacing: Math.min(0.5, Math.max(0.25, 1 / st.lines + 0.05)),
     pull: Emb.FABRICS[st.fabricKey].pull, fillPull: Emb.FABRICS[st.fabricKey].fillPull, underlay: Emb.FABRICS[st.fabricKey].underlay,
-    basting: false
+    basting: false, fine: true
   };
   st.busy = true; setStatus('busy', t('busy')); $('make').disabled = true;
   const id = ++st.jobId;
@@ -2132,7 +2148,7 @@ function placeLayer(layerCanvas, used, order) {
 /* A picture stays linked to the original file while it is selected: its colours can be
    switched on and off, thin lines thickened, and resizing redraws it from the original
    so details stay sharp. Done (or any other tool) puts it down as pixels. */
-function importImage(im) {
+function importImage(im, trimmed) {
   const nw = im.naturalWidth || im.width, nh = im.naturalHeight || im.height;
   const s0 = Math.min(1, 320 / Math.max(nw, nh));
   const aw = Math.max(1, Math.round(nw * s0)), ah = Math.max(1, Math.round(nh * s0));
@@ -2140,10 +2156,20 @@ function importImage(im) {
   const actx = a.getContext('2d', { willReadFrequently: true }); actx.drawImage(im, 0, 0, aw, ah);
   const data = actx.getImageData(0, 0, aw, ah).data;
   const an = Emb.analyzeColors(data, aw, ah, 12);
+  // empty margins around the design are trimmed first, so the design itself fills the space
+  if (!trimmed) {
+    const box = Emb.contentBox(an, an.suggested, data, aw, ah);
+    if (box) {
+      const cw = Math.max(1, Math.round(box[2] * nw)), ch = Math.max(1, Math.round(box[3] * nh));
+      const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+      cv.getContext('2d').drawImage(im, Math.round(box[0] * nw), Math.round(box[1] * nh), cw, ch, 0, 0, cw, ch);
+      return importImage(cv, true);
+    }
+  }
   const [hw, hh] = HOOPS[st.hoop];
   let wmm = hw * 0.8, hmm = wmm * nh / nw;
   if (hmm > hh * 0.8) { hmm = hh * 0.8; wmm = hmm * nw / nh; }
-  const imp = { im, nw, nh, an, sample: { data, w: aw, h: ah }, k: 'auto', bold: true, inside: false, bgMain: -1, w: wmm * PXMM, h: hmm * PXMM };
+  const imp = { im, nw, nh, an, sample: { data, w: aw, h: ah }, k: 'auto', bold: false, inside: false, bgMain: -1, w: wmm * PXMM, h: hmm * PXMM };
   impColors(imp);
   closeText(true); commitSel(); st.layerSel = -1;
   snapshot();

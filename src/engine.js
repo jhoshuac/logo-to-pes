@@ -57,17 +57,45 @@ function sqDist(feat, W, H, padFeature) {
   }
   return out;
 }
-function distIn(M, W, H) {           // distance (px) to nearest pixel outside M
-  const inv = new Uint8Array(W * H);
-  for (let i = 0; i < inv.length; i++) inv[i] = M[i] ? 0 : 1;
-  const d = sqDist(inv, W, H, true);
-  for (let i = 0; i < d.length; i++) d[i] = Math.sqrt(d[i]);
-  return d;
+/* Most masks cover a small part of the picture (one colour of several), so the distance
+   work is done only on the box around the mask; the result is the same. */
+function maskBox(M, W, H, pad) {
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) {
+    const o = y * W;
+    let any = false;
+    for (let x = 0; x < W; x++) if (M[o + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; any = true; }
+    if (any) { if (y < y0) y0 = y; y1 = y; }
+  }
+  if (x1 < 0) return null;
+  return [Math.max(0, x0 - pad), Math.max(0, y0 - pad), Math.min(W - 1, x1 + pad), Math.min(H - 1, y1 + pad)];
 }
-function distTo(M, W, H) {           // distance (px) to nearest pixel of M
-  const d = sqDist(M, W, H, false);
-  for (let i = 0; i < d.length; i++) d[i] = Math.sqrt(d[i]);
-  return d;
+function distIn(M, W, H) {           // distance (px) to nearest pixel outside M
+  const out = new Float32Array(W * H);
+  const bx = maskBox(M, W, H, 1);
+  if (!bx) return out;
+  const [x0, y0, x1, y1] = bx, w = x1 - x0 + 1, h = y1 - y0 + 1;
+  const inv = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) { const o = (y + y0) * W + x0; for (let x = 0; x < w; x++) inv[y * w + x] = M[o + x] ? 0 : 1; }
+  const d = sqDist(inv, w, h, true);
+  for (let y = 0; y < h; y++) { const o = (y + y0) * W + x0; for (let x = 0; x < w; x++) out[o + x] = Math.sqrt(d[y * w + x]); }
+  return out;
+}
+function distTo(M, W, H, maxR) {     // distance (px) to nearest pixel of M (exact up to maxR when given)
+  if (maxR === undefined) {
+    const d = sqDist(M, W, H, false);
+    for (let i = 0; i < d.length; i++) d[i] = Math.sqrt(d[i]);
+    return d;
+  }
+  const out = new Float32Array(W * H).fill(1e9);
+  const bx = maskBox(M, W, H, Math.ceil(maxR) + 1);
+  if (!bx) return out;
+  const [x0, y0, x1, y1] = bx, w = x1 - x0 + 1, h = y1 - y0 + 1;
+  const sub = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) { const o = (y + y0) * W + x0; for (let x = 0; x < w; x++) sub[y * w + x] = M[o + x]; }
+  const d = sqDist(sub, w, h, false);
+  for (let y = 0; y < h; y++) { const o = (y + y0) * W + x0; for (let x = 0; x < w; x++) out[o + x] = Math.sqrt(d[y * w + x]); }
+  return out;
 }
 function thresh(d, fn) {
   const o = new Uint8Array(d.length);
@@ -75,7 +103,7 @@ function thresh(d, fn) {
   return o;
 }
 function erode(M, W, H, r) { const d = distIn(M, W, H); return thresh(d, v => v > r); }
-function dilate(M, W, H, r) { const d = distTo(M, W, H); return thresh(d, v => v <= r); }
+function dilate(M, W, H, r) { const d = distTo(M, W, H, r); return thresh(d, v => v <= r); }
 function openMask(M, W, H, r, dIn) {
   const d = dIn || distIn(M, W, H);
   const centers = thresh(d, v => v > r);
@@ -275,6 +303,27 @@ function pruneEdges(edges, minLenPx) {
   return edges;
 }
 
+/* Skeleton spurs are as long as the shape is wide, so the cut-off follows the local width:
+   a short thin line (a tooth mark, an eyelash) is kept, a stub on a thick outline is not. */
+function pruneByWidth(edges, D, mmpx, pruneMM) {
+  const lim = edges.map(([, , p]) => {
+    const ws = p.map(q => Math.max(0, 2 * D[q] - 1) * mmpx).sort((x, y) => x - y);
+    return Math.min(pruneMM, Math.max(0.6, 1.5 * ws[ws.length >> 1] + 0.3)) / mmpx;
+  });
+  let idx = edges.map((_, i) => i);
+  for (let it = 0; it < 3; it++) {
+    const deg = new Map();
+    for (const i of idx) { const [a, b] = edges[i]; deg.set(a, (deg.get(a) || 0) + 1); deg.set(b, (deg.get(b) || 0) + 1); }
+    const keep = idx.filter(i => {
+      const [a, b, p] = edges[i], da = deg.get(a), db = deg.get(b);
+      return !(((da === 1) !== (db === 1) || (da === 1 && db === 1)) && p.length < lim[i]);
+    });
+    if (keep.length === idx.length) break;
+    idx = keep;
+  }
+  return idx.map(i => edges[i]);
+}
+
 /* ------------------------------------------------------------ geometry helpers (mm) */
 function hyp(a, b) { return Math.hypot(b[0] - a[0], b[1] - a[1]); }
 function runPath(pts, step) {
@@ -296,7 +345,7 @@ function interp(t, s, arr) {        // piecewise linear interpolation of arr at 
   const f = (t - s[lo]) / Math.max(1e-9, s[hi] - s[lo]);
   return arr[lo] + (arr[hi] - arr[lo]) * f;
 }
-function resample(xy, w, step) {
+function resample(xy, w, step, tw) {
   const n0 = xy.length;
   const s = new Float64Array(n0);
   for (let i = 1; i < n0; i++) s[i] = s[i - 1] + hyp(xy[i - 1], xy[i]);
@@ -305,7 +354,7 @@ function resample(xy, w, step) {
   if (L < 1e-6) return { P: [xy[0]], W: [w[0]], N: [[0, 0]], L: 0 };
   const n = Math.max(1, Math.round(L / step));
   const P = [], WW = [], N = [];
-  const tw = 0.6;
+  tw = tw || 0.6;
   for (let i = 0; i <= n; i++) {
     const t = L * i / n;
     P.push([interp(t, s, X), interp(t, s, Y)]);
@@ -328,17 +377,51 @@ function underlayPath(xy, w, level) {
     return [p[0] + r.N[i][0] * off, p[1] + r.N[i][1] * off];
   });
 }
-function satinPath(xy, w, pull, base) {
+/* A thin line as running stitches down its middle: corners are kept, long stretches are cut
+   into stitches of about len mm. Sewn out and back it makes a fine double line. */
+function runLine(xy, len) {
+  if (xy.length < 2) return xy.slice();
+  const key = simplifyDP(xy, 0.07), out = [key[0]];
+  for (let i = 1; i < key.length; i++) {
+    const a = key[i - 1], b = key[i], d = hyp(a, b), n = Math.max(1, Math.round(d / len));
+    for (let k = 1; k <= n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+  }
+  // no stitches shorter than 0.6 mm except where a corner needs one
+  const res = [out[0]];
+  for (let i = 1; i < out.length; i++) {
+    if (i < out.length - 1 && hyp(out[i], res[res.length - 1]) < 0.6) continue;
+    res.push(out[i]);
+  }
+  return res;
+}
+function satinPath(xy, w, pull, base, fine) {
   let wmax = 0; for (const v of w) wmax = Math.max(wmax, v);
   base = base || 0.4;                       // peak-to-peak distance between zigzags, mm
   const spacing = wmax < 1.3 ? base * 1.1 : base;
-  const r = resample(xy, w, spacing / 2);
-  return r.P.map((p, i) => {
-    const side = i % 2 ? 1 : -1;
-    // pull compensation in proportion to the column: full on wide satin, little on a narrow tip
-    const h = (r.W[i] + Math.min(pull, Math.max(0.08, 0.25 * r.W[i]))) / 2 * side;
-    return [p[0] + r.N[i][0] * h, p[1] + r.N[i][1] * h];
-  });
+  // on a wide column the stitch direction is taken over a longer stretch, so a bend in the
+  // centre line doesn't fan the stitches apart and leave gaps on the outside
+  const H = i => (r.W[i] + Math.min(pull, Math.max(0.08, 0.25 * r.W[i]))) / 2;
+  if (!fine) {
+    const r0 = resample(xy, w, spacing / 2);
+    return r0.P.map((p, i) => {
+      const side = i % 2 ? 1 : -1;
+      // pull compensation in proportion to the column: full on wide satin, little on a narrow tip
+      const h = (r0.W[i] + Math.min(pull, Math.max(0.08, 0.25 * r0.W[i]))) / 2 * side;
+      return [p[0] + r0.N[i][0] * h, p[1] + r0.N[i][1] * h];
+    });
+  }
+  // sampled finely, then stitches are placed so that neither edge of the column is left
+  // with a gap wider than the spacing: round a tight bend the outside gets more stitches
+  const r = resample(xy, w, spacing / 8, Math.max(0.6, 0.45 * wmax));
+  const edge = (i, sd) => { const h = H(i) * sd; return [r.P[i][0] + r.N[i][0] * h, r.P[i][1] + r.N[i][1] * h]; };
+  const out = [edge(0, -1)];
+  let last = 0, side = 1;
+  for (let i = 1; i < r.P.length; i++) {
+    const dl = hyp(edge(i, -1), edge(last, -1)), dr = hyp(edge(i, 1), edge(last, 1));
+    if (Math.max(dl, dr) < spacing / 2 && i < r.P.length - 1) continue;
+    out.push(edge(i, side)); side = -side; last = i;
+  }
+  return out;
 }
 function extendTip(xy, w, atEnd, dist) {
   if (xy.length < 3 || dist <= 0) return [xy, w];
@@ -395,16 +478,132 @@ function traceTip(xy, w, atEnd, D, W, H, mmpx) {
   return [X, WW];
 }
 
+/* The same job done by measuring the shape across the column at each step (how far it
+   reaches to the left and to the right) instead of the distance to the nearest edge. A
+   point still ends as a point, and a blunt or slanted end is followed right into its
+   corners instead of being rounded off. */
+function traceEnd(xy, w, atEnd, D, W, H, mmpx) {
+  if (!atEnd) {
+    const [a, b] = traceEnd(xy.slice().reverse(), w.slice().reverse(), true, D, W, H, mmpx);
+    return [a.reverse(), b.reverse()];
+  }
+  if (xy.length < 3) return [xy, w];
+  const j = Math.max(0, xy.length - 8);
+  let dx = xy[xy.length - 1][0] - xy[j][0], dy = xy[xy.length - 1][1] - xy[j][1];
+  const nd = Math.hypot(dx, dy);
+  if (nd < 1e-6) return [xy, w];
+  dx /= nd; dy /= nd;
+  const nx = -dy, ny = dx;
+  const inside = (x, y) => { const ix = Math.round(x / mmpx), iy = Math.round(y / mmpx); return ix >= 0 && iy >= 0 && ix < W && iy < H && D[iy * W + ix] > 0; };
+  const last = xy[xy.length - 1], X = xy.slice(), WW = w.slice();
+  const rs = mmpx * 0.5, step = 0.1;
+  // the column's width where the centre line stops, measured the same way
+  const reach = (cx, cy, sx, sy, cap) => { let t = 0; while (t < cap && inside(cx + sx * (t + rs), cy + sy * (t + rs))) t += rs; return t; };
+  let half = Math.max(w[w.length - 1] / 2, 0.15), shift = 0, wMin = Infinity;
+  for (let t = step; t <= 8; t += step) {
+    let cx = last[0] + dx * t + nx * shift, cy = last[1] + dy * t + ny * shift;
+    if (!inside(cx, cy)) {
+      // a slanted end: the shape may go on beside the centre line
+      let found = false;
+      for (let o = rs; o <= half && !found; o += rs) for (const sg of [1, -1]) if (inside(cx + nx * o * sg, cy + ny * o * sg)) { cx += nx * (o + rs) * sg; cy += ny * (o + rs) * sg; shift += (o + rs) * sg; found = true; break; }
+      if (!found) break;
+    }
+    const cap = half + 0.3;
+    const a = reach(cx, cy, nx, ny, cap), b = reach(cx, cy, -nx, -ny, cap);
+    const width = a + b;
+    if (a >= cap || b >= cap || width > wMin + 0.35) break;       // widening: this end joins a body
+    if (width < 0.1) break;
+    wMin = Math.min(wMin, width);
+    const off = (a - b) / 2;
+    shift += off;
+    X.push([cx + nx * off, cy + ny * off]); WW.push(width);
+    half = Math.max(0.15, width / 2);
+  }
+  return [X, WW];
+}
+
+/* A small round part (a pupil, a dot) as one little satin blob that follows its outline. */
+function dotStitches(px, W, mmpx) {
+  let mx = 0, my = 0;
+  for (const q of px) { mx += q % W; my += (q / W) | 0; }
+  mx /= px.length; my /= px.length;
+  let sxx = 0, syy = 0, sxy = 0;
+  for (const q of px) { const x = q % W - mx, y = ((q / W) | 0) - my; sxx += x * x; syy += y * y; sxy += x * y; }
+  const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy), ux = Math.cos(ang), uy = Math.sin(ang);
+  // extent across the long axis, in slabs along it
+  const slab = 0.36 / mmpx, lo = new Map(), hi = new Map();
+  let kmin = Infinity, kmax = -Infinity;
+  for (const q of px) {
+    const x = q % W - mx, y = ((q / W) | 0) - my, u = x * ux + y * uy, v = -x * uy + y * ux, k = Math.round(u / slab);
+    if (!lo.has(k) || v < lo.get(k)) lo.set(k, v);
+    if (!hi.has(k) || v > hi.get(k)) hi.set(k, v);
+    if (k < kmin) kmin = k; if (k > kmax) kmax = k;
+  }
+  const P = (u, v) => [(mx + u * ux - v * uy) * mmpx, (my + u * uy + v * ux) * mmpx];
+  const th = 0.15 / mmpx, out = [];
+  out.push(P(kmin * slab, 0), P(kmax * slab, 0), P(kmin * slab, 0));     // a stitch out and back to sit on
+  for (let k = kmin; k <= kmax; k++) {
+    if (!lo.has(k)) continue;
+    let a = lo.get(k) + th, b = hi.get(k) - th;
+    if (b - a < 0.3 / mmpx) { const c = (a + b) / 2; a = c - 0.15 / mmpx; b = c + 0.15 / mmpx; }
+    out.push(P(k * slab - slab / 4, a), P(k * slab + slab / 4, b));
+  }
+  return out;
+}
+
 /* ------------------------------------------------------------ satin network */
 function networkBlocks(sk, D, W, H, mmpx, opt) {
   const { nodePos, edges: raw } = skeletonGraph(sk, W, H);
-  const edges = pruneEdges(raw, opt.pruneMM / mmpx);
+  let edges = pruneByWidth(raw, D, mmpx, opt.pruneMM);
+  // a line that is thick in one stretch and hair-thin in another is cut where it changes,
+  // so each stretch gets the stitch that suits it (satin / running stitch)
+  if (opt.runMax) {
+    const out = [], hw = Math.max(1, Math.round(0.25 / mmpx)), minLen = Math.round(1.0 / mmpx);
+    for (const [a, b, path] of edges) {
+      const n = path.length, pre = new Float64Array(n + 1);
+      for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + Math.max(0, 2 * D[path[i]] - 1) * mmpx;
+      const thinAt = new Uint8Array(n);
+      let state = -1;
+      for (let i = 0; i < n; i++) {
+        const lo = Math.max(0, i - hw), hi = Math.min(n, i + hw + 1), ws = (pre[hi] - pre[lo]) / (hi - lo);
+        if (state < 0) state = ws < opt.runMax ? 1 : 0;
+        else if (state === 1 && ws >= opt.runMax + 0.08) state = 0;
+        else if (state === 0 && ws < opt.runMax - 0.08) state = 1;
+        thinAt[i] = state;
+      }
+      // stretches as [start, end, thin]; short ones take their neighbour's kind
+      let runs = [];
+      for (let i = 0; i < n;) { let k = i; while (k < n && thinAt[k] === thinAt[i]) k++; runs.push([i, k - 1, thinAt[i]]); i = k; }
+      for (let again = true; again && runs.length > 1;) {
+        again = false;
+        for (let r = 0; r < runs.length; r++) {
+          if (runs[r][1] - runs[r][0] + 1 >= minLen) continue;
+          const merged = [];
+          runs[r][2] = runs[r === 0 ? 1 : r - 1][2];
+          for (const q of runs) { const l = merged[merged.length - 1]; if (l && l[2] === q[2]) l[1] = q[1]; else merged.push(q.slice()); }
+          runs = merged; again = true; break;
+        }
+      }
+      if (runs.length === 1) { out.push([a, b, path, !!runs[0][2]]); continue; }
+      let from = a;
+      runs.forEach((q, qi) => {
+        const last = qi === runs.length - 1;
+        let to = b;
+        if (!last) { const cp = path[q[1]]; to = nodePos.length; nodePos.push([cp % W, (cp / W) | 0]); }
+        out.push([from, to, path.slice(q[0] ? q[0] - 1 : 0, q[1] + 1), !!q[2]]);
+        from = to;
+      });
+    }
+    edges = out;
+  }
   const deg = new Map();
   for (const [a, b] of edges) { deg.set(a, (deg.get(a) || 0) + 1); deg.set(b, (deg.get(b) || 0) + 1); }
   const k = Math.max(1, Math.round(0.4 / mmpx)) | 1;
-  const E = edges.map(([a, b, path]) => {
+  const E = edges.map(([a, b, path, thinLine]) => {
     let xy = path.map(p => [(p % W) * mmpx, ((p / W) | 0) * mmpx]);
     let w = path.map(p => Math.max(0, 2 * D[p] - 1) * mmpx);
+    // a line too thin for satin is sewn as running stitches along its middle
+    if (thinLine) return { a, b, xy, w, run: true };
     const tipA = deg.get(a) === 1 && opt.tips, tipB = deg.get(b) === 1 && opt.tips;
     if (xy.length >= k) {           // moving-average smoothing
       const h = k >> 1, n = xy.length;
@@ -425,8 +624,9 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
     const n = xy.length, fromA = new Array(n).fill(0), fromB = new Array(n).fill(0);
     for (let i = 1; i < n; i++) fromA[i] = fromA[i - 1] + Math.hypot(xy[i][0] - xy[i - 1][0], xy[i][1] - xy[i - 1][1]);
     for (let i = n - 2; i >= 0; i--) fromB[i] = fromB[i + 1] + Math.hypot(xy[i][0] - xy[i + 1][0], xy[i][1] - xy[i + 1][1]);
-    if (tipA) [xy, w] = traceTip(xy, w, false, D, W, H, mmpx);
-    if (tipB) [xy, w] = traceTip(xy, w, true, D, W, H, mmpx);
+    const tipFn = opt.thread ? traceEnd : traceTip;
+    if (tipA) [xy, w] = tipFn(xy, w, false, D, W, H, mmpx);
+    if (tipB) [xy, w] = tipFn(xy, w, true, D, W, H, mmpx);
     if (tipA || tipB) {             // recompute distances along the longer path
       fromA.length = fromB.length = 0;
       const m = xy.length; for (let i = 0; i < m; i++) { fromA.push(0); fromB.push(0); }
@@ -439,7 +639,10 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       if (freeA) d = Math.min(d, fromA[i]);
       if (freeB) d = Math.min(d, fromB[i]);
       const minW = opt.minW * Math.max(opt.tips ? 0.15 : 0.35, Math.min(1, d / TAPER));
-      return Math.min(opt.maxW + 0.3, Math.max(minW, v + opt.extraW));
+      // the thread itself adds to a column's width; on a narrow one that is a big share, so
+      // the needle points move in to keep the sewn line as wide as the drawn one
+      const th = (opt.thread || 0) * Math.max(0, Math.min(1, (3 - v) / 1.5));
+      return Math.min(opt.maxW + 0.3, Math.max(minW, v - th + opt.extraW));
     });
     if (deg.get(a) === 1 && !tipA) [xy, w] = extendTip(xy, w, false, w[0] / 2 * 0.8);
     if (deg.get(b) === 1 && !tipB) [xy, w] = extendTip(xy, w, true, w[w.length - 1] / 2 * 0.8);
@@ -475,7 +678,7 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       const list = adj.get(f.u);
       if (f.i >= list.length) {
         stack.pop();
-        if (f.back) out.push(...satinPath(f.back.xy, f.back.w, opt.pull, opt.satinSpacing));
+        if (f.back) out.push(...(f.back.run ? runLine(f.back.xy, opt.runLen || 1.8) : satinPath(f.back.xy, f.back.w, opt.pull, opt.satinSpacing, !!opt.thread)));
         continue;
       }
       const ei = list[f.i++];
@@ -485,10 +688,10 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       let v, fxy, fw;
       if (e.a === f.u) { v = e.b; fxy = e.xy; fw = e.w; }
       else { v = e.a; fxy = e.xy.slice().reverse(); fw = e.w.slice().reverse(); }
-      out.push(...underlayPath(fxy, fw, opt.underlay));
-      const back = { xy: fxy.slice().reverse(), w: fw.slice().reverse() };
+      out.push(...(e.run ? runLine(fxy, opt.runLen || 1.8) : underlayPath(fxy, fw, opt.underlay)));
+      const back = { xy: fxy.slice().reverse(), w: fw.slice().reverse(), run: e.run };
       if (!vis.has(v)) { vis.add(v); stack.push({ u: v, i: 0, back }); }
-      else out.push(...satinPath(back.xy, back.w, opt.pull, opt.satinSpacing));
+      else out.push(...(e.run ? runLine(back.xy, opt.runLen || 1.8) : satinPath(back.xy, back.w, opt.pull, opt.satinSpacing, !!opt.thread)));
     }
     return out;
   }
@@ -894,6 +1097,14 @@ function kmeans(samples, k, iters, rnd) {
   for (let i = 0; i < n; i++) counts[asg[i]]++;
   return { centers: C, counts };
 }
+function rgb2lab(c) {
+  const f = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const r = f(c[0]), g = f(c[1]), b = f(c[2]);
+  const x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047, y = 0.2126 * r + 0.7152 * g + 0.0722 * b, z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+  const t = v => v > 0.008856 ? Math.cbrt(v) : 7.787 * v + 16 / 116;
+  return [116 * t(y) - 16, 500 * (t(x) - t(y)), 200 * (t(y) - t(z))];
+}
+function labDist(p, q) { const a = rgb2lab(p), b = rgb2lab(q); return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]); }
 /* Find the logo's flat colours. rgba: Uint8ClampedArray, small analysis image. */
 function analyzeColors(rgba, w, h, kMax) {
   kMax = kMax || 6;
@@ -932,13 +1143,15 @@ function analyzeColors(rgba, w, h, kMax) {
     }
     return false;
   };
-  const s = [], sAll = [];
+  const s = [], sAll = [], sFlat = [];
   let transparent = 0, total = 0;
   for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
     const i = (y * w + x) * 4; total++;
     if (rgba[i + 3] < 128) { transparent++; continue; }
     sAll.push(rgba[i], rgba[i + 1], rgba[i + 2]);
-    if (flatAt(x, y) || ridgeAt(x, y)) s.push(rgba[i], rgba[i + 1], rgba[i + 2]);
+    const fl = flatAt(x, y);
+    if (fl) sFlat.push(rgba[i], rgba[i + 1], rgba[i + 2]);
+    if (fl || ridgeAt(x, y)) s.push(rgba[i], rgba[i + 1], rgba[i + 2]);
   }
   const samples = Float64Array.from(s.length >= 0.3 * sAll.length && s.length >= 300 ? s : sAll);
   const n = samples.length / 3;
@@ -956,7 +1169,7 @@ function analyzeColors(rgba, w, h, kMax) {
   // every pixel -> nearest colour, with counts and how solid each colour is (the share of its
   // pixels whose 4 neighbours are the same colour; soft edges are 1-2 px slivers and score ~0)
   const labelAll = C => {
-    const m = C.length, lab = new Int16Array(N), cnt = new Array(m).fill(0), core = new Array(m).fill(0);
+    const m = C.length, lab = new Int16Array(N), cnt = new Array(m).fill(0), core = new Array(m).fill(0), blob = new Array(m).fill(0), deep = C.map(() => [0, 0, 0]);
     for (let i = 0; i < N; i++) {
       if (rgba[i * 4 + 3] < 128) { lab[i] = -1; continue; }
       let b = 0, bd = Infinity;
@@ -965,30 +1178,90 @@ function analyzeColors(rgba, w, h, kMax) {
     }
     for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
       const i = y * w + x, L = lab[i];
-      if (L >= 0 && lab[i - 1] === L && lab[i + 1] === L && lab[i - w] === L && lab[i + w] === L) core[L]++;
+      if (L >= 0 && lab[i - 1] === L && lab[i + 1] === L && lab[i - w] === L && lab[i + w] === L) {
+        core[L]++;
+        // a solid patch: everything within 2 px is this colour (soft edges and thin lines never are)
+        if (x >= 2 && y >= 2 && x < w - 2 && y < h - 2) {
+          let all = true;
+          for (let dy = -2; dy <= 2 && all; dy++) for (let dx = -2; dx <= 2; dx++) if (lab[i + dy * w + dx] !== L) { all = false; break; }
+          if (all) { blob[L]++; deep[L][0] += rgba[i * 4]; deep[L][1] += rgba[i * 4 + 1]; deep[L][2] += rgba[i * 4 + 2]; }
+        }
+      }
     }
-    return { lab, cnt, core };
+    return { lab, cnt, core, blob, deep };
   };
-  const bestSize = {};
-  for (let k = 1; k <= kMax; k++) {
-    if (n < k) break;
-    const r = kmeans(samples, k, 14, lcg(7 + k));
-    let C = r.centers.filter((_, i) => r.counts[i] > 0);
+  // near-identical centres (two yellows that differ only by JPEG noise) are one thread colour
+  const mergeClose = (C, cnt) => {
+    C = C.map(c => c.slice()); cnt = cnt.slice();
+    for (let again = true; again;) {
+      again = false;
+      for (let i = 0; i < C.length && !again; i++) for (let j = i + 1; j < C.length && !again; j++) {
+        if (dist(C[i], C[j]) >= 40 && labDist(C[i], C[j]) >= 15) continue;
+        const t = cnt[i] + cnt[j] || 1;
+        C[i] = [0, 1, 2].map(c => (C[i][c] * cnt[i] + C[j][c] * cnt[j]) / t); cnt[i] = t;
+        C.splice(j, 1); cnt.splice(j, 1); again = true;
+      }
+    }
+    return C;
+  };
+  // a palette settled on the picture: soft-edge colours dropped, counts, border ownership
+  const settle = C => {
     let L = labelAll(C);
     // soft edges are not thread colours: a thin colour that sits between two others is dropped
-    // and its pixels go to whichever real colour is nearer
-    if (C.length > 2) {
+    // and its pixels go to whichever real colour is nearer. One that has a solid patch of its
+    // own (a pink tongue, which is "between" white and red) is real: it stays, re-centred on
+    // that patch so the soft edges it collected don't grey it
+    for (let round = 0; round < 2 && C.length > 2; round++) {
       const drop = new Set();
+      let moved = false;
+      C = C.map(c => c.slice());
       for (let i = 0; i < C.length; i++) {
         if (L.core[i] / Math.max(1, L.cnt[i]) >= 0.15) continue;
         let isB = false;
         for (let a = 0; a < C.length && !isB; a++) for (let b = a + 1; b < C.length && !isB; b++) if (a !== i && b !== i && between(C, i, a, b)) isB = true;
-        if (isB) drop.add(i);
+        if (!isB) continue;
+        if (L.blob[i] >= 6 && round === 0) { C[i] = L.deep[i].map(v => v / L.blob[i]); moved = true; }
+        else if (L.blob[i] < 6) drop.add(i);
       }
-      if (drop.size && drop.size < C.length) { C = C.filter((_, i) => !drop.has(i)); L = labelAll(C); }
+      if (drop.size && drop.size < C.length) C = C.filter((_, i) => !drop.has(i));
+      if (!drop.size && !moved) break;
+      L = labelAll(C);
+    }
+    // a kept mix colour still collects soft edges all over the picture (grey edges of black
+    // lines look pink enough). Only the pixels at its solid patches count as that colour
+    if (C.length > 2) {
+      let changed = false;
+      for (let i = 0; i < C.length; i++) {
+        if (L.blob[i] < 6 || L.core[i] / Math.max(1, L.cnt[i]) >= 0.15) continue;
+        let isB = false;
+        for (let a = 0; a < C.length && !isB; a++) for (let b = a + 1; b < C.length && !isB; b++) if (a !== i && b !== i && between(C, i, a, b)) isB = true;
+        if (!isB) continue;
+        const solid = new Uint8Array(N);
+        for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) {
+          const q = y * w + x;
+          if (L.lab[q] !== i) continue;
+          let all = true;
+          for (let dy = -2; dy <= 2 && all; dy++) for (let dx = -2; dx <= 2; dx++) if (L.lab[q + dy * w + dx] !== i) { all = false; break; }
+          if (all) solid[q] = 1;
+        }
+        const near = dilate(solid, w, h, 4);
+        for (let q = 0; q < N; q++) {
+          if (L.lab[q] !== i || near[q]) continue;
+          let b = -1, bd = Infinity;
+          for (let j = 0; j < C.length; j++) { if (j === i) continue; const d = (rgba[q * 4] - C[j][0]) ** 2 + (rgba[q * 4 + 1] - C[j][1]) ** 2 + (rgba[q * 4 + 2] - C[j][2]) ** 2; if (d < bd) { bd = d; b = j; } }
+          L.lab[q] = b; changed = true;
+        }
+      }
+      if (changed) {
+        L.cnt.fill(0); L.core.fill(0);
+        for (let q = 0; q < N; q++) if (L.lab[q] >= 0) L.cnt[L.lab[q]]++;
+        for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+          const q = y * w + x, l = L.lab[q];
+          if (l >= 0 && L.lab[q - 1] === l && L.lab[q + 1] === l && L.lab[q - w] === l && L.lab[q + w] === l) L.core[l]++;
+        }
+      }
     }
     const m = C.length;
-    results[k] = { centers: C, counts: L.cnt };
     // which colour owns the image border (likely the fabric / background)
     const bc = new Array(m).fill(0);
     let bt = 0;
@@ -996,28 +1269,70 @@ function analyzeColors(rgba, w, h, kMax) {
     for (let x = 0; x < w; x++) { visit(x); visit((h - 1) * w + x); }
     for (let y = 1; y < h - 1; y++) { visit(y * w); visit(y * w + w - 1); }
     const bTotal = 2 * w + 2 * (h - 2);
-    border[k] = { counts: bc, transparent: bt, total: bTotal };
-    if (k === 1) continue;
     let bgi = -1;
     if (bt < bTotal * 0.5) { const mx = Math.max(...bc); if (mx > bTotal * 0.3) bgi = bc.indexOf(mx); }
     // shares are measured against the design itself, not the background around it
     let fgN = 0;
     for (let j = 0; j < m; j++) if (j !== bgi) fgN += L.cnt[j];
     fgN = Math.max(1, fgN);
+    return { C, L, bgi, fgN, result: { centers: C, counts: L.cnt, solid: L.cnt.map((c, i) => L.core[i] / Math.max(1, c)), patch: L.blob }, border: { counts: bc, transparent: bt, total: bTotal } };
+  };
+  const flatMask = new Uint8Array(N);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (rgba[(y * w + x) * 4 + 3] >= 128 && flatAt(x, y)) flatMask[y * w + x] = 1;
+  const bestSize = {};
+  for (let k = 1; k <= kMax; k++) {
+    if (n < k) break;
+    const r = kmeans(samples, k, 14, lcg(7 + k));
+    const keep = r.centers.map((_, i) => i).filter(i => r.counts[i] > 0);
+    const S = settle(mergeClose(keep.map(i => r.centers[i]), keep.map(i => r.counts[i])));
+    const { C, L, bgi, fgN } = S, m = C.length;
+    results[k] = S.result; border[k] = S.border;
+    if (k === 1) continue;
     let ok = m >= 2;
     for (let i = 0; i < m && ok; i++) {
-      for (let j = i + 1; j < m && ok; j++) if (dist(C[i], C[j]) < 40) ok = false;
+      for (let j = i + 1; j < m && ok; j++) if (dist(C[i], C[j]) < 40 || labDist(C[i], C[j]) < 24) ok = false;
       if (i === bgi || !ok) continue;
       // tiny colours are usually noise, but a clearly different one (small text, an eye) counts from less
       let near = Infinity;
       for (let j = 0; j < m; j++) if (j !== i) near = Math.min(near, dist(C[i], C[j]));
-      if (L.cnt[i] / fgN < (near > 90 ? 0.006 : 0.02) || L.cnt[i] < 12) ok = false;
+      // (and a solid little patch of a clearly different colour from even less)
+      if (L.cnt[i] / fgN < (near > 90 ? (L.core[i] / L.cnt[i] >= 0.3 ? 0.003 : 0.006) : 0.02) || L.cnt[i] < 12) ok = false;
     }
     // the suggestion is the count with the most real colours (the smallest k that reaches it)
     if (ok && !(m in bestSize)) bestSize[m] = k;
   }
   const sizes = Object.keys(bestSize).map(Number);
   if (sizes.length) suggested = bestSize[Math.max(...sizes)];
+  // a small flat colour that none of the palettes caught (a tongue, an iris): look for flat
+  // pixels far from every colour of the suggestion, and offer the palette with them added
+  if (results[suggested] && results[suggested].centers.length >= 2) {
+    const base = results[suggested].centers, nf = sFlat.length / 3;
+    let miss = [];
+    for (let i = 0; i < nf; i++) {
+      const p = [sFlat[i * 3], sFlat[i * 3 + 1], sFlat[i * 3 + 2]];
+      if (base.every(c => dist(c, p) > 70 && labDist(c, p) > 22)) miss.push(p);
+    }
+    const extra = [];
+    while (miss.length >= 6 && extra.length < 4) {
+      const sub = miss.length > 1500 ? miss.filter((_, i) => i % Math.ceil(miss.length / 1500) === 0) : miss;
+      let best = null, bestN = 0;
+      for (const p of sub) { let c = 0; for (const q of sub) if (dist(p, q) < 40) c++; if (c > bestN) { bestN = c; best = p; } }
+      const near = miss.filter(q => dist(best, q) < 40);
+      if (near.length < 6) break;
+      const c = [0, 1, 2].map(k => near.reduce((a, q) => a + q[k], 0) / near.length);
+      extra.push(c);
+      miss = miss.filter(q => dist(c, q) >= 60);
+    }
+    if (extra.length) {
+      let S = settle(base.concat(extra));
+      // keep only additions that are real: a solid patch and a fair share of the design
+      const good = S.C.filter((c, i) => base.some(b => dist(b, c) < 1) || (S.L.blob[i] >= 6 && S.L.cnt[i] / S.fgN >= 0.004));
+      if (good.length > base.length) {
+        if (good.length < S.C.length) S = settle(good);
+        results[kMax + 1] = S.result; border[kMax + 1] = S.border; suggested = kMax + 1;
+      }
+    }
+  }
   return { results, suggested: Math.max(1, suggested), border, transparentShare: transparent / Math.max(1, total) };
 }
 
@@ -1026,7 +1341,7 @@ function analyzeColors(rgba, w, h, kMax) {
    Returns [[k, size], ...]; a k that is not listed maps to the listed k of the same size. */
 function colorChoices(an) {
   const out = [], seen = new Map();
-  for (let k = 1; k <= 12; k++) {
+  for (const k of Object.keys(an.results).map(Number).sort((a, b) => a - b)) {
     const r = an.results[k];
     if (!r) continue;
     const m = r.centers.length;
@@ -1065,8 +1380,18 @@ function labelImage(rgba, W, H, mmpx, C, blurPx, skip, detail) {
     }
     labels[i] = b;
   }
+  if (detail) followFaintLines(labels, img, W, H, mmpx, C, detail.fabric || []);
   const unassigned = new Uint8Array(N);
   const fringeR = 0.2 / mmpx, minArea = 0.5 / (mmpx * mmpx);
+  const mixOf = i => {
+    for (let a = 0; a < C.length; a++) for (let b = a + 1; b < C.length; b++) {
+      if (a === i || b === i) continue;
+      const ab = [C[b][0] - C[a][0], C[b][1] - C[a][1], C[b][2] - C[a][2]], ai = [C[i][0] - C[a][0], C[i][1] - C[a][1], C[i][2] - C[a][2]];
+      const L2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2 || 1, t = (ab[0] * ai[0] + ab[1] * ai[1] + ab[2] * ai[2]) / L2;
+      if (t > 0.1 && t < 0.9 && Math.hypot(ai[0] - t * ab[0], ai[1] - t * ab[1], ai[2] - t * ab[2]) < Math.max(30, 0.25 * Math.sqrt(L2))) return true;
+    }
+    return false;
+  };
   for (let j = -1; j < C.length; j++) {
     const M = new Uint8Array(N);
     let cnt = 0;
@@ -1076,10 +1401,77 @@ function labelImage(rgba, W, H, mmpx, C, blurPx, skip, detail) {
     if (detail && j >= 0) protectThin(M, kept, labels, j, W, H, 0.3 / (mmpx * mmpx), !!(detail.fabric && detail.fabric[j]), C, img);
     const { lab, comps } = labelComponents(kept, W, H);
     const small = new Set(comps.filter(c => c.count < minArea).map(c => c.id));
+    // a colour that is a mix of two others (pink between white and red) also turns up as
+    // specks in soft edges. Its real areas are solid; a narrow bit squeezed between two
+    // other colours is a soft edge
+    if (j >= 0 && mixOf(j)) {
+      const D = distIn(kept, W, H), wide = new Float32Array(comps.length + 1), touch = comps.map(() => new Set());
+      for (let i = 0; i < N; i++) {
+        if (!kept[i]) continue;
+        const id = lab[i], x = i % W, y = (i / W) | 0;
+        if (D[i] > wide[id]) wide[id] = D[i];
+        for (const n of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1]) if (n >= 0 && !M[n]) touch[id - 1].add(labels[n]);
+      }
+      for (const c of comps) if (touch[c.id - 1].size >= 2 && (wide[c.id] * mmpx < 0.45 || c.count * mmpx * mmpx < 2)) small.add(c.id);
+    }
     for (let i = 0; i < N; i++) if (M[i] && (!kept[i] || small.has(lab[i]))) unassigned[i] = 1;
   }
   propagateLabels(labels, unassigned, W, H);
   return labels;
+}
+
+/* A drawn line that gets thin also gets faint (it is narrower than the picture's blur), and
+   where it is less than half-way to its colour the nearest-colour step gives it to the
+   background: the outline breaks. Follow such a line from its solid part: a pixel joins
+   colour j when it is partly that colour (a quarter or more of the way from its own colour),
+   it is the crest of a ridge (both sides are less so), and it connects to colour j. */
+function followFaintLines(labels, img, W, H, mmpx, C, fabric) {
+  const N = W * H, r = Math.max(2, Math.round(0.22 / mmpx));
+  const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]];
+  for (let j = 0; j < C.length; j++) {
+    if (fabric[j]) continue;
+    const cand = new Uint8Array(N);
+    let any = false;
+    const tOf = (i, base, ab, L2) => {
+      const a0 = img[i * 3] - base[0], a1 = img[i * 3 + 1] - base[1], a2 = img[i * 3 + 2] - base[2];
+      return (ab[0] * a0 + ab[1] * a1 + ab[2] * a2) / L2;
+    };
+    for (let y = r; y < H - r; y++) for (let x = r; x < W - r; x++) {
+      const i = y * W + x, L0 = labels[i];
+      if (L0 < 0 || L0 === j) continue;
+      const base = C[L0], ab = [C[j][0] - base[0], C[j][1] - base[1], C[j][2] - base[2]];
+      const L2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2;
+      if (L2 < 3600) continue;
+      const t = tOf(i, base, ab, L2);
+      if (t < 0.22) continue;
+      const a0 = img[i * 3] - base[0] - t * ab[0], a1 = img[i * 3 + 1] - base[1] - t * ab[1], a2 = img[i * 3 + 2] - base[2] - t * ab[2];
+      if (Math.hypot(a0, a1, a2) > Math.max(30, 0.25 * Math.sqrt(L2))) continue;
+      for (const [dx, dy] of dirs) {
+        const p = i + (dy * W + dx) * r, q = i - (dy * W + dx) * r;
+        if (labels[p] === j || labels[q] === j) continue;
+        const need = Math.max(0.08, 0.4 * t);
+        if (t - tOf(p, base, ab, L2) >= need && t - tOf(q, base, ab, L2) >= need) { cand[i] = 1; any = true; break; }
+      }
+    }
+    if (!any) continue;
+    // grow from colour j through the candidates
+    const stack = [];
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      if (!cand[i]) continue;
+      for (let dy = -1, hit = false; dy <= 1 && !hit; dy++) for (let dx = -1; dx <= 1; dx++) if (labels[i + dy * W + dx] === j) { stack.push(i); hit = true; break; }
+    }
+    for (const i of stack) { cand[i] = 0; labels[i] = j; }
+    while (stack.length) {
+      const i = stack.pop(), x = i % W, y = (i / W) | 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+        const n = yy * W + xx;
+        if (cand[n]) { cand[n] = 0; labels[n] = j; stack.push(n); }
+      }
+    }
+  }
 }
 
 /* The fringe cleanup drops parts of a colour thinner than ~0.4 mm. That's right for a
@@ -1323,7 +1715,8 @@ function backgroundSet(an, k, rgba, w, h) {
     let more = false;
     const blendPass = pass % 2 === 0;
     for (let j = 0; j < n; j++) {
-      const isBlend = sliver(j) && blend(j);
+      // (a colour with a solid patch of its own is real, however many soft edges share its colour)
+      const isBlend = sliver(j) && blend(j) && !(r.patch && r.patch[j] >= 6);
       if (isBlend !== blendPass) continue;
       if (set.has(j) || !(similar(j) || isBlend) || !area[j] || area[j] > 0.6 * area[bg]) continue;
       const fg = new Uint8Array(N), bgm = new Uint8Array(N), M = new Uint8Array(N);
@@ -1357,6 +1750,32 @@ function backgroundSet(an, k, rgba, w, h) {
 /* Colours marked merge (left-out shades of the background) are folded into whatever is
    nearest, usually the main background, so thin shadows and soft edges don't become
    slivers of their own that the cleanup then hands to the design. */
+/* Where the design sits in the picture: the box around everything that is not background,
+   as fractions [x, y, w, h] of the picture, or null when there is no background or the
+   design already fills the picture. Lets a small drawing with wide margins use the hoop. */
+function contentBox(an, k, rgba, w, h) {
+  const r = an.results[k], bd = an.border[k];
+  if (!r || !bd || r.centers.length < 2 || bd.transparent >= bd.total * 0.5) return null;
+  const m = Math.max(...bd.counts);
+  if (m <= bd.total * 0.3) return null;
+  const bg = new Set(backgroundSet(an, k, rgba, w, h)); bg.add(bd.counts.indexOf(m));
+  const C = r.centers;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    if (rgba[i + 3] < 128) continue;
+    let b = 0, best = Infinity;
+    for (let j = 0; j < C.length; j++) { const d = (rgba[i] - C[j][0]) ** 2 + (rgba[i + 1] - C[j][1]) ** 2 + (rgba[i + 2] - C[j][2]) ** 2; if (d < best) { best = d; b = j; } }
+    if (bg.has(b)) continue;
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  if (x1 < 0) return null;
+  const pad = Math.max(2, Math.round(0.02 * Math.max(x1 - x0, y1 - y0)));
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+  if (bw >= 0.93 * w && bh >= 0.93 * h) return null;
+  return [x0 / w, y0 / h, bw / w, bh / h];
+}
 function mergeSkips(colors) {
   const skip = colors.map(c => !!c.merge && !c.stitch);
   return skip.some(Boolean) && skip.some(v => !v) ? skip : null;
@@ -1379,6 +1798,7 @@ function logoToLayer(rgba, W, H, mmpx, colors, blurPx, removal, opts) {
   return out;
 }
 
+const debugLabels = { on: false, labels: null };
 function digitize(p, progress) {
   const { W, H, mmpx } = p;
   const say = progress || (() => {});
@@ -1393,13 +1813,14 @@ function digitize(p, progress) {
   const B = new Uint8Array(N);
   let hasB = false;
   for (let i = 0; i < N; i++) if (!stitched.has(labels[i])) { B[i] = 1; hasB = true; }
-  if (p.boldMM) refineDetail(labels, W, H, mmpx, stitched, p.boldMM);
+  if (p.boldMM || p.fine) refineDetail(labels, W, H, mmpx, stitched, p.boldMM || 0);
   else if (hasB) {
     const narrow = andNot(B, openMask(B, W, H, 0.5 / mmpx));
     const widen = dilate(narrow, W, H, 0.15 / mmpx);
     for (let i = 0; i < N; i++) if (widen[i] && !B[i]) labels[i] = -1;
   }
 
+  if (debugLabels.on) debugLabels.labels = labels.slice();
   // 5. digitize each stitched colour
   const b = new Builder();
   const threads = [], used = [];
@@ -1414,7 +1835,16 @@ function digitize(p, progress) {
     if (!cnt) return;
     const later = new Uint8Array(N);
     for (const k of order.slice(oi + 1)) for (let i = 0; i < N; i++) if (labels[i] === k) later[i] = 1;
-    const R = or(M, and(dilate(M, W, H, 0.25 / mmpx), later));
+    // this colour runs a little way under the colours sewn after it, so no fabric shows
+    // between them. Under a thin outline it must stop short of the outline's far edge
+    // (allowing for the stitches' own overshoot), or it would peek out the other side
+    let R;
+    if (p.fine) {
+      const dM = distTo(M, W, H, 0.4 / mmpx + 1), dU = distIn(or(M, later), W, H);
+      const u = 0.4 / mmpx, marg = ((p.fillPull || 0) + 0.15) / mmpx;
+      R = M.slice();
+      for (let i = 0; i < N; i++) if (!M[i] && later[i] && dM[i] <= u && dM[i] + marg <= dU[i]) R[i] = 1;
+    } else R = or(M, and(dilate(M, W, H, 0.25 / mmpx), later));
     const D = distIn(R, W, H);
     const half = p.satinMax / 2 / mmpx;
     const thick = openMask(R, W, H, half, D);
@@ -1435,22 +1865,44 @@ function digitize(p, progress) {
     b.travel = { mask: tm, W, H, mmpx };
     let st0 = b.cmds.length;
     if (nCount) {
-      const blocks = networkBlocks(narrowSk, D, W, H, mmpx, { tips: true, pruneMM: 1.2, minW: 0.9, maxW: p.satinMax, extraW: 0, pull: p.pull === undefined ? 0.2 : p.pull, satinSpacing: p.satinSpacing || 0.4, underlay: p.underlay || 'normal' });
+      const blocks = networkBlocks(narrowSk, D, W, H, mmpx, { tips: true, pruneMM: 1.2, minW: p.fine ? 0.35 : 0.9, runMax: p.fine ? 0.5 : 0, thread: p.fine ? 0.35 : 0, maxW: p.satinMax, extraW: 0, pull: p.pull === undefined ? 0.2 : p.pull, satinSpacing: p.satinSpacing || 0.4, underlay: p.underlay || 'normal' });
       const r = orderNetworks(blocks, cur);
       for (const s of r.seqs) b.points(s);
       if (r.seqs.length) cur = b.cur;
     }
-    // a small round part (an eye, a dot, the tittle of an i) is too narrow for fill and its
-    // skeleton is only a point or a stub that the satin step prunes away; fill those instead
-    // of losing them
+    // parts that neither the fill nor a satin column reaches: a small round part (an eye, a
+    // dot, the tittle of an i) whose centre line is only a point, or a short lobe on the edge
+    // of a filled shape whose centre line is a stub that gets pruned. Fill them instead of
+    // losing them.
     {
-      const live = new Uint8Array(N);
-      if (nCount) for (const [, , path] of pruneEdges(skeletonGraph(narrowSk, W, H).edges, 1.2 / mmpx)) for (const q of path) live[q] = 1;
-      const rc = labelComponents(R, W, H);
-      const ok = new Uint8Array(rc.comps.length + 2);
-      for (let i = 0; i < N; i++) if (R[i] && (fillMask[i] || live[i])) ok[rc.lab[i]] = 1;
-      const add = new Set(rc.comps.filter(c => !ok[c.id] && c.count * mmpx * mmpx > 0.6).map(c => c.id));
-      if (add.size) for (let i = 0; i < N; i++) if (R[i] && add.has(rc.lab[i])) fillMask[i] = 1;
+      const cover = fillMask.slice();
+      if (nCount) for (const [, , path] of pruneByWidth(skeletonGraph(narrowSk, W, H).edges, D, mmpx, 1.2)) for (const q of path) {
+        const rr = Math.ceil(D[q] + 1.5), qx = q % W, qy = (q / W) | 0, r2 = (D[q] + 1.5) ** 2;
+        for (let dy = -rr; dy <= rr; dy++) { const yy = qy + dy; if (yy < 0 || yy >= H) continue; for (let dx = -rr; dx <= rr; dx++) { const xx = qx + dx; if (xx >= 0 && xx < W && dx * dx + dy * dy <= r2) cover[yy * W + xx] = 1; } }
+      }
+      const rest = andNot(R, cover);
+      const rc = labelComponents(rest, W, H);
+      if (rc.comps.length) {
+        const whole = labelComponents(R, W, H), busy = new Uint8Array(whole.comps.length + 2), onFill = new Uint8Array(rc.comps.length + 2);
+        for (let i = 0; i < N; i++) if (R[i] && cover[i]) busy[whole.lab[i]] = 1;
+        for (let i = 0; i < N; i++) {
+          if (!rest[i]) continue;
+          const x = i % W, y = (i / W) | 0;
+          if ((x > 0 && fillMask[i - 1]) || (x < W - 1 && fillMask[i + 1]) || (y > 0 && fillMask[i - W]) || (y < H - 1 && fillMask[i + W])) onFill[rc.lab[i]] = 1;
+        }
+        const add = new Set();
+        for (const c of rc.comps) {
+          const area = c.count * mmpx * mmpx;
+          const first = (() => { for (let y = c.miny; y <= c.maxy; y++) for (let x = c.minx; x <= c.maxx; x++) if (rc.lab[y * W + x] === c.id) return y * W + x; return -1; })();
+          const alone = first >= 0 && !busy[whole.lab[first]];
+          if (p.fine && alone && area > 0.25 && area < 3.5) {
+            const px = [];
+            for (let y = c.miny; y <= c.maxy; y++) for (let x = c.minx; x <= c.maxx; x++) if (rc.lab[y * W + x] === c.id) px.push(y * W + x);
+            b.points(dotStitches(px, W, mmpx)); cur = b.cur;
+          } else if ((alone && area > (p.fine ? 0.3 : 0.6)) || (p.fine && onFill[c.id] && area > 0.3)) add.add(c.id);
+        }
+        if (add.size) for (let i = 0; i < N; i++) if (rest[i] && add.has(rc.lab[i])) fillMask[i] = 1;
+      }
     }
     const { lab, comps } = labelComponents(fillMask, W, H);
     const left = comps.filter(c => c.count * mmpx * mmpx > 0.6);
@@ -1852,7 +2304,7 @@ const FABRICS = {
   fleece: { lines: 3.6, pull: 0.3, fillPull: 0.25, underlay: 'heavy' }
 };
 
-const Emb = { readPES, mergeDesigns, FABRICS, logoToLayer, backgroundSet, boldThinLines, colorChoices, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks, labelImage }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
+const Emb = { readPES, mergeDesigns, FABRICS, logoToLayer, backgroundSet, contentBox, boldThinLines, colorChoices, _int: { thin, skeletonGraph, pruneEdges, distIn, openMask, erode, dilate, labelComponents, networkBlocks, labelImage, debugLabels }, digitize, analyzeColors, writePES, makeZip, brotherName, nearestIndex, PEC_PALETTE, STITCH, JUMP, TRIM, END, COLOR_CHANGE };
 if (typeof module !== 'undefined' && module.exports) module.exports = Emb;
 root.Emb = Emb;
 

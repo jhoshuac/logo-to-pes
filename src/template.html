@@ -241,7 +241,7 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
           <div class="scale"><span data-t="lighter">Lighter</span><span data-t="denser">Denser, covers more</span></div>
         </div>
         <p class="hint" data-t="densityHint">If the fabric shows through the stitches, move this toward Denser. Dark fabric with light thread usually needs 3.3 or more.</p>
-        <label class="radio" for="bold"><input type="checkbox" id="bold" checked><span data-t="bold">Thicken thin lines</span><small data-t="boldHint">Lines thinner than 1 mm break up or vanish when sewn, so they're made 1 mm wide.</small></label>
+        <label class="radio" for="bold"><input type="checkbox" id="bold"><span data-t="bold">Thicken thin lines</span><small data-t="boldHint">Thin lines are sewn as fine as they are drawn. Turn this on to make every line at least 1 mm wide: bolder, less exact.</small></label>
         <label class="radio" for="basting"><input type="checkbox" id="basting"><span data-t="basting">Basting box</span><small data-t="bastingHint">Sews a box of long stitches first to hold the fabric and stabilizer. Use any thread and pull it out when you're done.</small></label>
       </section>
 
@@ -330,7 +330,7 @@ const T = {
     tip_polo: 'Cut-away stabilizer, plus water-soluble topping so stitches don\'t sink into the texture.',
     tip_denim: 'Tear-away stabilizer is usually enough.', tip_towel: "Put water-soluble topping on top so stitches don't sink into the loops.",
     tip_fleece: 'Cut-away stabilizer, plus water-soluble topping on top.',
-    bold: 'Thicken thin lines', boldHint: "Lines thinner than 1 mm break up or vanish when sewn, so they're made 1 mm wide.",
+    bold: 'Thicken thin lines', boldHint: "Thin lines are sewn as fine as they are drawn. Turn this on to make every line at least 1 mm wide: bolder, less exact.",
     basting: 'Basting box', bastingHint: "Sews a box of long stitches first to hold the fabric and stabilizer. Use any thread and pull it out when you're done.",
     hoop4: '4 × 4 in (100 × 100 mm), fits the SE625', hoop5: '5 × 7 in (130 × 180 mm), bigger machines only', hoop6: '6 × 10 in (160 × 260 mm), bigger machines only',
     size: 'Size', densityTitle: 'Stitch density', lighter: 'Lighter', denser: 'Denser, covers more',
@@ -376,7 +376,7 @@ const T = {
     tip_polo: 'Entretela recortable, y film soluble encima para que las puntadas no se hundan en la textura.',
     tip_denim: 'Normalmente basta entretela desgarrable.', tip_towel: 'Pon film soluble encima para que las puntadas no se hundan en los rizos.',
     tip_fleece: 'Entretela recortable, y film soluble encima.',
-    bold: 'Engrosar líneas finas', boldHint: 'Las líneas de menos de 1 mm se rompen o desaparecen al bordar, así que se ensanchan a 1 mm.',
+    bold: 'Engrosar líneas finas', boldHint: 'Las líneas finas se bordan tan finas como en el dibujo. Actívalo para que toda línea tenga al menos 1 mm: más gruesa, menos exacta.',
     basting: 'Caja de hilván', bastingHint: 'Borda primero una caja de puntadas largas para sujetar la tela y la entretela. Usa cualquier hilo y quítala al terminar.',
     hoop4: '4 × 4 in (100 × 100 mm), para la SE625', hoop5: '5 × 7 in (130 × 180 mm), solo máquinas más grandes', hoop6: '6 × 10 in (160 × 260 mm), solo máquinas más grandes',
     size: 'Tamaño', densityTitle: 'Densidad de puntada', lighter: 'Más ligera', denser: 'Más densa, cubre más',
@@ -415,7 +415,7 @@ const Emb = window.Emb;
 const HOOPS = { '100x100': [100, 100, '4×4 in'], '130x180': [130, 180, '5×7 in'], '160x260': [160, 260, '6×10 in'] };
 const state = {
   img: null, name: 'logo', aspect: 1, analysis: null, kChoice: 'auto', colors: [], order: [],
-  wmm: 90, hmm: 90, hoop: '100x100', angle: 45, lines: 3.3, satin: 4.5, satinOn: true, fabric: '#efece6', fabricKey: 'cotton', basting: false, bold: true, bgFamily: [],
+  wmm: 90, hmm: 90, hoop: '100x100', angle: 45, lines: 3.3, satin: 4.5, satinOn: true, fabric: '#efece6', fabricKey: 'cotton', basting: false, bold: false, bgFamily: [],
   result: null, busy: false, jobId: 0, pending: false,
   bgIndex: -1, bgMode: 'all', seeds: [], tapMode: false, pv: null
 };
@@ -447,12 +447,23 @@ const intHex = n => '#' + n.toString(16).padStart(6, '0');
 function loadImage(src, label) {
   const im = new Image();
   im.onload = () => {
-    state.img = im; state.fileLabel = label;
+    state.img = state.imgFull = im; state.imgCrop = null; state.fileLabel = label;
     state.aspect = im.naturalWidth / im.naturalHeight;
     $('thumb').src = src;
     $('fname').textContent = label;
     state.seeds = []; state.bgMode = 'all'; setTap(false);
     analyze();
+    // empty margins around the design are trimmed, so the design itself gets the hoop's
+    // full size and the working picture's full detail
+    const sa = state.analysis.sample, box = Emb.contentBox(state.analysis, state.analysis.suggested, sa.data, sa.w, sa.h);
+    if (box) {
+      const cw = Math.max(1, Math.round(box[2] * im.naturalWidth)), ch = Math.max(1, Math.round(box[3] * im.naturalHeight));
+      const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+      cv.getContext('2d').drawImage(im, Math.round(box[0] * im.naturalWidth), Math.round(box[1] * im.naturalHeight), cw, ch, 0, 0, cw, ch);
+      cv.naturalWidth = cw; cv.naturalHeight = ch;
+      state.img = state.imgCrop = cv; state.aspect = cw / ch;
+      analyze();
+    }
     fitToHoop();
     schedule(0);
   };
@@ -492,8 +503,9 @@ function setColorsForK() {
   state.bgIndex = bg;
   if (bg >= 0) state.colors[bg].stitch = state.bgMode !== 'all';
   for (const j of state.bgFamily) { state.colors[j].stitch = state.bgMode !== 'all'; state.colors[j].merge = true; }
-  // background first, then larger areas first
-  const idx = r.centers.map((_, i) => i).filter(i => i !== bg).sort((a, b2) => r.counts[b2] - r.counts[a]);
+  // background first, then solid areas before thin ones, so outlines are sewn last, on top
+  const sol = r.solid || r.counts.map(() => 1);
+  const idx = r.centers.map((_, i) => i).filter(i => i !== bg).sort((a, b2) => (sol[b2] - sol[a]) || (r.counts[b2] - r.counts[a]));
   state.order = bg >= 0 ? [bg, ...idx] : idx;
   state.fabric = bg >= 0 ? hex(r.centers[bg]) : '#efece6';
   $('fabric').value = state.fabric;
@@ -514,9 +526,15 @@ document.querySelectorAll('input[name="bgmode"]').forEach(r => r.addEventListene
     c.stitch = state.bgMode !== 'all';
     for (const j of state.bgFamily) state.colors[j].stitch = state.bgMode !== 'all';
     if (!c.stitch) { state.fabric = hex(c.rgb); $('fabric').value = state.fabric; }
-    // a kept background is sewn first as the base; what's left of it inside the logo is detail, sewn last
+    // a kept background is sewn first as the base, and so is what's left of it inside the
+    // logo (the white of a cartoon's body): the outlines go on top
     const o = state.order.filter(j => j !== state.bgIndex);
-    state.order = state.bgMode === 'edge' ? [...o, state.bgIndex] : [state.bgIndex, ...o];
+    state.order = [state.bgIndex, ...o];
+  }
+  // sewing the whole background needs the whole picture; otherwise the trimmed one is used
+  if (state.imgCrop) {
+    const want = state.bgMode === 'keep' ? state.imgFull : state.imgCrop;
+    if (state.img !== want) { state.img = want; state.aspect = want.naturalWidth / want.naturalHeight; state.seeds = []; fitToHoop(); }
   }
   renderColors(); renderBg(); schedule();
 }));
@@ -639,7 +657,8 @@ function schedule(delay) {
 }
 function buildParams() {
   const area = state.wmm * state.hmm;
-  const mmpx = Math.max(0.1, Math.sqrt(area / 1.3e6));
+  // a smaller design is worked at a finer scale (same amount of work), so hair lines survive
+  const mmpx = Math.max(0.06, Math.sqrt(area / 1.3e6));
   const W = Math.max(20, Math.round(state.wmm / mmpx)), H = Math.max(20, Math.round(state.hmm / mmpx));
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const ctx = c.getContext('2d', { willReadFrequently: true });
@@ -654,7 +673,7 @@ function buildParams() {
     removeEdge: state.bgMode !== 'keep', removeSeeds: state.seeds.slice(),
     density: 1 / state.lines, satinSpacing: Math.min(0.5, Math.max(0.25, 1 / state.lines + 0.05)),
     pull: Emb.FABRICS[state.fabricKey].pull, fillPull: Emb.FABRICS[state.fabricKey].fillPull, underlay: Emb.FABRICS[state.fabricKey].underlay,
-    basting: state.basting, boldMM: state.bold ? 1.0 : 0, srcPx: up
+    basting: state.basting, boldMM: state.bold ? 1.0 : 0, srcPx: up, fine: true
   };
 }
 function run() {
@@ -914,7 +933,7 @@ $('editLogo').onclick = () => {
 /* ---------- start blank on every visit */
 $('fabric').value = state.fabric;
 $('density').value = state.lines;
-$('fabricType').value = state.fabricKey; $('basting').checked = false; $('bold').checked = true;
+$('fabricType').value = state.fabricKey; $('basting').checked = false; $('bold').checked = false;
 $('angleV').textContent = state.angle + '°';
 applyLang();
 })();
