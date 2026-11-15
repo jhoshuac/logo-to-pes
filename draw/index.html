@@ -2926,7 +2926,7 @@ const T = {
     monoHint: 'Traditional order: first initial, last name initial in the middle, middle initial. It lands in the middle of the hoop, selected so you can move it.',
     rotL: 'Rotate left 15°', rotR: 'Rotate right 15°', flipH: 'Flip left to right', flipV: 'Flip upside down', smaller: 'Smaller', bigger: 'Bigger',
     bastingRow: 'Basting box (any thread)',
-    openPes: 'Open .pes', notPes: "That file couldn't be read as a .pes design.",
+    openPes: 'Open .pes', notPes: "That file couldn't be read as a .pes design.", emptyPes: 'That file is empty (0 bytes): it was saved without a design in it. Save or download it again from where it was made.',
     opened: (name, n, c) => `Opened ${name}: ${n} stitches, ${c} thread colors. Its stitches stay exactly as they are. Drag to move it, or rotate and flip it, and add text or drawings.`,
     openedBig: 'Heads up: this design is bigger than the hoop you picked.',
     scaleWarn: "Stitch files only resize well a little (about 80% to 120%), because the stitches aren't recalculated.",
@@ -3000,7 +3000,7 @@ const T = {
     monoHint: 'Orden tradicional: inicial del nombre, inicial del apellido en el medio, inicial del segundo nombre. Aparece en el centro del bastidor, seleccionado para moverlo.',
     rotL: 'Girar 15° a la izquierda', rotR: 'Girar 15° a la derecha', flipH: 'Voltear horizontal', flipV: 'Voltear vertical', smaller: 'Más pequeño', bigger: 'Más grande',
     bastingRow: 'Caja de hilván (cualquier hilo)',
-    openPes: 'Abrir .pes', notPes: 'No se pudo leer ese archivo como diseño .pes.',
+    openPes: 'Abrir .pes', notPes: 'No se pudo leer ese archivo como diseño .pes.', emptyPes: 'Ese archivo está vacío (0 bytes): se guardó sin ningún diseño. Vuelve a guardarlo o descargarlo desde donde se hizo.',
     opened: (name, n, c) => `Abriste ${name}: ${n} puntadas, ${c} colores de hilo. Sus puntadas quedan tal cual. Arrástralo para moverlo, gíralo o voltéalo, y agrega texto o dibujos.`,
     openedBig: 'Ojo: este diseño es más grande que el bastidor elegido.',
     scaleWarn: 'Los archivos de puntadas solo se pueden cambiar de tamaño un poco (de 80% a 120%), porque las puntadas no se recalculan.',
@@ -4083,6 +4083,7 @@ $('pesfile').onchange = e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
   f.arrayBuffer().then(buf => {
+    if (!buf.byteLength) { note(t('emptyPes')); return; }
     let d;
     try { d = Emb.readPES(new Uint8Array(buf)); } catch (err) { d = null; }
     if (!d || !d.stitches) { note(t('notPes')); return; }
