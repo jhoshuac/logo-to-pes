@@ -48,7 +48,20 @@ header p { margin: 6px 0 0; color: var(--muted); max-width: 64ch; }
 .lang button { border: 0; background: transparent; color: var(--muted); font: 700 13px var(--font-body); padding: 6px 12px; cursor: pointer; }
 .lang button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 .app { display: grid; grid-template-columns: 92px minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
-@media (max-width: 980px) { .app { grid-template-columns: 1fr; } .tools { flex-direction: row !important; flex-wrap: wrap; position: static !important; } .tools .sep { width: 1px !important; height: auto !important; } }
+@media (max-width: 980px) {
+  .app { grid-template-columns: 1fr; }
+  /* tools in an even grid; file and undo actions get their own row under a divider */
+  .tools { display: grid !important; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; position: static !important; }
+  .tools .sep { grid-column: 1 / -1; height: 1px !important; width: auto !important; margin: 2px 4px; }
+  .tool { min-width: 0; padding: 6px 2px; align-content: start; }
+}
+@media (max-width: 560px) {
+  .tools { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 6px; }
+  .tool { font-size: 10.5px; }
+  .tool svg { width: 22px; height: 22px; }
+  /* on a phone the empty bars don't hold their space above the hoop */
+  .selbar[hidden], .simbar[hidden], .textbar[hidden] { display: none !important; }
+}
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 10px; }
 .tools { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; position: sticky; top: 10px; }
 .tool { display: grid; justify-items: center; gap: 2px; padding: 7px 4px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; font: 700 11px var(--font-body); min-width: 64px; }
@@ -178,7 +191,7 @@ details summary { cursor: pointer; font-weight: 700; }
       <p data-t="tagline">Draw a design in thread colors and save it as a .pes file for Brother and Baby Lock machines.</p>
     </div>
     <div class="hright">
-      <a class="navbtn" href="../"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span data-t="toLogo">Convert a logo</span></a>
+      <a class="navbtn" href="../"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span data-t="toLogo">Convert an image</span></a>
       <div class="lang" role="group" aria-label="Language">
         <button id="lang-en" type="button" aria-pressed="true">EN</button>
         <button id="lang-es" type="button" aria-pressed="false">ES</button>
@@ -201,9 +214,9 @@ details summary { cursor: pointer; font-weight: 700; }
       <button class="tool" id="addImage" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span data-t="image">Image</span></button>
       <button class="tool" id="rmbg" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 2.6"/><path d="M8 15.5c1-3 2.5-4.5 4-4.5s3 1.5 4 4.5"/><circle cx="12" cy="8" r="2"/></svg><span data-t="rmbg">Remove background</span></button>
       <input type="file" id="imgfile" class="sr" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
+      <div class="sep"></div>
       <button class="tool" id="openPes" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13l2 2 3-4 3 5"/></svg><span data-t="openPes">Open .pes</span></button>
       <input type="file" id="pesfile" class="sr" accept=".pes,.PES,.pec,.PEC">
-      <div class="sep"></div>
       <button class="tool" id="undo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span data-t="undo">Undo</span></button>
       <button class="tool" id="redo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg><span data-t="redo">Redo</span></button>
       <button class="tool" id="clear" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg><span data-t="clear">Clear all</span></button>
@@ -474,7 +487,7 @@ const T = {
     impSize: "While the picture is selected, the − and + buttons above resize it from the original picture, so details stay sharp. Press Done when it's in place.",
     fromFile: name => `From ${name}`,
     move: 'Move', select: 'Select', selDone: 'Done', selDelete: 'Delete', selHint: 'Drag inside the dashed box to move it.',
-    toLogo: 'Convert a logo', image: 'Image', wand: 'Erase area', rmbg: 'Remove background',
+    toLogo: 'Convert an image', image: 'Image', wand: 'Erase area', rmbg: 'Remove background',
     bgRemoved: 'Background removed. Undo brings it back.', nothingThere: 'Nothing to erase there.',
     noBgFound: "No solid background found around the drawing. Use Erase area and tap what you don't want.", badImage: "That file couldn't be opened as an image. Try a PNG or JPG.", densityTitle: 'Stitch density', lighter: 'Lighter', denser: 'Denser, covers more',
     densityHint: 'If the fabric shows through, move this toward Denser.', densityV: (v, mm) => `${v} lines/mm (${mm} mm)`, brush: 'Brush', eraser: 'Eraser', line: 'Line', rect: 'Box', ellipse: 'Circle', fill: 'Fill', text: 'Text',
@@ -548,7 +561,7 @@ const T = {
     impSize: 'Mientras la imagen está seleccionada, los botones − y + de arriba le cambian el tamaño desde la imagen original, así los detalles quedan nítidos. Pulsa Listo cuando esté en su lugar.',
     fromFile: name => `De ${name}`,
     move: 'Mover', select: 'Seleccionar', selDone: 'Listo', selDelete: 'Borrar', selHint: 'Arrastra dentro del recuadro para moverlo.',
-    toLogo: 'Convertir un logo', image: 'Imagen', wand: 'Borrar zona', rmbg: 'Quitar fondo',
+    toLogo: 'Convertir una imagen', image: 'Imagen', wand: 'Borrar zona', rmbg: 'Quitar fondo',
     bgRemoved: 'Fondo quitado. Deshacer lo devuelve.', nothingThere: 'No hay nada que borrar ahí.',
     noBgFound: 'No se encontró un fondo sólido alrededor del dibujo. Usa Borrar zona y toca lo que no quieras.', badImage: 'No se pudo abrir ese archivo como imagen. Prueba con un PNG o JPG.', densityTitle: 'Densidad de puntada', lighter: 'Más ligera', denser: 'Más densa, cubre más',
     densityHint: 'Si la tela se ve entre las puntadas, mueve esto hacia Más densa.', densityV: (v, mm) => `${v} líneas/mm (${mm} mm)`, brush: 'Pincel', eraser: 'Borrador', line: 'Línea', rect: 'Caja', ellipse: 'Círculo', fill: 'Rellenar', text: 'Texto',

@@ -1,4 +1,4 @@
-# Logo to PES
+# Image to PES
 
 Turn a flat logo into a `.pes` embroidery file for Brother and Baby Lock machines, right in your browser. Nothing is uploaded anywhere: the image is processed on your own device.
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Logo to PES</title>
+<title>Image to PES</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Recursive:slnt,wght,CASL,MONO@-15..0,300..900,0..1,0..1&display=swap" rel="stylesheet">
@@ -151,8 +151,8 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
 <div class="wrap">
   <header>
     <div>
-      <h1 data-t="title">Logo to PES</h1>
-      <p data-t="tagline">Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.</p>
+      <h1 data-t="title">Image to PES</h1>
+      <p data-t="tagline">Turn a flat image into a stitch file for Brother and Baby Lock embroidery machines.</p>
     </div>
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
     <a class="navbtn" href="./draw/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="M14 6l4 4"/></svg><span data-t="navDraw">Open the drawing editor</span></a>
@@ -166,7 +166,7 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
   <div class="main">
     <div class="rail">
       <section class="panel p-logo" aria-labelledby="h-logo">
-        <h2 id="h-logo"><span class="step">1</span><span data-t="logo">Logo</span></h2>
+        <h2 id="h-logo"><span class="step">1</span><span data-t="logo">Image</span></h2>
         <label class="drop" id="drop" for="file">
           <img id="thumb" alt="">
           <span>
@@ -176,13 +176,13 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
           </span>
         </label>
         <input id="file" class="sr" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
-        <p class="hint" data-t="logoHint">Flat logos with a few solid colors work best. Photos and color gradients won't stitch well.</p>
+        <p class="hint" data-t="logoHint">Drawings and logos with a few solid colors work best. Photos and color gradients won't stitch well.</p>
         <p class="hint"><a class="inline" href="./draw/" data-t="havePes">Already have a .pes file? Open it in the drawing editor to add a name or shapes.</a></p>
         <div class="bgbox" id="bgbox" hidden>
           <h2 id="bgTitle" data-t="bgTitle">Background</h2>
           <div id="bgopts" role="radiogroup" aria-labelledby="bgTitle" style="display:grid;gap:8px">
-            <label class="radio"><input type="radio" name="bgmode" value="all" checked><span data-t="bgAll">Remove it</span><small data-t="bgAllHint">Also leaves out that color anywhere inside the logo.</small></label>
-            <label class="radio"><input type="radio" name="bgmode" value="edge"><span data-t="bgEdge">Remove it, keep that color inside the logo</span><small data-t="bgEdgeHint">Only the area touching the edges of the picture goes.</small></label>
+            <label class="radio"><input type="radio" name="bgmode" value="all" checked><span data-t="bgAll">Remove it</span><small data-t="bgAllHint">Also leaves out that color anywhere inside the image.</small></label>
+            <label class="radio"><input type="radio" name="bgmode" value="edge"><span data-t="bgEdge">Remove it, keep that color inside the image</span><small data-t="bgEdgeHint">Only the area touching the edges of the picture goes.</small></label>
             <label class="radio"><input type="radio" name="bgmode" value="keep"><span data-t="bgKeep">Keep it and stitch it</span><small data-t="bgKeepHint">Sews the background too, like a patch.</small></label>
           </div>
           <p class="hint" id="nobg" data-t="noBg" hidden>No solid background found. Use Tap to remove to take out anything you don't want.</p>
@@ -214,11 +214,11 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
       <section class="panel p-colors" aria-labelledby="h-colors">
         <h2 id="h-colors"><span class="step">3</span><span data-t="colors">Thread colors</span></h2>
         <div class="field">
-          <label for="kcount" data-t="count">Colors in the logo</label>
+          <label for="kcount" data-t="count">Colors in the image</label>
           <select id="kcount"></select>
         </div>
         <p class="hint" data-t="colorsHint">Colors stitch from top to bottom. Set the background to Fabric if the fabric should show through.</p>
-        <div class="colors" id="colors"><p class="empty" data-t="noColors">Colors show up here after you choose a logo.</p></div>
+        <div class="colors" id="colors"><p class="empty" data-t="noColors">Colors show up here after you choose an image.</p></div>
       </section>
 
       <section class="panel p-density" aria-labelledby="h-density">
@@ -293,8 +293,8 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
       <div class="panel dl">
         <button class="btn primary" id="download" type="button" disabled data-t="download">Download .pes</button>
         <p class="hint" id="dlnote" data-t="dlNote">You'll get a .zip. Open it and copy the .pes file inside to your USB stick.</p>
-        <button class="btn edit" id="editLogo" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="M14 6l4 4"/></svg><span data-t="editLogo">Edit this logo in the drawing editor</span></button>
-        <p class="hint" data-t="editHint">Opens the logo in the editor in its thread colors, so you can add text, erase parts or move things around.</p>
+        <button class="btn edit" id="editLogo" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="M14 6l4 4"/></svg><span data-t="editLogo">Edit this image in the drawing editor</span></button>
+        <p class="hint" data-t="editHint">Opens the image in the editor in its thread colors, so you can add text, erase parts or move things around.</p>
         <p class="msg" id="dlmsg" role="status"></p>
         <ul class="tips">
           <li data-t="tip1">Sew a test on scrap fabric with stabilizer before the real garment.</li>
@@ -315,14 +315,14 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
 'use strict';
 const T = {
   en: {
-    title: 'Logo to PES', tagline: 'Turn a flat logo into a stitch file for Brother and Baby Lock embroidery machines.', navDraw: 'Open the drawing editor', havePes: 'Already have a .pes file? Open it in the drawing editor to add a name or shapes.', bgTitle: 'Background', bgAll: 'Remove it', bgAllHint: 'Also leaves out that color anywhere inside the logo.',
-    bgEdge: 'Remove it, keep that color inside the logo', bgEdgeHint: 'Only the area touching the edges of the picture goes.',
+    title: 'Image to PES', tagline: 'Turn a flat image into a stitch file for Brother and Baby Lock embroidery machines.', navDraw: 'Open the drawing editor', havePes: 'Already have a .pes file? Open it in the drawing editor to add a name or shapes.', bgTitle: 'Background', bgAll: 'Remove it', bgAllHint: 'Also leaves out that color anywhere inside the image.',
+    bgEdge: 'Remove it, keep that color inside the image', bgEdgeHint: 'Only the area touching the edges of the picture goes.',
     bgKeep: 'Keep it and stitch it', bgKeepHint: 'Sews the background too, like a patch.',
     noBg: "No solid background found. Use Tap to remove to take out anything you don't want.",
-    tapRemove: 'Tap to remove', tapNow: 'Tap any part of the preview to remove it.', tapDone: 'Done', restore: n => `Restore removed areas (${n})`, editLogo: 'Edit this logo in the drawing editor',
-    editHint: 'Opens the logo in the editor in its thread colors, so you can add text, erase parts or move things around.', editFail: "The editor couldn't be opened. Try again.",
-    logo: 'Logo', choose: 'Choose an image', dropHint: 'or drop a PNG or JPG here',
-    logoHint: "Flat logos with a few solid colors work best. Photos and color gradients won't stitch well.",
+    tapRemove: 'Tap to remove', tapNow: 'Tap any part of the preview to remove it.', tapDone: 'Done', restore: n => `Restore removed areas (${n})`, editLogo: 'Edit this image in the drawing editor',
+    editHint: 'Opens the image in the editor in its thread colors, so you can add text, erase parts or move things around.', editFail: "The editor couldn't be opened. Try again.",
+    logo: 'Image', choose: 'Choose an image', dropHint: 'or drop a PNG or JPG here',
+    logoHint: "Drawings and logos with a few solid colors work best. Photos and color gradients won't stitch well.",
     fabricTitle: 'Fabric and stitches', fabricType: 'What are you stitching on?',
     fab_cotton: 'Woven cotton, canvas, bags', fab_tshirt: 'T-shirt (stretchy knit)', fab_polo: 'Polo shirt (piqué)',
     fab_denim: 'Denim, twill, jackets', fab_towel: 'Towel', fab_fleece: 'Fleece, sweatshirt',
@@ -336,9 +336,9 @@ const T = {
     size: 'Size', densityTitle: 'Stitch density', lighter: 'Lighter', denser: 'Denser, covers more',
     densityV: (v, mm) => `${v} lines per mm (rows ${mm} mm apart)`,
     densityHint: 'If the fabric shows through the stitches, move this toward Denser. Dark fabric with light thread usually needs 3.3 or more.',
-    noColors: 'Colors show up here after you choose a logo.', start: 'Choose a logo to start', emptyHoop: 'Your stitches will show here', hoop: 'Hoop', width: 'Width', height: 'Height', fit: 'Fit to hoop',
+    noColors: 'Colors show up here after you choose an image.', start: 'Choose an image to start', emptyHoop: 'Your stitches will show here', hoop: 'Hoop', width: 'Width', height: 'Height', fit: 'Fit to hoop',
     inches: (w, h) => `That's ${w} × ${h} inches for the whole picture. The preview shows the size that actually gets stitched.`,
-    colors: 'Thread colors', count: 'Colors in the logo', auto: n => `Auto (${n})`,
+    colors: 'Thread colors', count: 'Colors in the image', auto: n => `Auto (${n})`,
     colorsHint: 'Colors stitch from top to bottom. Set the background to Fabric if the fabric should show through.',
     stitch: 'Stitch', skip: 'Fabric', machineName: n => `Machine calls it: ${n}`, up: 'Stitch earlier', down: 'Stitch later', thread: 'Thread color',
     more: 'More stitch settings', angle: 'Fill direction',
@@ -361,14 +361,14 @@ const T = {
     badImage: "That file couldn't be opened as an image. Try a PNG or JPG.", failed: 'Something went wrong making stitches. Try a simpler image or fewer colors.'
   },
   es: {
-    title: 'Logo a PES', tagline: 'Convierte un logo de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.', navDraw: 'Abrir el editor de dibujo', havePes: '¿Ya tienes un archivo .pes? Ábrelo en el editor de dibujo para agregar un nombre o formas.', bgTitle: 'Fondo', bgAll: 'Quitarlo', bgAllHint: 'También deja fuera ese color en cualquier parte dentro del logo.',
-    bgEdge: 'Quitarlo, pero dejar ese color dentro del logo', bgEdgeHint: 'Solo se quita la zona que toca los bordes de la imagen.',
+    title: 'Imagen a PES', tagline: 'Convierte una imagen de colores planos en un archivo de bordado para máquinas Brother y Baby Lock.', navDraw: 'Abrir el editor de dibujo', havePes: '¿Ya tienes un archivo .pes? Ábrelo en el editor de dibujo para agregar un nombre o formas.', bgTitle: 'Fondo', bgAll: 'Quitarlo', bgAllHint: 'También deja fuera ese color en cualquier parte dentro de la imagen.',
+    bgEdge: 'Quitarlo, pero dejar ese color dentro de la imagen', bgEdgeHint: 'Solo se quita la zona que toca los bordes de la imagen.',
     bgKeep: 'Dejarlo y bordarlo', bgKeepHint: 'Borda también el fondo, como un parche.',
     noBg: 'No se encontró un fondo sólido. Usa Tocar para quitar para sacar lo que no quieras.',
-    tapRemove: 'Tocar para quitar', tapNow: 'Toca cualquier parte de la vista previa para quitarla.', tapDone: 'Listo', restore: n => `Restaurar zonas quitadas (${n})`, editLogo: 'Editar este logo en el editor de dibujo',
-    editHint: 'Abre el logo en el editor con sus colores de hilo, para agregar texto, borrar partes o mover cosas.', editFail: 'No se pudo abrir el editor. Inténtalo de nuevo.',
-    logo: 'Logo', choose: 'Elegir imagen', dropHint: 'o suelta aquí un PNG o JPG',
-    logoHint: 'Funcionan mejor los logos planos con pocos colores sólidos. Las fotos y los degradados no se bordan bien.',
+    tapRemove: 'Tocar para quitar', tapNow: 'Toca cualquier parte de la vista previa para quitarla.', tapDone: 'Listo', restore: n => `Restaurar zonas quitadas (${n})`, editLogo: 'Editar esta imagen en el editor de dibujo',
+    editHint: 'Abre la imagen en el editor con sus colores de hilo, para agregar texto, borrar partes o mover cosas.', editFail: 'No se pudo abrir el editor. Inténtalo de nuevo.',
+    logo: 'Imagen', choose: 'Elegir imagen', dropHint: 'o suelta aquí un PNG o JPG',
+    logoHint: 'Funcionan mejor los dibujos y logos planos con pocos colores sólidos. Las fotos y los degradados no se bordan bien.',
     fabricTitle: 'Tela y puntadas', fabricType: '¿Sobre qué vas a bordar?',
     fab_cotton: 'Algodón tejido, lona, bolsos', fab_tshirt: 'Camiseta (tejido elástico)', fab_polo: 'Polo (piqué)',
     fab_denim: 'Mezclilla, dril, chaquetas', fab_towel: 'Toalla', fab_fleece: 'Polar, sudadera',
@@ -382,9 +382,9 @@ const T = {
     size: 'Tamaño', densityTitle: 'Densidad de puntada', lighter: 'Más ligera', denser: 'Más densa, cubre más',
     densityV: (v, mm) => `${v} líneas por mm (filas a ${mm} mm)`,
     densityHint: 'Si la tela se ve entre las puntadas, mueve esto hacia Más densa. Tela oscura con hilo claro suele necesitar 3,3 o más.',
-    noColors: 'Los colores aparecen aquí cuando eliges un logo.', start: 'Elige un logo para empezar', emptyHoop: 'Aquí verás tus puntadas', hoop: 'Bastidor', width: 'Ancho', height: 'Alto', fit: 'Ajustar al bastidor',
+    noColors: 'Los colores aparecen aquí cuando eliges una imagen.', start: 'Elige una imagen para empezar', emptyHoop: 'Aquí verás tus puntadas', hoop: 'Bastidor', width: 'Ancho', height: 'Alto', fit: 'Ajustar al bastidor',
     inches: (w, h) => `Son ${w} × ${h} pulgadas para toda la imagen. La vista previa muestra el tamaño que realmente se borda.`,
-    colors: 'Colores de hilo', count: 'Colores en el logo', auto: n => `Auto (${n})`,
+    colors: 'Colores de hilo', count: 'Colores en la imagen', auto: n => `Auto (${n})`,
     colorsHint: 'Los colores se bordan de arriba hacia abajo. Marca el fondo como Tela si la tela debe verse.',
     stitch: 'Bordar', skip: 'Tela', machineName: n => `La máquina lo llama: ${n}`, up: 'Bordar antes', down: 'Bordar después', thread: 'Color del hilo',
     more: 'Más ajustes de puntada', angle: 'Dirección del relleno',
