@@ -823,19 +823,32 @@ function traceEnd(xy, w, atEnd, D, W, H, mmpx) {
   const rs = mmpx * 0.5, step = 0.1;
   // the column's width where the centre line stops, measured the same way
   const reach = (cx, cy, sx, sy, cap) => { let t = 0; while (t < cap && inside(cx + sx * (t + rs), cy + sy * (t + rs))) t += rs; return t; };
-  let half = Math.max(w[w.length - 1] / 2, 0.15), shift = 0, wMin = Infinity;
+  let half = Math.max(w[w.length - 1] / 2, 0.15), shift = 0, wMin = Infinity, bulge = -1;
   for (let t = step; t <= 8; t += step) {
     let cx = last[0] + dx * t + nx * shift, cy = last[1] + dy * t + ny * shift;
     if (!inside(cx, cy)) {
+      if (bulge >= 0) break;                                    // past a widening: straight on only
       // a slanted end: the shape may go on beside the centre line
       let found = false;
       for (let o = rs; o <= half && !found; o += rs) for (const sg of [1, -1]) if (inside(cx + nx * o * sg, cy + ny * o * sg)) { cx += nx * (o + rs) * sg; cy += ny * (o + rs) * sg; shift += (o + rs) * sg; found = true; break; }
       if (!found) break;
     }
-    const cap = half + 0.3;
-    const a = reach(cx, cy, nx, ny, cap), b = reach(cx, cy, -nx, -ny, cap);
-    const width = a + b;
-    if (a >= cap || b >= cap || width > wMin + 0.35) break;       // widening: this end joins a body
+    let cap = half + 0.3;
+    let a = reach(cx, cy, nx, ny, cap), b = reach(cx, cy, -nx, -ny, cap);
+    let width = a + b;
+    if (a >= cap || b >= cap || width > wMin + 0.35) {
+      // widening: this end joins a body, unless the shape ends just ahead (a column whose
+      // end bulges a little, like the square end of a leg): then the satin goes on to the end
+      const w0 = wMin < Infinity ? wMin : width;
+      if (w0 < 1.5) break;                                      // thin strokes: serifs, not bulges
+      if (bulge < 0) bulge = t;
+      const ahead = reach(cx, cy, dx, dy, 3);
+      if (ahead >= Math.max(1.2, 1.2 * w0) || t - bulge > 1.5) break;
+      cap = Math.min(half + 1.2, w0 * 0.8 + 0.4);
+      a = reach(cx, cy, nx, ny, cap); b = reach(cx, cy, -nx, -ny, cap);
+      width = a + b;
+      if (a >= cap || b >= cap) break;
+    }
     if (width < 0.1) break;
     wMin = Math.min(wMin, width);
     const off = (a - b) / 2;
@@ -1704,6 +1717,38 @@ function labelImage(rgba, W, H, mmpx, C, blurPx, skip, detail) {
     }
     labels[i] = b;
   }
+  // grey where a thin black line on white fades can still be nearest to some colour (the pink
+  // of a tongue). Grey is no part of a colour: it belongs with the black and white (or other
+  // greys) it is a blend of, whichever it is closer to, and the faint-line step below can
+  // take it on. Only greys: a real gradient between two colours keeps its own colours
+  const chroma = c => Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2]);
+  if (detail && C.length > 2) {
+    const pairs = [];
+    for (let a = 0; a < C.length; a++) for (let b = a + 1; b < C.length; b++) {
+      if (skip && (skip[a] || skip[b])) continue;
+      if (chroma(C[a]) > 40 || chroma(C[b]) > 40) continue;
+      const ab = [C[b][0] - C[a][0], C[b][1] - C[a][1], C[b][2] - C[a][2]], L2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2;
+      if (L2 > 6400) pairs.push([a, b, ab, L2]);
+    }
+    for (let i = 0; i < N; i++) {
+      const j = labels[i];
+      if (j < 0 || chroma(C[j]) <= 40) continue;
+      const X = [img[i * 3], img[i * 3 + 1], img[i * 3 + 2]];
+      if (chroma(X) > 14) continue;
+      const dj = Math.hypot(X[0] - C[j][0], X[1] - C[j][1], X[2] - C[j][2]);
+      if (dj < 45) continue;
+      let best = null, bd = dj * 0.4;
+      for (const [a, b, ab, L2] of pairs) {
+        if (a === j || b === j) continue;
+        const ax = [X[0] - C[a][0], X[1] - C[a][1], X[2] - C[a][2]];
+        const t = (ab[0] * ax[0] + ab[1] * ax[1] + ab[2] * ax[2]) / L2;
+        if (t <= 0.02 || t >= 0.98) continue;
+        const d = Math.hypot(ax[0] - t * ab[0], ax[1] - t * ab[1], ax[2] - t * ab[2]);
+        if (d < bd) { bd = d; best = t < 0.5 ? a : b; }
+      }
+      if (best !== null) labels[i] = best;
+    }
+  }
   if (detail) followFaintLines(labels, img, W, H, mmpx, C, detail.fabric || []);
   const unassigned = new Uint8Array(N);
   const fringeR = 0.2 / mmpx, minArea = 0.5 / (mmpx * mmpx);
@@ -2191,7 +2236,13 @@ function digitize(p, progress) {
     const D = distIn(R, W, H);
     const half = p.satinMax / 2 / mmpx;
     const thick = openMask(R, W, H, half, D);
-    const fillMask = and(dilate(thick, W, H, 0.3 / mmpx), R);
+    // the fill's shape comes from rounding the colour off at the satin width, which also
+    // rounds off the square end of a wide shape (a leg) and leaves it bare. Finer rounding,
+    // kept only where it joins the wide part, gives those corners back without taking in
+    // the thin lines attached to it
+    let fillCore = thick;
+    if (p.fine) fillCore = or(thick, and(openMask(R, W, H, half * 0.45, D), dilate(thick, W, H, half)));
+    const fillMask = and(dilate(fillCore, W, H, 0.3 / mmpx), R);
     const inner = erode(thick, W, H, 0.4 / mmpx);
     const sk = thin(R, W, H);
     const narrowSk = new Uint8Array(N);
@@ -2233,6 +2284,10 @@ function digitize(p, progress) {
           const x = i % W, y = (i / W) | 0;
           if ((x > 0 && fillMask[i - 1]) || (x < W - 1 && fillMask[i + 1]) || (y > 0 && fillMask[i - W]) || (y < H - 1 && fillMask[i + W])) onFill[rc.lab[i]] = 1;
         }
+        // how wide each leftover patch is: a real corner (the blunt end of a column the satin
+        // stops short of) is filled; a sliver along a column's side is not
+        const restD = distIn(rest, W, H), restW = new Float32Array(rc.comps.length + 2);
+        for (let i = 0; i < N; i++) if (rest[i] && restD[i] > restW[rc.lab[i]]) restW[rc.lab[i]] = restD[i];
         const add = new Set();
         for (const c of rc.comps) {
           const area = c.count * mmpx * mmpx;
@@ -2242,7 +2297,7 @@ function digitize(p, progress) {
             const px = [];
             for (let y = c.miny; y <= c.maxy; y++) for (let x = c.minx; x <= c.maxx; x++) if (rc.lab[y * W + x] === c.id) px.push(y * W + x);
             b.points(dotStitches(px, W, mmpx)); cur = b.cur;
-          } else if ((alone && area > (p.fine ? 0.3 : 0.6)) || (p.fine && onFill[c.id] && area > 0.3)) add.add(c.id);
+          } else if ((alone && area > (p.fine ? 0.3 : 0.6)) || (p.fine && onFill[c.id] && area > 0.3) || (p.fine && area > 0.5 && restW[c.id] * mmpx >= 0.3)) add.add(c.id);
         }
         if (add.size) for (let i = 0; i < N; i++) if (rest[i] && add.has(rc.lab[i])) fillMask[i] = 1;
       }
