@@ -1412,7 +1412,21 @@ function labelImage(rgba, W, H, mmpx, C, blurPx, skip, detail) {
         if (D[i] > wide[id]) wide[id] = D[i];
         for (const n of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1]) if (n >= 0 && !M[n]) touch[id - 1].add(labels[n]);
       }
-      for (const c of comps) if (touch[c.id - 1].size >= 2 && (wide[c.id] * mmpx < 0.45 || c.count * mmpx * mmpx < 2)) small.add(c.id);
+      // judged by the picture's own pixels there too: grey along a black outline on white is
+      // nearest to pink, but it is the soft edge between the two
+      const sum = new Float64Array((comps.length + 1) * 3);
+      for (let i = 0; i < N; i++) if (kept[i]) { const id = lab[i]; for (let c = 0; c < 3; c++) sum[id * 3 + c] += img[i * 3 + c]; }
+      const blendOf = (c, T) => {
+        const X = [sum[c.id * 3] / c.count, sum[c.id * 3 + 1] / c.count, sum[c.id * 3 + 2] / c.count];
+        const L = [...T].filter(v => v >= 0);
+        for (let a = 0; a < L.length; a++) for (let b = a + 1; b < L.length; b++) {
+          const P = C[L[a]], Q = C[L[b]], ab = [Q[0] - P[0], Q[1] - P[1], Q[2] - P[2]], ax = [X[0] - P[0], X[1] - P[1], X[2] - P[2]];
+          const L2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2 || 1, t = (ab[0] * ax[0] + ab[1] * ax[1] + ab[2] * ax[2]) / L2;
+          if (t > 0.05 && t < 0.95 && Math.hypot(ax[0] - t * ab[0], ax[1] - t * ab[1], ax[2] - t * ab[2]) < Math.max(35, 0.3 * Math.sqrt(L2))) return true;
+        }
+        return false;
+      };
+      for (const c of comps) if (touch[c.id - 1].size >= 2 && (wide[c.id] * mmpx < 0.45 || c.count * mmpx * mmpx < 2 || (wide[c.id] * mmpx < 1.2 && blendOf(c, touch[c.id - 1])))) small.add(c.id);
     }
     for (let i = 0; i < N; i++) if (M[i] && (!kept[i] || small.has(lab[i]))) unassigned[i] = 1;
   }
@@ -1803,11 +1817,14 @@ function digitize(p, progress) {
   const { W, H, mmpx } = p;
   const say = progress || (() => {});
   const N = W * H;
+  const stitched = new Set(p.order.filter(j => p.colors[j].stitch));
+  let labels;
+  if (p.labels) labels = p.labels;                      // one part of a split design
+  else {
   say('colors');
-  const labels = labelImage(p.rgba, W, H, mmpx, p.colors.map(c => c.rgb), p.blurPx, mergeSkips(p.colors), { srcPx: p.srcPx || 0, fabric: p.colors.map(c => !c.stitch) });
+  labels = labelImage(p.rgba, W, H, mmpx, p.colors.map(c => c.rgb), p.blurPx, mergeSkips(p.colors), { srcPx: p.srcPx || 0, fabric: p.colors.map(c => !c.stitch) });
   applyRemovals(labels, W, H, { removeEdge: !!p.removeEdge, seeds: p.removeSeeds || [] });
 
-  const stitched = new Set(p.order.filter(j => p.colors[j].stitch));
   // 4. keep narrow gaps of fabric open so the stitches don't close them up (in detail
   // mode they open wider, and thin lines are thickened without filling them)
   const B = new Uint8Array(N);
@@ -1820,7 +1837,9 @@ function digitize(p, progress) {
     for (let i = 0; i < N; i++) if (widen[i] && !B[i]) labels[i] = -1;
   }
 
+  }
   if (debugLabels.on) debugLabels.labels = labels.slice();
+  if (p.split && !p.labels) return digitizeSplit(p, labels, stitched, say);
   // 5. digitize each stitched colour
   const b = new Builder();
   const threads = [], used = [];
@@ -1919,13 +1938,24 @@ function digitize(p, progress) {
   // basting box: a running stitch around everything, sewn first in its own colour stop,
   // to hold fabric and stabilizer together; it is pulled out afterwards
   let basted = false;
-  if (p.basting && b.cmds.length) {
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const c of b.cmds) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
-    const m = 2.5;
-    x0 -= m; y0 -= m; x1 += m; y1 += m;
+  if ((p.basting || p.marks) && b.cmds.length) {
     const bb = new Builder();
-    bb.points(runPath([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]], 4.0));
+    if (p.basting) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const c of b.cmds) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
+      const m = 2.5;
+      x0 -= m; y0 -= m; x1 += m; y1 += m;
+      bb.points(runPath([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]], 4.0));
+    }
+    // placement lines for one part of a split design: two basting lines down the sides of
+    // its sewing field. They make the part's outline exactly that field, so the machine
+    // (which centres a design on its outline) puts the part exactly where it belongs; the
+    // lines of one part lie on the same track as the next part's, a check that it lines up
+    if (p.marks) {
+      const { cx, cy, half } = p.marks;
+      bb.points(runPath([[cx - half, cy - half], [cx - half, cy + half]], 4.0));
+      bb.points(runPath([[cx + half, cy + half], [cx + half, cy - half]], 4.0));
+    }
     bb.colorChange();
     b.cmds = bb.cmds.concat(b.cmds);
     threads.unshift(0xa8a8a8); used.unshift(-1);
@@ -1934,6 +1964,96 @@ function digitize(p, progress) {
   const res = finish(b, threads, summary);
   res.colorsUsed = used;
   res.basting = basted;
+  return res;
+}
+/* A design taller than the 4x4 field, split for a multi-position hoop (Brother SA434:
+   100 x 172 mm, three positions 36 mm apart, each a 100 x 100 field). The design sits in
+   the middle of the hoop. It is cut into the fewest parts that fit the positions, along
+   lines that go around the shapes where they can (through empty fabric) and straight
+   across where they must, and each part is digitized on its own. Each part gets placement
+   lines (see digitize) so the machine puts it in the right spot. */
+function digitizeSplit(p, labels, stitched, say) {
+  const { W, H, mmpx } = p, N = W * H;
+  const sp = p.split, sep = sp.sep || 36, field = sp.field || 100, half = field / 2 - 2.5, room = field / 2 - 5;
+  const cx = W * mmpx / 2, cy = H * mmpx / 2;
+  let top = H, bot = -1, left = W, right = -1;
+  for (let i = 0; i < N; i++) if (stitched.has(labels[i])) { const y = (i / W) | 0, x = i % W; if (y < top) top = y; if (y > bot) bot = y; if (x < left) left = x; if (x > right) right = x; }
+  // the placement lines run down the sides of each field, so the design stays inside them
+  if (bot >= 0 && (left * mmpx < cx - room - 0.5 || (right + 1) * mmpx > cx + room + 0.5)) return { error: 'tooWide', cmds: [], threads: [], stitches: 0 };
+  if (bot < 0) return digitize(Object.assign({}, p, { labels, split: null }), say);
+  const y0 = top * mmpx - cy, y1 = (bot + 1) * mmpx - cy;          // design extent, mm from hoop centre
+  // where to cut: a path across the picture inside the band [a, b] (mm from hoop centre)
+  // that crosses the fewest stitches
+  const seam = (a, b) => {
+    const r0 = Math.max(0, Math.ceil((cy + a) / mmpx)), r1 = Math.min(H - 1, Math.floor((cy + b) / mmpx));
+    if (r1 < r0) return null;
+    const R = r1 - r0 + 1, cost = new Float64Array(R), prev = new Int32Array(R * W), next = new Float64Array(R);
+    const at = (r, x) => stitched.has(labels[(r0 + r) * W + x]) ? 1 : 0;
+    for (let r = 0; r < R; r++) cost[r] = at(r, 0) + 1e-3 * Math.abs(r - R / 2);
+    for (let x = 1; x < W; x++) {
+      for (let r = 0; r < R; r++) {
+        let best = cost[r], br = r;
+        if (r > 0 && cost[r - 1] + 0.02 < best) { best = cost[r - 1] + 0.02; br = r - 1; }
+        if (r < R - 1 && cost[r + 1] + 0.02 < best) { best = cost[r + 1] + 0.02; br = r + 1; }
+        next[r] = best + at(r, x); prev[x * R + r] = br;
+      }
+      cost.set(next);
+    }
+    let r = 0;
+    for (let k = 1; k < R; k++) if (cost[k] < cost[r]) r = k;
+    const total = cost[r], path = new Int32Array(W);
+    for (let x = W - 1; x >= 0; x--) { path[x] = r0 + r; if (x) r = prev[x * R + r]; }
+    return { path, cost: total * mmpx };            // about mm of stitching cut through
+  };
+  // which hoop positions and cuts: two positions if they reach the whole design; all three
+  // give more room to cut around shapes, for one more move of the hoop
+  const pos = [-sep, 0, sep];
+  const plans = [];
+  if (y0 >= -room && y1 <= room) plans.push({ use: [1], seams: [], cost: 0 });
+  else {
+    const fits = ids => y0 >= pos[ids[0]] - room && y1 <= pos[ids[ids.length - 1]] + room;
+    for (const ids of [[0, 1], [1, 2], [0, 2], [0, 1, 2]]) {
+      if (!fits(ids)) continue;
+      const seams = [];
+      let ok = true;
+      for (let k = 0; k + 1 < ids.length; k++) {
+        let a = pos[ids[k + 1]] - room, b = pos[ids[k]] + room;
+        if (ids.length === 3) { if (k === 0) b = Math.min(b, -1); else a = Math.max(a, 1); }
+        a = Math.max(a, y0 + 1); b = Math.min(b, y1 - 1);
+        const s = seam(a, b);
+        if (!s) { ok = false; break; }
+        seams.push(s);
+      }
+      if (ok) plans.push({ use: ids, seams, cost: seams.reduce((t, s) => t + s.cost, 0) + 15 * (ids.length - 2) });
+    }
+  }
+  if (!plans.length) return { error: 'tooTall', cmds: [], threads: [], stitches: 0 };
+  plans.sort((a, b) => a.cost - b.cost);
+  const plan = plans[0];
+  const ov = Math.max(1, Math.round(0.3 / mmpx));                 // parts overlap by about 0.6 mm at a cut
+  const parts = [], all = new Builder(), allThreads = [], allUsed = [], summary = [];
+  plan.use.forEach((pi, k) => {
+    say('part ' + (k + 1) + '/' + plan.use.length);
+    const L = new Int16Array(labels);
+    const up = k > 0 ? plan.seams[k - 1].path : null, dn = k < plan.seams.length ? plan.seams[k].path : null;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if ((up && y < up[x] - ov) || (dn && y > dn[x] + ov)) L[y * W + x] = -1;
+    }
+    const r = digitize(Object.assign({}, p, { labels: L, split: null, marks: plan.use.length > 1 ? { cx, cy: cy + pos[pi], half } : null }), say);
+    parts.push({ cmds: r.cmds, threads: r.threads, stitches: r.stitches, colorsUsed: r.colorsUsed, position: ['top', 'middle', 'bottom'][pi], offset: r.offset, width: r.width, height: r.height });
+    // the whole design for the preview: every part in place, one after the other
+    for (const c of r.cmds) if (c[2] !== END) all.cmds.push([c[0] / 10 + r.offset[0], c[1] / 10 + r.offset[1], c[2]]);
+    const last = all.cmds[all.cmds.length - 1];
+    if (last) all.cmds.push([last[0], last[1], k < plan.use.length - 1 ? COLOR_CHANGE : END]);
+    allThreads.push(...r.threads); allUsed.push(...r.colorsUsed);
+    summary.push(...(r.summary || []));
+  });
+  const res = finish(all, allThreads, summary);
+  res.colorsUsed = allUsed;
+  res.basting = plan.use.length > 1 || !!p.basting;
+  res.parts = parts;
+  res.hoopCenter = [cx, cy];
+  res.cuts = plan.seams.map(s => Array.from(s.path, (y, x) => [x * mmpx, y * mmpx]));
   return res;
 }
 function boxDist(c, p, mmpx) {

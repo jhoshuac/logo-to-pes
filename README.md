@@ -52,3 +52,13 @@ Features still to come are listed in [PENDING.md](PENDING.md).
 - `draw/index.html`: the drawing tool, also one file.
 - `src/template.html`, `src/draw-template.html`: the two pages before the engine is inlined.
 - `src/build.py`: rebuilds both pages from the files in `src/` (`python3 src/build.py`).
+
+## Multi-position hoop (bigger designs on the SE625)
+
+Pick **4 × 6¾ in multi-position (SA434)** as the hoop, on either page. Designs can be up to 90 × 162 mm. When you download, the design is split into parts, one .pes file per hoop position (top, middle, bottom), cut around the shapes where possible. You get a .zip with the numbered files and a HOW TO SEW.txt:
+
+1. Hoop the fabric once. Don't unhoop it until every part is sewn.
+2. Attach the hoop at the position named in the file (top is the end of the hoop toward the back of the machine) and sew it.
+3. Move the hoop to the next position and sew the next file, in number order.
+4. Each part starts with two gray placement lines down its sides. They make the machine place the part exactly, and each part's lines run along the last part's lines as a check. Pull them out at the end.
+

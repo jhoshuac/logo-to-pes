@@ -118,6 +118,10 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
 .simbar input[type=range] { flex: 1 1 140px; min-width: 120px; accent-color: var(--accent); }
 .simbar select { width: auto; padding: 6px 8px; }
 .siminfo { min-height: 1.4em; margin: 0 0 10px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.multihow { font-size: 13px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px 12px; }
+.multihow ol { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.multihow[hidden], .partsinfo[hidden] { display: none; }
+.partsinfo { margin: 0; font-weight: 700; font-size: 14px; }
 .readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
 .tile { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); }
 .tile.wide { grid-column: span 2; }
@@ -199,6 +203,7 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
           <label for="hoop" data-t="hoop">Hoop</label>
           <select id="hoop">
             <option value="100x100" data-t="hoop4">4 × 4 in (100 × 100 mm), fits the SE625</option>
+            <option value="100x172" data-t="hoopMulti">4 × 6¾ in multi-position (SA434), fits the SE625, sewn in parts</option>
             <option value="130x180" data-t="hoop5">5 × 7 in (130 × 180 mm), bigger machines only</option>
             <option value="160x260" data-t="hoop6">6 × 10 in (160 × 260 mm), bigger machines only</option>
           </select>
@@ -209,6 +214,15 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
           <button class="btn" id="fit" type="button" data-t="fit">Fit to hoop</button>
         </div>
         <p class="hint" id="inches"></p>
+        <div class="multihow" id="multiHow" hidden>
+          <p data-t="multiIntro">Designs up to 90 × 162 mm. The site splits it into parts, one .pes file per hoop position, cut around the shapes where it can.</p>
+          <ol>
+            <li data-t="multi1">Hoop the fabric once in the multi-position hoop. Don't unhoop it until every part is sewn.</li>
+            <li data-t="multi2">Attach the hoop at the position named in the file (top, middle or bottom: top is the end of the hoop toward the back of the machine) and sew that file.</li>
+            <li data-t="multi3">Move the hoop to the next position and sew the next file, in number order.</li>
+            <li data-t="multi4">Each part starts with two gray placement lines at its sides (any thread will do). Each part's lines run along the same track as the last part's lines; if they don't, check the position before you go on. Pull them out at the end.</li>
+          </ol>
+        </div>
       </section>
 
       <section class="panel p-colors" aria-labelledby="h-colors">
@@ -282,7 +296,8 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
           <button class="btn" type="button" id="simAll" disabled data-t="simAll">Show finished</button>
         </div>
         <p class="siminfo" id="simInfo"></p>
-        <div class="readout">
+        <p class="partsinfo" id="partsInfo" hidden></p>
+      <div class="readout">
           <div class="tile wide"><div class="v" id="r-size">–</div><div class="k" data-t="rSize">↕ height × ↔ width</div></div>
           <div class="tile"><div class="v" id="r-st">–</div><div class="k" data-t="rSt">stitches</div></div>
           <div class="tile"><div class="v" id="r-cc">–</div><div class="k" data-t="rCc">thread changes</div></div>
@@ -332,7 +347,14 @@ const T = {
     tip_fleece: 'Cut-away stabilizer, plus water-soluble topping on top.',
     bold: 'Thicken thin lines', boldHint: "Thin lines are sewn as fine as they are drawn. Turn this on to make every line at least 1 mm wide: bolder, less exact.",
     basting: 'Basting box', bastingHint: "Sews a box of long stitches first to hold the fabric and stabilizer. Use any thread and pull it out when you're done.",
-    hoop4: '4 × 4 in (100 × 100 mm), fits the SE625', hoop5: '5 × 7 in (130 × 180 mm), bigger machines only', hoop6: '6 × 10 in (160 × 260 mm), bigger machines only',
+    hoop4: '4 × 4 in (100 × 100 mm), fits the SE625', hoopMulti: '4 × 6¾ in multi-position (SA434), fits the SE625, sewn in parts',
+    multiIntro: 'Designs up to 90 × 162 mm. The site splits it into parts, one .pes file per hoop position, cut around the shapes where it can.',
+    multi1: "Hoop the fabric once in the multi-position hoop. Don't unhoop it until every part is sewn.",
+    multi2: 'Attach the hoop at the position named in the file (top, middle or bottom: top is the end of the hoop toward the back of the machine) and sew that file.',
+    multi3: 'Move the hoop to the next position and sew the next file, in number order.',
+    multi4: "Each part starts with two gray placement lines at its sides (any thread will do). Each part's lines run along the same track as the last part's lines; if they don't, check the position before you go on. Pull them out at the end.",
+    parts: n => `Sewn in ${n} parts`, onePart: 'Fits in one position (middle): a single file.', posName: { top: 'top', middle: 'middle', bottom: 'bottom' },
+    howFile: 'HOW TO SEW.txt', hoop5: '5 × 7 in (130 × 180 mm), bigger machines only', hoop6: '6 × 10 in (160 × 260 mm), bigger machines only',
     size: 'Size', densityTitle: 'Stitch density', lighter: 'Lighter', denser: 'Denser, covers more',
     densityV: (v, mm) => `${v} lines per mm (rows ${mm} mm apart)`,
     densityHint: 'If the fabric shows through the stitches, move this toward Denser. Dark fabric with light thread usually needs 3.3 or more.',
@@ -354,7 +376,7 @@ const T = {
     simChange: (b, name) => `The machine stops here: change to thread ${b}, ${name}`,
     download: 'Download .pes', dlNote: "You'll get a .zip. Open it and copy the .pes file inside to your USB stick.",
     dlNoteDirect: 'The .pes file downloads directly. Copy it to your USB stick.',
-    saved: 'Saved. Unzip it and copy the .pes file to your USB stick.', declined: 'Download canceled.', dlFail: "The download didn't start. Try again.",
+    saved: 'Saved. Unzip it and copy the .pes file to your USB stick.', savedParts: 'Downloaded a .zip: unzip it and copy all the numbered .pes files to your USB stick.', declined: 'Download canceled.', dlFail: "The download didn't start. Try again.",
     tip1: 'Sew a test on scrap fabric with stabilizer before the real garment.',
     tip2: "White thread looks faint on the machine's screen. That's normal.",
     tip3: 'Your machine will stop at each thread change and show the color name listed above.',
@@ -378,7 +400,14 @@ const T = {
     tip_fleece: 'Entretela recortable, y film soluble encima.',
     bold: 'Engrosar líneas finas', boldHint: 'Las líneas finas se bordan tan finas como en el dibujo. Actívalo para que toda línea tenga al menos 1 mm: más gruesa, menos exacta.',
     basting: 'Caja de hilván', bastingHint: 'Borda primero una caja de puntadas largas para sujetar la tela y la entretela. Usa cualquier hilo y quítala al terminar.',
-    hoop4: '4 × 4 in (100 × 100 mm), para la SE625', hoop5: '5 × 7 in (130 × 180 mm), solo máquinas más grandes', hoop6: '6 × 10 in (160 × 260 mm), solo máquinas más grandes',
+    hoop4: '4 × 4 in (100 × 100 mm), para la SE625', hoopMulti: '4 × 6¾ in multiposición (SA434), para la SE625, se borda por partes',
+    multiIntro: 'Diseños de hasta 90 × 162 mm. La página lo divide en partes, un archivo .pes por posición del bastidor, cortando alrededor de las figuras cuando puede.',
+    multi1: 'Pon la tela una sola vez en el bastidor multiposición. No la saques hasta bordar todas las partes.',
+    multi2: 'Coloca el bastidor en la posición que dice el archivo (arriba, centro o abajo: arriba es el extremo del bastidor hacia atrás de la máquina) y borda ese archivo.',
+    multi3: 'Mueve el bastidor a la siguiente posición y borda el siguiente archivo, en orden de número.',
+    multi4: 'Cada parte empieza con dos líneas grises de colocación a los lados (sirve cualquier hilo). Las líneas de cada parte van por el mismo camino que las de la parte anterior; si no, revisa la posición antes de seguir. Sácalas al final.',
+    parts: n => `Se borda en ${n} partes`, onePart: 'Cabe en una sola posición (centro): un solo archivo.', posName: { top: 'arriba', middle: 'centro', bottom: 'abajo' },
+    howFile: 'COMO BORDAR.txt', hoop5: '5 × 7 in (130 × 180 mm), solo máquinas más grandes', hoop6: '6 × 10 in (160 × 260 mm), solo máquinas más grandes',
     size: 'Tamaño', densityTitle: 'Densidad de puntada', lighter: 'Más ligera', denser: 'Más densa, cubre más',
     densityV: (v, mm) => `${v} líneas por mm (filas a ${mm} mm)`,
     densityHint: 'Si la tela se ve entre las puntadas, mueve esto hacia Más densa. Tela oscura con hilo claro suele necesitar 3,3 o más.',
@@ -400,7 +429,7 @@ const T = {
     simChange: (b, name) => `La máquina se detiene aquí: cambia al hilo ${b}, ${name}`,
     download: 'Descargar .pes', dlNote: 'Recibirás un .zip. Ábrelo y copia el archivo .pes a tu memoria USB.',
     dlNoteDirect: 'El archivo .pes se descarga directamente. Cópialo a tu memoria USB.',
-    saved: 'Guardado. Descomprímelo y copia el archivo .pes a tu memoria USB.', declined: 'Descarga cancelada.', dlFail: 'La descarga no empezó. Inténtalo de nuevo.',
+    saved: 'Guardado. Descomprímelo y copia el archivo .pes a tu memoria USB.', savedParts: 'Se descargó un .zip: descomprímelo y copia todos los archivos .pes numerados a tu memoria USB.', declined: 'Descarga cancelada.', dlFail: 'La descarga no empezó. Inténtalo de nuevo.',
     tip1: 'Haz una prueba en un retazo con entretela antes de la prenda final.',
     tip2: 'El hilo blanco se ve tenue en la pantalla de la máquina. Es normal.',
     tip3: 'La máquina se detiene en cada cambio de hilo y muestra el nombre del color indicado arriba.',
@@ -412,7 +441,8 @@ const t = (k, ...a) => { const v = T[lang][k]; return typeof v === 'function' ? 
 const $ = id => document.getElementById(id);
 const Emb = window.Emb;
 
-const HOOPS = { '100x100': [100, 100, '4×4 in'], '130x180': [130, 180, '5×7 in'], '160x260': [160, 260, '6×10 in'] };
+// [sewing width, height, name, distance between positions of a multi-position hoop]
+const HOOPS = { '100x100': [100, 100, '4×4 in'], '100x172': [100, 172, '4×6¾ in', 36], '130x180': [130, 180, '5×7 in'], '160x260': [160, 260, '6×10 in'] };
 const state = {
   img: null, name: 'logo', aspect: 1, analysis: null, kChoice: 'auto', colors: [], order: [],
   wmm: 90, hmm: 90, hoop: '100x100', angle: 45, lines: 3.3, satin: 4.5, satinOn: true, fabric: '#efece6', fabricKey: 'cotton', basting: false, bold: false, bgFamily: [],
@@ -620,7 +650,7 @@ function fitToHoop() {
 function updateInches() { $('inches').textContent = t('inches', (state.wmm / 25.4).toFixed(2), (state.hmm / 25.4).toFixed(2)); }
 $('wmm').oninput = e => { const v = +e.target.value; if (v >= 10) { state.wmm = v; state.hmm = Math.round(v / state.aspect * 2) / 2; $('hmm').value = state.hmm; updateInches(); schedule(600); } };
 $('hmm').oninput = e => { const v = +e.target.value; if (v >= 10) { state.hmm = v; state.wmm = Math.round(v * state.aspect * 2) / 2; $('wmm').value = state.wmm; updateInches(); schedule(600); } };
-$('hoop').onchange = e => { state.hoop = e.target.value; fitToHoop(); schedule(); };
+$('hoop').onchange = e => { state.hoop = e.target.value; $('multiHow').hidden = !HOOPS[state.hoop][3]; fitToHoop(); schedule(); };
 $('fit').onclick = () => { fitToHoop(); schedule(); };
 $('angle').oninput = e => { state.angle = +e.target.value; $('angleV').textContent = state.angle + '°'; schedule(500); };
 function showDensity() { $('densityV').textContent = t('densityV', state.lines.toLocaleString(lang === 'es' ? 'es-CO' : 'en-US', { minimumFractionDigits: 1 }), (1 / state.lines).toFixed(2)); }
@@ -673,7 +703,8 @@ function buildParams() {
     removeEdge: state.bgMode !== 'keep', removeSeeds: state.seeds.slice(),
     density: 1 / state.lines, satinSpacing: Math.min(0.5, Math.max(0.25, 1 / state.lines + 0.05)),
     pull: Emb.FABRICS[state.fabricKey].pull, fillPull: Emb.FABRICS[state.fabricKey].fillPull, underlay: Emb.FABRICS[state.fabricKey].underlay,
-    basting: state.basting, boldMM: state.bold ? 1.0 : 0, srcPx: up, fine: true
+    basting: state.basting, boldMM: state.bold ? 1.0 : 0, srcPx: up, fine: true,
+    split: HOOPS[state.hoop][3] ? { sep: HOOPS[state.hoop][3], field: 100 } : null
   };
 }
 function run() {
@@ -709,8 +740,9 @@ function run() {
 function setStatus(kind, text) { const s = $('status'); s.className = 'chip ' + kind; s.textContent = text; }
 function updateFitChip() {
   const r = state.result; if (!r) return;
-  const [hw, hh, label] = HOOPS[state.hoop];
-  if (r.width <= hw && r.height <= hh) setStatus('good', t('fits', label)); else setStatus('bad', t('tooBig', label));
+  const [hw, hh, label, sep] = HOOPS[state.hoop];
+  const ok = sep ? (!r.error && state.wmm <= hw - 10 + 0.01 && state.hmm <= hh - 10 + 0.01) : (r.width <= hw && r.height <= hh);
+  setStatus(ok ? 'good' : 'bad', t(ok ? 'fits' : 'tooBig', label));
 }
 
 /* ---------- preview drawing */
@@ -754,7 +786,19 @@ function drawPreview() {
     return;
   }
   if (!r || !r.cmds.length) return;
-  const ox = fx + (hw - r.width) / 2 * s, oy = fy + (hh - r.height) / 2 * s;
+  let ox = fx + (hw - r.width) / 2 * s, oy = fy + (hh - r.height) / 2 * s;
+  // a split design is placed by the hoop's centre, and the cuts between parts are shown
+  if (r.hoopCenter) {
+    ox = fx + (hw / 2 - (r.hoopCenter[0] - r.offset[0])) * s; oy = fy + (hh / 2 - (r.hoopCenter[1] - r.offset[1])) * s;
+    const px = (x, y) => [fx + (hw / 2 + x - r.hoopCenter[0]) * s, fy + (hh / 2 + y - r.hoopCenter[1]) * s];
+    ctx.save(); ctx.setLineDash([1.2 * s, 1.2 * s]); ctx.lineWidth = Math.max(1, 0.3 * s); ctx.strokeStyle = 'rgba(37,99,235,0.75)';
+    for (const cut of r.cuts || []) {
+      ctx.beginPath();
+      cut.forEach(([x, y], i) => { const [X, Y] = px(x, y); if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); });
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   state.pv = { ox, oy, s };
   if (sim && sim.isActive()) { drawSimFrame(ctx, r, ox, oy, s); return; }
   const k = s / 10;                                 // commands are in 0.1 mm
@@ -864,6 +908,12 @@ function renderReadout() {
   $('r-cc').textContent = nf(r.colorChanges);
   $('r-tr').textContent = nf(r.trims);
   $('r-min').textContent = nf(Math.max(1, Math.ceil(r.stitches / 600 + r.colorChanges)));
+  const pi = $('partsInfo');
+  if (r.parts && r.parts.length > 1) {
+    pi.hidden = false;
+    pi.textContent = t('parts', r.parts.length) + ': ' + r.parts.map((pt, i) => `${i + 1}. ${T[lang].posName[pt.position]} (${nf(pt.stitches)})`).join(' · ');
+  } else if (r.parts) { pi.hidden = false; pi.textContent = t('onePart'); }
+  else pi.hidden = true;
 }
 
 /* ---------- download */
@@ -880,6 +930,26 @@ $('download').onclick = async () => {
   const threads = r.colorsUsed ? r.colorsUsed.map((ci, i) => state.colors[ci] ? state.colors[ci].thread : r.threads[i]) : r.threads;
   const pes = Emb.writePES(r.cmds, threads, state.name.toUpperCase().slice(0, 8));
   const fname = state.name + '.pes';
+  // a split design: one file per hoop position, numbered in sewing order, and how to sew them
+  if (r.parts && r.parts.length > 1) {
+    const files = r.parts.map((pt, i) => {
+      const th = pt.colorsUsed.map((ci, k) => state.colors[ci] ? state.colors[ci].thread : pt.threads[k]);
+      return { name: `${state.name}-${i + 1}-${T[lang].posName[pt.position]}.pes`, data: Emb.writePES(pt.cmds, th, (state.name.slice(0, 6) + (i + 1)).toUpperCase()) };
+    });
+    const how = [t('multiIntro'), '', ...['multi1', 'multi2', 'multi3', 'multi4'].map((k, i) => `${i + 1}. ${t(k)}`), '', ...files.map(f => f.name)].join('\r\n');
+    files.push({ name: t('howFile'), data: new TextEncoder().encode(how) });
+    const zip = Emb.makeZip(files);
+    if (downloadsCap) {
+      try { await downloadsCap.save({ filename: state.name + '.zip', data: new Blob([zip]) }); msg.className = 'msg ok'; msg.textContent = t('savedParts'); }
+      catch (e) { if (e && e.code === 'declined') msg.textContent = t('declined'); else { msg.className = 'msg err'; msg.textContent = t('dlFail'); console.error(e); } }
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([zip], { type: 'application/zip' }));
+    const a = document.createElement('a'); a.href = url; a.download = state.name + '.zip'; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    msg.className = 'msg ok'; msg.textContent = t('savedParts');
+    return;
+  }
   if (downloadsCap) {
     const zip = Emb.makeZip([{ name: fname, data: pes }]);
     try {

@@ -118,6 +118,10 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
 .simbar input[type=range] { flex: 1 1 140px; min-width: 120px; accent-color: var(--accent); }
 .simbar select { width: auto; padding: 6px 8px; }
 .siminfo { min-height: 1.4em; margin: 0 0 10px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.multihow { font-size: 13px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px 12px; }
+.multihow ol { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.multihow[hidden], .partsinfo[hidden] { display: none; }
+.partsinfo { margin: 0; font-weight: 700; font-size: 14px; }
 .readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
 .tile { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); }
 .tile.wide { grid-column: span 2; }
@@ -199,6 +203,7 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
           <label for="hoop" data-t="hoop">Hoop</label>
           <select id="hoop">
             <option value="100x100" data-t="hoop4">4 × 4 in (100 × 100 mm), fits the SE625</option>
+            <option value="100x172" data-t="hoopMulti">4 × 6¾ in multi-position (SA434), fits the SE625, sewn in parts</option>
             <option value="130x180" data-t="hoop5">5 × 7 in (130 × 180 mm), bigger machines only</option>
             <option value="160x260" data-t="hoop6">6 × 10 in (160 × 260 mm), bigger machines only</option>
           </select>
@@ -209,6 +214,15 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
           <button class="btn" id="fit" type="button" data-t="fit">Fit to hoop</button>
         </div>
         <p class="hint" id="inches"></p>
+        <div class="multihow" id="multiHow" hidden>
+          <p data-t="multiIntro">Designs up to 90 × 162 mm. The site splits it into parts, one .pes file per hoop position, cut around the shapes where it can.</p>
+          <ol>
+            <li data-t="multi1">Hoop the fabric once in the multi-position hoop. Don't unhoop it until every part is sewn.</li>
+            <li data-t="multi2">Attach the hoop at the position named in the file (top, middle or bottom: top is the end of the hoop toward the back of the machine) and sew that file.</li>
+            <li data-t="multi3">Move the hoop to the next position and sew the next file, in number order.</li>
+            <li data-t="multi4">Each part starts with two gray placement lines at its sides (any thread will do). Each part's lines run along the same track as the last part's lines; if they don't, check the position before you go on. Pull them out at the end.</li>
+          </ol>
+        </div>
       </section>
 
       <section class="panel p-colors" aria-labelledby="h-colors">
@@ -282,7 +296,8 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
           <button class="btn" type="button" id="simAll" disabled data-t="simAll">Show finished</button>
         </div>
         <p class="siminfo" id="simInfo"></p>
-        <div class="readout">
+        <p class="partsinfo" id="partsInfo" hidden></p>
+      <div class="readout">
           <div class="tile wide"><div class="v" id="r-size">–</div><div class="k" data-t="rSize">↕ height × ↔ width</div></div>
           <div class="tile"><div class="v" id="r-st">–</div><div class="k" data-t="rSt">stitches</div></div>
           <div class="tile"><div class="v" id="r-cc">–</div><div class="k" data-t="rCc">thread changes</div></div>
@@ -1721,7 +1736,21 @@ function labelImage(rgba, W, H, mmpx, C, blurPx, skip, detail) {
         if (D[i] > wide[id]) wide[id] = D[i];
         for (const n of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1]) if (n >= 0 && !M[n]) touch[id - 1].add(labels[n]);
       }
-      for (const c of comps) if (touch[c.id - 1].size >= 2 && (wide[c.id] * mmpx < 0.45 || c.count * mmpx * mmpx < 2)) small.add(c.id);
+      // judged by the picture's own pixels there too: grey along a black outline on white is
+      // nearest to pink, but it is the soft edge between the two
+      const sum = new Float64Array((comps.length + 1) * 3);
+      for (let i = 0; i < N; i++) if (kept[i]) { const id = lab[i]; for (let c = 0; c < 3; c++) sum[id * 3 + c] += img[i * 3 + c]; }
+      const blendOf = (c, T) => {
+        const X = [sum[c.id * 3] / c.count, sum[c.id * 3 + 1] / c.count, sum[c.id * 3 + 2] / c.count];
+        const L = [...T].filter(v => v >= 0);
+        for (let a = 0; a < L.length; a++) for (let b = a + 1; b < L.length; b++) {
+          const P = C[L[a]], Q = C[L[b]], ab = [Q[0] - P[0], Q[1] - P[1], Q[2] - P[2]], ax = [X[0] - P[0], X[1] - P[1], X[2] - P[2]];
+          const L2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2 || 1, t = (ab[0] * ax[0] + ab[1] * ax[1] + ab[2] * ax[2]) / L2;
+          if (t > 0.05 && t < 0.95 && Math.hypot(ax[0] - t * ab[0], ax[1] - t * ab[1], ax[2] - t * ab[2]) < Math.max(35, 0.3 * Math.sqrt(L2))) return true;
+        }
+        return false;
+      };
+      for (const c of comps) if (touch[c.id - 1].size >= 2 && (wide[c.id] * mmpx < 0.45 || c.count * mmpx * mmpx < 2 || (wide[c.id] * mmpx < 1.2 && blendOf(c, touch[c.id - 1])))) small.add(c.id);
     }
     for (let i = 0; i < N; i++) if (M[i] && (!kept[i] || small.has(lab[i]))) unassigned[i] = 1;
   }
@@ -2112,11 +2141,14 @@ function digitize(p, progress) {
   const { W, H, mmpx } = p;
   const say = progress || (() => {});
   const N = W * H;
+  const stitched = new Set(p.order.filter(j => p.colors[j].stitch));
+  let labels;
+  if (p.labels) labels = p.labels;                      // one part of a split design
+  else {
   say('colors');
-  const labels = labelImage(p.rgba, W, H, mmpx, p.colors.map(c => c.rgb), p.blurPx, mergeSkips(p.colors), { srcPx: p.srcPx || 0, fabric: p.colors.map(c => !c.stitch) });
+  labels = labelImage(p.rgba, W, H, mmpx, p.colors.map(c => c.rgb), p.blurPx, mergeSkips(p.colors), { srcPx: p.srcPx || 0, fabric: p.colors.map(c => !c.stitch) });
   applyRemovals(labels, W, H, { removeEdge: !!p.removeEdge, seeds: p.removeSeeds || [] });
 
-  const stitched = new Set(p.order.filter(j => p.colors[j].stitch));
   // 4. keep narrow gaps of fabric open so the stitches don't close them up (in detail
   // mode they open wider, and thin lines are thickened without filling them)
   const B = new Uint8Array(N);
@@ -2129,7 +2161,9 @@ function digitize(p, progress) {
     for (let i = 0; i < N; i++) if (widen[i] && !B[i]) labels[i] = -1;
   }
 
+  }
   if (debugLabels.on) debugLabels.labels = labels.slice();
+  if (p.split && !p.labels) return digitizeSplit(p, labels, stitched, say);
   // 5. digitize each stitched colour
   const b = new Builder();
   const threads = [], used = [];
@@ -2228,13 +2262,24 @@ function digitize(p, progress) {
   // basting box: a running stitch around everything, sewn first in its own colour stop,
   // to hold fabric and stabilizer together; it is pulled out afterwards
   let basted = false;
-  if (p.basting && b.cmds.length) {
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const c of b.cmds) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
-    const m = 2.5;
-    x0 -= m; y0 -= m; x1 += m; y1 += m;
+  if ((p.basting || p.marks) && b.cmds.length) {
     const bb = new Builder();
-    bb.points(runPath([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]], 4.0));
+    if (p.basting) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const c of b.cmds) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
+      const m = 2.5;
+      x0 -= m; y0 -= m; x1 += m; y1 += m;
+      bb.points(runPath([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]], 4.0));
+    }
+    // placement lines for one part of a split design: two basting lines down the sides of
+    // its sewing field. They make the part's outline exactly that field, so the machine
+    // (which centres a design on its outline) puts the part exactly where it belongs; the
+    // lines of one part lie on the same track as the next part's, a check that it lines up
+    if (p.marks) {
+      const { cx, cy, half } = p.marks;
+      bb.points(runPath([[cx - half, cy - half], [cx - half, cy + half]], 4.0));
+      bb.points(runPath([[cx + half, cy + half], [cx + half, cy - half]], 4.0));
+    }
     bb.colorChange();
     b.cmds = bb.cmds.concat(b.cmds);
     threads.unshift(0xa8a8a8); used.unshift(-1);
@@ -2243,6 +2288,96 @@ function digitize(p, progress) {
   const res = finish(b, threads, summary);
   res.colorsUsed = used;
   res.basting = basted;
+  return res;
+}
+/* A design taller than the 4x4 field, split for a multi-position hoop (Brother SA434:
+   100 x 172 mm, three positions 36 mm apart, each a 100 x 100 field). The design sits in
+   the middle of the hoop. It is cut into the fewest parts that fit the positions, along
+   lines that go around the shapes where they can (through empty fabric) and straight
+   across where they must, and each part is digitized on its own. Each part gets placement
+   lines (see digitize) so the machine puts it in the right spot. */
+function digitizeSplit(p, labels, stitched, say) {
+  const { W, H, mmpx } = p, N = W * H;
+  const sp = p.split, sep = sp.sep || 36, field = sp.field || 100, half = field / 2 - 2.5, room = field / 2 - 5;
+  const cx = W * mmpx / 2, cy = H * mmpx / 2;
+  let top = H, bot = -1, left = W, right = -1;
+  for (let i = 0; i < N; i++) if (stitched.has(labels[i])) { const y = (i / W) | 0, x = i % W; if (y < top) top = y; if (y > bot) bot = y; if (x < left) left = x; if (x > right) right = x; }
+  // the placement lines run down the sides of each field, so the design stays inside them
+  if (bot >= 0 && (left * mmpx < cx - room - 0.5 || (right + 1) * mmpx > cx + room + 0.5)) return { error: 'tooWide', cmds: [], threads: [], stitches: 0 };
+  if (bot < 0) return digitize(Object.assign({}, p, { labels, split: null }), say);
+  const y0 = top * mmpx - cy, y1 = (bot + 1) * mmpx - cy;          // design extent, mm from hoop centre
+  // where to cut: a path across the picture inside the band [a, b] (mm from hoop centre)
+  // that crosses the fewest stitches
+  const seam = (a, b) => {
+    const r0 = Math.max(0, Math.ceil((cy + a) / mmpx)), r1 = Math.min(H - 1, Math.floor((cy + b) / mmpx));
+    if (r1 < r0) return null;
+    const R = r1 - r0 + 1, cost = new Float64Array(R), prev = new Int32Array(R * W), next = new Float64Array(R);
+    const at = (r, x) => stitched.has(labels[(r0 + r) * W + x]) ? 1 : 0;
+    for (let r = 0; r < R; r++) cost[r] = at(r, 0) + 1e-3 * Math.abs(r - R / 2);
+    for (let x = 1; x < W; x++) {
+      for (let r = 0; r < R; r++) {
+        let best = cost[r], br = r;
+        if (r > 0 && cost[r - 1] + 0.02 < best) { best = cost[r - 1] + 0.02; br = r - 1; }
+        if (r < R - 1 && cost[r + 1] + 0.02 < best) { best = cost[r + 1] + 0.02; br = r + 1; }
+        next[r] = best + at(r, x); prev[x * R + r] = br;
+      }
+      cost.set(next);
+    }
+    let r = 0;
+    for (let k = 1; k < R; k++) if (cost[k] < cost[r]) r = k;
+    const total = cost[r], path = new Int32Array(W);
+    for (let x = W - 1; x >= 0; x--) { path[x] = r0 + r; if (x) r = prev[x * R + r]; }
+    return { path, cost: total * mmpx };            // about mm of stitching cut through
+  };
+  // which hoop positions and cuts: two positions if they reach the whole design; all three
+  // give more room to cut around shapes, for one more move of the hoop
+  const pos = [-sep, 0, sep];
+  const plans = [];
+  if (y0 >= -room && y1 <= room) plans.push({ use: [1], seams: [], cost: 0 });
+  else {
+    const fits = ids => y0 >= pos[ids[0]] - room && y1 <= pos[ids[ids.length - 1]] + room;
+    for (const ids of [[0, 1], [1, 2], [0, 2], [0, 1, 2]]) {
+      if (!fits(ids)) continue;
+      const seams = [];
+      let ok = true;
+      for (let k = 0; k + 1 < ids.length; k++) {
+        let a = pos[ids[k + 1]] - room, b = pos[ids[k]] + room;
+        if (ids.length === 3) { if (k === 0) b = Math.min(b, -1); else a = Math.max(a, 1); }
+        a = Math.max(a, y0 + 1); b = Math.min(b, y1 - 1);
+        const s = seam(a, b);
+        if (!s) { ok = false; break; }
+        seams.push(s);
+      }
+      if (ok) plans.push({ use: ids, seams, cost: seams.reduce((t, s) => t + s.cost, 0) + 15 * (ids.length - 2) });
+    }
+  }
+  if (!plans.length) return { error: 'tooTall', cmds: [], threads: [], stitches: 0 };
+  plans.sort((a, b) => a.cost - b.cost);
+  const plan = plans[0];
+  const ov = Math.max(1, Math.round(0.3 / mmpx));                 // parts overlap by about 0.6 mm at a cut
+  const parts = [], all = new Builder(), allThreads = [], allUsed = [], summary = [];
+  plan.use.forEach((pi, k) => {
+    say('part ' + (k + 1) + '/' + plan.use.length);
+    const L = new Int16Array(labels);
+    const up = k > 0 ? plan.seams[k - 1].path : null, dn = k < plan.seams.length ? plan.seams[k].path : null;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if ((up && y < up[x] - ov) || (dn && y > dn[x] + ov)) L[y * W + x] = -1;
+    }
+    const r = digitize(Object.assign({}, p, { labels: L, split: null, marks: plan.use.length > 1 ? { cx, cy: cy + pos[pi], half } : null }), say);
+    parts.push({ cmds: r.cmds, threads: r.threads, stitches: r.stitches, colorsUsed: r.colorsUsed, position: ['top', 'middle', 'bottom'][pi], offset: r.offset, width: r.width, height: r.height });
+    // the whole design for the preview: every part in place, one after the other
+    for (const c of r.cmds) if (c[2] !== END) all.cmds.push([c[0] / 10 + r.offset[0], c[1] / 10 + r.offset[1], c[2]]);
+    const last = all.cmds[all.cmds.length - 1];
+    if (last) all.cmds.push([last[0], last[1], k < plan.use.length - 1 ? COLOR_CHANGE : END]);
+    allThreads.push(...r.threads); allUsed.push(...r.colorsUsed);
+    summary.push(...(r.summary || []));
+  });
+  const res = finish(all, allThreads, summary);
+  res.colorsUsed = allUsed;
+  res.basting = plan.use.length > 1 || !!p.basting;
+  res.parts = parts;
+  res.hoopCenter = [cx, cy];
+  res.cuts = plan.seams.map(s => Array.from(s.path, (y, x) => [x * mmpx, y * mmpx]));
   return res;
 }
 function boxDist(c, p, mmpx) {
@@ -2783,7 +2918,14 @@ const T = {
     tip_fleece: 'Cut-away stabilizer, plus water-soluble topping on top.',
     bold: 'Thicken thin lines', boldHint: "Thin lines are sewn as fine as they are drawn. Turn this on to make every line at least 1 mm wide: bolder, less exact.",
     basting: 'Basting box', bastingHint: "Sews a box of long stitches first to hold the fabric and stabilizer. Use any thread and pull it out when you're done.",
-    hoop4: '4 × 4 in (100 × 100 mm), fits the SE625', hoop5: '5 × 7 in (130 × 180 mm), bigger machines only', hoop6: '6 × 10 in (160 × 260 mm), bigger machines only',
+    hoop4: '4 × 4 in (100 × 100 mm), fits the SE625', hoopMulti: '4 × 6¾ in multi-position (SA434), fits the SE625, sewn in parts',
+    multiIntro: 'Designs up to 90 × 162 mm. The site splits it into parts, one .pes file per hoop position, cut around the shapes where it can.',
+    multi1: "Hoop the fabric once in the multi-position hoop. Don't unhoop it until every part is sewn.",
+    multi2: 'Attach the hoop at the position named in the file (top, middle or bottom: top is the end of the hoop toward the back of the machine) and sew that file.',
+    multi3: 'Move the hoop to the next position and sew the next file, in number order.',
+    multi4: "Each part starts with two gray placement lines at its sides (any thread will do). Each part's lines run along the same track as the last part's lines; if they don't, check the position before you go on. Pull them out at the end.",
+    parts: n => `Sewn in ${n} parts`, onePart: 'Fits in one position (middle): a single file.', posName: { top: 'top', middle: 'middle', bottom: 'bottom' },
+    howFile: 'HOW TO SEW.txt', hoop5: '5 × 7 in (130 × 180 mm), bigger machines only', hoop6: '6 × 10 in (160 × 260 mm), bigger machines only',
     size: 'Size', densityTitle: 'Stitch density', lighter: 'Lighter', denser: 'Denser, covers more',
     densityV: (v, mm) => `${v} lines per mm (rows ${mm} mm apart)`,
     densityHint: 'If the fabric shows through the stitches, move this toward Denser. Dark fabric with light thread usually needs 3.3 or more.',
@@ -2805,7 +2947,7 @@ const T = {
     simChange: (b, name) => `The machine stops here: change to thread ${b}, ${name}`,
     download: 'Download .pes', dlNote: "You'll get a .zip. Open it and copy the .pes file inside to your USB stick.",
     dlNoteDirect: 'The .pes file downloads directly. Copy it to your USB stick.',
-    saved: 'Saved. Unzip it and copy the .pes file to your USB stick.', declined: 'Download canceled.', dlFail: "The download didn't start. Try again.",
+    saved: 'Saved. Unzip it and copy the .pes file to your USB stick.', savedParts: 'Downloaded a .zip: unzip it and copy all the numbered .pes files to your USB stick.', declined: 'Download canceled.', dlFail: "The download didn't start. Try again.",
     tip1: 'Sew a test on scrap fabric with stabilizer before the real garment.',
     tip2: "White thread looks faint on the machine's screen. That's normal.",
     tip3: 'Your machine will stop at each thread change and show the color name listed above.',
@@ -2829,7 +2971,14 @@ const T = {
     tip_fleece: 'Entretela recortable, y film soluble encima.',
     bold: 'Engrosar líneas finas', boldHint: 'Las líneas finas se bordan tan finas como en el dibujo. Actívalo para que toda línea tenga al menos 1 mm: más gruesa, menos exacta.',
     basting: 'Caja de hilván', bastingHint: 'Borda primero una caja de puntadas largas para sujetar la tela y la entretela. Usa cualquier hilo y quítala al terminar.',
-    hoop4: '4 × 4 in (100 × 100 mm), para la SE625', hoop5: '5 × 7 in (130 × 180 mm), solo máquinas más grandes', hoop6: '6 × 10 in (160 × 260 mm), solo máquinas más grandes',
+    hoop4: '4 × 4 in (100 × 100 mm), para la SE625', hoopMulti: '4 × 6¾ in multiposición (SA434), para la SE625, se borda por partes',
+    multiIntro: 'Diseños de hasta 90 × 162 mm. La página lo divide en partes, un archivo .pes por posición del bastidor, cortando alrededor de las figuras cuando puede.',
+    multi1: 'Pon la tela una sola vez en el bastidor multiposición. No la saques hasta bordar todas las partes.',
+    multi2: 'Coloca el bastidor en la posición que dice el archivo (arriba, centro o abajo: arriba es el extremo del bastidor hacia atrás de la máquina) y borda ese archivo.',
+    multi3: 'Mueve el bastidor a la siguiente posición y borda el siguiente archivo, en orden de número.',
+    multi4: 'Cada parte empieza con dos líneas grises de colocación a los lados (sirve cualquier hilo). Las líneas de cada parte van por el mismo camino que las de la parte anterior; si no, revisa la posición antes de seguir. Sácalas al final.',
+    parts: n => `Se borda en ${n} partes`, onePart: 'Cabe en una sola posición (centro): un solo archivo.', posName: { top: 'arriba', middle: 'centro', bottom: 'abajo' },
+    howFile: 'COMO BORDAR.txt', hoop5: '5 × 7 in (130 × 180 mm), solo máquinas más grandes', hoop6: '6 × 10 in (160 × 260 mm), solo máquinas más grandes',
     size: 'Tamaño', densityTitle: 'Densidad de puntada', lighter: 'Más ligera', denser: 'Más densa, cubre más',
     densityV: (v, mm) => `${v} líneas por mm (filas a ${mm} mm)`,
     densityHint: 'Si la tela se ve entre las puntadas, mueve esto hacia Más densa. Tela oscura con hilo claro suele necesitar 3,3 o más.',
@@ -2851,7 +3000,7 @@ const T = {
     simChange: (b, name) => `La máquina se detiene aquí: cambia al hilo ${b}, ${name}`,
     download: 'Descargar .pes', dlNote: 'Recibirás un .zip. Ábrelo y copia el archivo .pes a tu memoria USB.',
     dlNoteDirect: 'El archivo .pes se descarga directamente. Cópialo a tu memoria USB.',
-    saved: 'Guardado. Descomprímelo y copia el archivo .pes a tu memoria USB.', declined: 'Descarga cancelada.', dlFail: 'La descarga no empezó. Inténtalo de nuevo.',
+    saved: 'Guardado. Descomprímelo y copia el archivo .pes a tu memoria USB.', savedParts: 'Se descargó un .zip: descomprímelo y copia todos los archivos .pes numerados a tu memoria USB.', declined: 'Descarga cancelada.', dlFail: 'La descarga no empezó. Inténtalo de nuevo.',
     tip1: 'Haz una prueba en un retazo con entretela antes de la prenda final.',
     tip2: 'El hilo blanco se ve tenue en la pantalla de la máquina. Es normal.',
     tip3: 'La máquina se detiene en cada cambio de hilo y muestra el nombre del color indicado arriba.',
@@ -2863,7 +3012,8 @@ const t = (k, ...a) => { const v = T[lang][k]; return typeof v === 'function' ? 
 const $ = id => document.getElementById(id);
 const Emb = window.Emb;
 
-const HOOPS = { '100x100': [100, 100, '4×4 in'], '130x180': [130, 180, '5×7 in'], '160x260': [160, 260, '6×10 in'] };
+// [sewing width, height, name, distance between positions of a multi-position hoop]
+const HOOPS = { '100x100': [100, 100, '4×4 in'], '100x172': [100, 172, '4×6¾ in', 36], '130x180': [130, 180, '5×7 in'], '160x260': [160, 260, '6×10 in'] };
 const state = {
   img: null, name: 'logo', aspect: 1, analysis: null, kChoice: 'auto', colors: [], order: [],
   wmm: 90, hmm: 90, hoop: '100x100', angle: 45, lines: 3.3, satin: 4.5, satinOn: true, fabric: '#efece6', fabricKey: 'cotton', basting: false, bold: false, bgFamily: [],
@@ -3071,7 +3221,7 @@ function fitToHoop() {
 function updateInches() { $('inches').textContent = t('inches', (state.wmm / 25.4).toFixed(2), (state.hmm / 25.4).toFixed(2)); }
 $('wmm').oninput = e => { const v = +e.target.value; if (v >= 10) { state.wmm = v; state.hmm = Math.round(v / state.aspect * 2) / 2; $('hmm').value = state.hmm; updateInches(); schedule(600); } };
 $('hmm').oninput = e => { const v = +e.target.value; if (v >= 10) { state.hmm = v; state.wmm = Math.round(v * state.aspect * 2) / 2; $('wmm').value = state.wmm; updateInches(); schedule(600); } };
-$('hoop').onchange = e => { state.hoop = e.target.value; fitToHoop(); schedule(); };
+$('hoop').onchange = e => { state.hoop = e.target.value; $('multiHow').hidden = !HOOPS[state.hoop][3]; fitToHoop(); schedule(); };
 $('fit').onclick = () => { fitToHoop(); schedule(); };
 $('angle').oninput = e => { state.angle = +e.target.value; $('angleV').textContent = state.angle + '°'; schedule(500); };
 function showDensity() { $('densityV').textContent = t('densityV', state.lines.toLocaleString(lang === 'es' ? 'es-CO' : 'en-US', { minimumFractionDigits: 1 }), (1 / state.lines).toFixed(2)); }
@@ -3124,7 +3274,8 @@ function buildParams() {
     removeEdge: state.bgMode !== 'keep', removeSeeds: state.seeds.slice(),
     density: 1 / state.lines, satinSpacing: Math.min(0.5, Math.max(0.25, 1 / state.lines + 0.05)),
     pull: Emb.FABRICS[state.fabricKey].pull, fillPull: Emb.FABRICS[state.fabricKey].fillPull, underlay: Emb.FABRICS[state.fabricKey].underlay,
-    basting: state.basting, boldMM: state.bold ? 1.0 : 0, srcPx: up, fine: true
+    basting: state.basting, boldMM: state.bold ? 1.0 : 0, srcPx: up, fine: true,
+    split: HOOPS[state.hoop][3] ? { sep: HOOPS[state.hoop][3], field: 100 } : null
   };
 }
 function run() {
@@ -3160,8 +3311,9 @@ function run() {
 function setStatus(kind, text) { const s = $('status'); s.className = 'chip ' + kind; s.textContent = text; }
 function updateFitChip() {
   const r = state.result; if (!r) return;
-  const [hw, hh, label] = HOOPS[state.hoop];
-  if (r.width <= hw && r.height <= hh) setStatus('good', t('fits', label)); else setStatus('bad', t('tooBig', label));
+  const [hw, hh, label, sep] = HOOPS[state.hoop];
+  const ok = sep ? (!r.error && state.wmm <= hw - 10 + 0.01 && state.hmm <= hh - 10 + 0.01) : (r.width <= hw && r.height <= hh);
+  setStatus(ok ? 'good' : 'bad', t(ok ? 'fits' : 'tooBig', label));
 }
 
 /* ---------- preview drawing */
@@ -3205,7 +3357,19 @@ function drawPreview() {
     return;
   }
   if (!r || !r.cmds.length) return;
-  const ox = fx + (hw - r.width) / 2 * s, oy = fy + (hh - r.height) / 2 * s;
+  let ox = fx + (hw - r.width) / 2 * s, oy = fy + (hh - r.height) / 2 * s;
+  // a split design is placed by the hoop's centre, and the cuts between parts are shown
+  if (r.hoopCenter) {
+    ox = fx + (hw / 2 - (r.hoopCenter[0] - r.offset[0])) * s; oy = fy + (hh / 2 - (r.hoopCenter[1] - r.offset[1])) * s;
+    const px = (x, y) => [fx + (hw / 2 + x - r.hoopCenter[0]) * s, fy + (hh / 2 + y - r.hoopCenter[1]) * s];
+    ctx.save(); ctx.setLineDash([1.2 * s, 1.2 * s]); ctx.lineWidth = Math.max(1, 0.3 * s); ctx.strokeStyle = 'rgba(37,99,235,0.75)';
+    for (const cut of r.cuts || []) {
+      ctx.beginPath();
+      cut.forEach(([x, y], i) => { const [X, Y] = px(x, y); if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); });
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   state.pv = { ox, oy, s };
   if (sim && sim.isActive()) { drawSimFrame(ctx, r, ox, oy, s); return; }
   const k = s / 10;                                 // commands are in 0.1 mm
@@ -3315,6 +3479,12 @@ function renderReadout() {
   $('r-cc').textContent = nf(r.colorChanges);
   $('r-tr').textContent = nf(r.trims);
   $('r-min').textContent = nf(Math.max(1, Math.ceil(r.stitches / 600 + r.colorChanges)));
+  const pi = $('partsInfo');
+  if (r.parts && r.parts.length > 1) {
+    pi.hidden = false;
+    pi.textContent = t('parts', r.parts.length) + ': ' + r.parts.map((pt, i) => `${i + 1}. ${T[lang].posName[pt.position]} (${nf(pt.stitches)})`).join(' · ');
+  } else if (r.parts) { pi.hidden = false; pi.textContent = t('onePart'); }
+  else pi.hidden = true;
 }
 
 /* ---------- download */
@@ -3331,6 +3501,26 @@ $('download').onclick = async () => {
   const threads = r.colorsUsed ? r.colorsUsed.map((ci, i) => state.colors[ci] ? state.colors[ci].thread : r.threads[i]) : r.threads;
   const pes = Emb.writePES(r.cmds, threads, state.name.toUpperCase().slice(0, 8));
   const fname = state.name + '.pes';
+  // a split design: one file per hoop position, numbered in sewing order, and how to sew them
+  if (r.parts && r.parts.length > 1) {
+    const files = r.parts.map((pt, i) => {
+      const th = pt.colorsUsed.map((ci, k) => state.colors[ci] ? state.colors[ci].thread : pt.threads[k]);
+      return { name: `${state.name}-${i + 1}-${T[lang].posName[pt.position]}.pes`, data: Emb.writePES(pt.cmds, th, (state.name.slice(0, 6) + (i + 1)).toUpperCase()) };
+    });
+    const how = [t('multiIntro'), '', ...['multi1', 'multi2', 'multi3', 'multi4'].map((k, i) => `${i + 1}. ${t(k)}`), '', ...files.map(f => f.name)].join('\r\n');
+    files.push({ name: t('howFile'), data: new TextEncoder().encode(how) });
+    const zip = Emb.makeZip(files);
+    if (downloadsCap) {
+      try { await downloadsCap.save({ filename: state.name + '.zip', data: new Blob([zip]) }); msg.className = 'msg ok'; msg.textContent = t('savedParts'); }
+      catch (e) { if (e && e.code === 'declined') msg.textContent = t('declined'); else { msg.className = 'msg err'; msg.textContent = t('dlFail'); console.error(e); } }
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([zip], { type: 'application/zip' }));
+    const a = document.createElement('a'); a.href = url; a.download = state.name + '.zip'; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    msg.className = 'msg ok'; msg.textContent = t('savedParts');
+    return;
+  }
   if (downloadsCap) {
     const zip = Emb.makeZip([{ name: fname, data: pes }]);
     try {
