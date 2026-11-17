@@ -1338,10 +1338,16 @@ function analyzeColors(rgba, w, h, kMax) {
     }
     if (extra.length) {
       let S = settle(base.concat(extra));
-      // keep only additions that are real: a solid patch and a fair share of the design
-      const good = S.C.filter((c, i) => base.some(b => dist(b, c) < 1) || (S.L.blob[i] >= 6 && S.L.cnt[i] / S.fgN >= 0.004));
-      if (good.length > base.length) {
-        if (good.length < S.C.length) S = settle(good);
+      // keep only additions that are real: a solid patch and a fair share of the design.
+      // They are added to the palette as it was, so the colours it had stay as they were
+      const fit = (i) => (S.L.blob[i] >= 6 && S.L.cnt[i] / S.fgN >= 0.003) || (S.L.blob[i] >= 4 && S.L.cnt[i] / S.fgN >= 0.006);
+      const add = S.C.filter((c, i) => base.every(b => dist(b, c) > 40) && extra.some(e => dist(e, c) < 60) && fit(i));
+      let keep = false;
+      if (add.length) {
+        const S2 = settle(base.concat(add));
+        if (S2.C.length > base.length && add.every(a => S2.C.some(c => dist(a, c) < 60))) { S = S2; keep = true; }
+      }
+      if (keep) {
         results[kMax + 1] = S.result; border[kMax + 1] = S.border; suggested = kMax + 1;
       }
     }
