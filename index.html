@@ -117,6 +117,12 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
 .simbar .btn { display: inline-flex; align-items: center; gap: 6px; }
 .simbar input[type=range] { flex: 1 1 140px; min-width: 120px; accent-color: var(--accent); }
 .simbar select { width: auto; padding: 6px 8px; }
+.typesbox { font-size: 14px; }
+.typekey { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 2px 0 10px; font-size: 13px; flex-basis: 100%; }
+.typekey[hidden] { display: none; }
+.typekey .k { display: inline-flex; align-items: center; gap: 6px; cursor: help; }
+.typekey .sw { width: 22px; height: 6px; border-radius: 3px; display: inline-block; }
+.typekey .n { color: var(--muted); font-variant-numeric: tabular-nums; }
 .siminfo { min-height: 1.4em; margin: 0 0 10px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .multihow { font-size: 13px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px 12px; }
 .multihow ol { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
@@ -294,8 +300,10 @@ canvas#stage { width: 100%; max-width: 540px; margin: 0 auto; height: auto; disp
           <input type="range" id="simPos" min="0" max="0" value="0" step="1" aria-label="Sewing progress" disabled>
           <select id="simSpeed" aria-label="Speed" disabled></select>
           <button class="btn" type="button" id="simAll" disabled data-t="simAll">Show finished</button>
+          <label class="check typesbox"><input type="checkbox" id="simTypes"> <span data-t="showTypes">Show stitch types</span></label>
         </div>
         <p class="siminfo" id="simInfo"></p>
+        <div class="typekey" id="typeKey" hidden></div>
         <p class="partsinfo" id="partsInfo" hidden></p>
       <div class="readout">
           <div class="tile wide"><div class="v" id="r-size">–</div><div class="k" data-t="rSize">↕ height × ↔ width</div></div>
@@ -1015,7 +1023,7 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       const list = adj.get(f.u);
       if (f.i >= list.length) {
         stack.pop();
-        if (f.back) out.push(...(f.back.run ? runLine(f.back.xy, opt.runLen || 1.8) : satinPath(f.back.xy, f.back.w, opt.pull, opt.satinSpacing, !!opt.thread)));
+        if (f.back) out.push(...(f.back.run ? tagK(runLine(f.back.xy, opt.runLen || 1.8), 'run') : tagK(satinPath(f.back.xy, f.back.w, opt.pull, opt.satinSpacing, !!opt.thread), 'satin')));
         continue;
       }
       const ei = list[f.i++];
@@ -1025,10 +1033,10 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       let v, fxy, fw;
       if (e.a === f.u) { v = e.b; fxy = e.xy; fw = e.w; }
       else { v = e.a; fxy = e.xy.slice().reverse(); fw = e.w.slice().reverse(); }
-      out.push(...(e.run ? runLine(fxy, opt.runLen || 1.8) : underlayPath(fxy, fw, opt.underlay)));
+      out.push(...(e.run ? tagK(runLine(fxy, opt.runLen || 1.8), 'run') : tagK(underlayPath(fxy, fw, opt.underlay), 'underlay')));
       const back = { xy: fxy.slice().reverse(), w: fw.slice().reverse(), run: e.run };
       if (!vis.has(v)) { vis.add(v); stack.push({ u: v, i: 0, back }); }
-      else out.push(...(e.run ? runLine(back.xy, opt.runLen || 1.8) : satinPath(back.xy, back.w, opt.pull, opt.satinSpacing, !!opt.thread)));
+      else out.push(...(e.run ? tagK(runLine(back.xy, opt.runLen || 1.8), 'run') : tagK(satinPath(back.xy, back.w, opt.pull, opt.satinSpacing, !!opt.thread), 'satin')));
     }
     return out;
   }
@@ -1308,7 +1316,7 @@ function fillComponent(fillMask, W0, H0, comp0, lab, mmpx, opt, cur0, laterMask)
   const sx = ox * mmpx, sy = oy * mmpx;
   const cur = cur0 ? [cur0[0] - sx, cur0[1] - sy] : null;
   const r = fillLocal(cm, W, H, comp, mmpx, opt, cur, lm);
-  const shift = q => [q[0] + sx, q[1] + sy];
+  const shift = q => { const o = [q[0] + sx, q[1] + sy]; if (q.k) o.k = q.k; return o; };
   return { seq: r.seq.map(([k, q]) => [k, shift(q)]), cur: r.cur ? shift(r.cur) : cur0 };
 }
 function fillLocal(cm, W, H, comp, mmpx, opt, cur, lm) {
@@ -1325,7 +1333,7 @@ function fillLocal(cm, W, H, comp, mmpx, opt, cur, lm) {
     pts.forEach((p, i) => { const d = cur ? hyp(p, cur) : 0; if (d < bd) { bd = d; bi = i; } });
     const ring = pts.slice(bi, pts.length - 1).concat(pts.slice(0, bi + 1));
     seq.push(['j', ring[0]]);
-    for (const z of runPath(ring, 2.0).slice(1)) seq.push(['s', z]);
+    for (const z of runPath(ring, 2.0).slice(1)) { z.k = 'underlay'; seq.push(['s', z]); }
     cur = ring[ring.length - 1];
   }
   // 2. sparse underlay across the fill direction
@@ -1334,19 +1342,21 @@ function fillLocal(cm, W, H, comp, mmpx, opt, cur, lm) {
   const layers = opt.underlay === 'light' ? [[90, 2.6]] : opt.underlay === 'heavy' ? [[90, 1.6], [0, 2.4]] : [[90, 1.8]];
   if (any) for (const [da, sp] of layers) {
     const r = tatami(ul, W, H, comp, mmpx, opt.angle + da, sp, 3.0, cur, grid, false);
-    for (const it of r.seq) seq.push(it);
+    for (const it of r.seq) { it[1] = it[1].slice(); it[1].k = 'underlay'; seq.push(it); }
     if (r.seq.length) cur = r.cur;
   }
   // 3. top fill
   const r = tatami(cm, W, H, comp, mmpx, opt.angle, opt.density, opt.stitchLen, cur, grid, true, opt.pullMM);
-  for (const it of r.seq) seq.push(it);
+  for (const it of r.seq) { it[1] = it[1].slice(); it[1].k = 'fill'; seq.push(it); }
   return { seq, cur: r.seq.length ? r.cur : cur };
 }
 
 /* ------------------------------------------------------------ stitch builder */
 class Builder {
   constructor() { this.cmds = []; this.cur = null; this.prev = null; this.needTie = true; this.trims = 0; this.hidden = 0; this.travel = null; }
-  abs(c, q) { this.cmds.push([q[0], q[1], c]); }
+  // each command carries the kind of stitch it is (fill, satin, run, underlay, tie...) as a
+  // 4th value, for the preview; the .pes file doesn't keep it
+  abs(c, q, k) { this.cmds.push(k ? [q[0], q[1], c, k] : [q[0], q[1], c]); }
   cmd(c) { this.abs(c, this.cur || [0, 0]); }
   tie(q, toward) {
     let v = [0.5, 0];
@@ -1356,7 +1366,7 @@ class Builder {
       if (L > 1e-6) v = [dx / L * 0.5, dy / L * 0.5];
     }
     const b = [q[0] + v[0], q[1] + v[1]];
-    for (const z of [q, b, q, b, q]) this.abs(STITCH, z);
+    for (const z of [q, b, q, b, q]) this.abs(STITCH, z, 'tie');
   }
   canTravel(q) {
     // a straight run is fine if it stays inside this colour or under a colour stitched later
@@ -1378,7 +1388,7 @@ class Builder {
   }
   jump(q) {
     if (this.cur && hyp(q, this.cur) < 1.5) { this.stitch(q); return; }
-    if (this.canTravel(q)) { for (const z of runPath([this.cur, q], 2.5).slice(1)) this.stitch(z); this.hidden++; return; }
+    if (this.canTravel(q)) { for (const z of runPath([this.cur, q], 2.5).slice(1)) { z.k = 'travel'; this.stitch(z); } this.hidden++; return; }
     if (this.cur && !this.needTie) { this.tie(this.cur); this.cmd(TRIM); this.trims++; }
     this.abs(JUMP, q);
     this.cur = q; this.prev = null; this.needTie = true;
@@ -1387,7 +1397,8 @@ class Builder {
     if (!this.cur) this.jump(q);
     if (this.needTie) { this.needTie = false; this.tie(this.cur, q); }
     if (hyp(q, this.cur) < 0.3) return;
-    for (const z of runPath([this.cur, q], 7.0).slice(1)) this.abs(STITCH, z);
+    const k = q.k || this.kind || 'run';
+    for (const z of runPath([this.cur, q], 7.0).slice(1)) this.abs(STITCH, z, k);
     this.prev = this.cur; this.cur = q;
   }
   seq(items) { for (const [k, q] of items) { if (k === 'j') this.jump(q); else this.stitch(q); } }
@@ -1395,6 +1406,8 @@ class Builder {
   colorChange() { if (this.cur) this.tie(this.cur); this.cmd(COLOR_CHANGE); this.needTie = true; }
   end() { if (this.cur) this.tie(this.cur); this.cmd(TRIM); this.cmd(END); }
 }
+
+function tagK(pts, k) { for (const q of pts) if (q) q.k = k; return pts; }
 
 /* ------------------------------------------------------------ colours */
 function lcg(seed) { let s = seed >>> 0; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
@@ -2302,7 +2315,7 @@ function digitize(p, progress) {
           if (p.fine && alone && area > 0.25 && area < 3.5) {
             const px = [];
             for (let y = c.miny; y <= c.maxy; y++) for (let x = c.minx; x <= c.maxx; x++) if (rc.lab[y * W + x] === c.id) px.push(y * W + x);
-            b.points(dotStitches(px, W, mmpx)); cur = b.cur;
+            b.points(tagK(dotStitches(px, W, mmpx), 'satin')); cur = b.cur;
           } else if ((alone && area > (p.fine ? 0.3 : 0.6)) || (p.fine && onFill[c.id] && area > 0.3) || (p.fine && area > 0.5 && restW[c.id] * mmpx >= 0.3)) add.add(c.id);
         }
         if (add.size) for (let i = 0; i < N; i++) if (rest[i] && add.has(rc.lab[i])) fillMask[i] = 1;
@@ -2330,7 +2343,7 @@ function digitize(p, progress) {
       for (const c of b.cmds) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
       const m = 2.5;
       x0 -= m; y0 -= m; x1 += m; y1 += m;
-      bb.points(runPath([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]], 4.0));
+      bb.points(tagK(runPath([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]], 4.0), 'basting'));
     }
     // placement lines for one part of a split design: two basting lines down the sides of
     // its sewing field. They make the part's outline exactly that field, so the machine
@@ -2338,8 +2351,8 @@ function digitize(p, progress) {
     // lines of one part lie on the same track as the next part's, a check that it lines up
     if (p.marks) {
       const { cx, cy, half } = p.marks;
-      bb.points(runPath([[cx - half, cy - half], [cx - half, cy + half]], 4.0));
-      bb.points(runPath([[cx + half, cy + half], [cx + half, cy - half]], 4.0));
+      bb.points(tagK(runPath([[cx - half, cy - half], [cx - half, cy + half]], 4.0), 'basting'));
+      bb.points(tagK(runPath([[cx + half, cy + half], [cx + half, cy - half]], 4.0), 'basting'));
     }
     bb.colorChange();
     b.cmds = bb.cmds.concat(b.cmds);
@@ -2427,7 +2440,7 @@ function digitizeSplit(p, labels, stitched, say) {
     const r = digitize(Object.assign({}, p, { labels: L, split: null, marks: plan.use.length > 1 ? { cx, cy: cy + pos[pi], half } : null }), say);
     parts.push({ cmds: r.cmds, threads: r.threads, stitches: r.stitches, colorsUsed: r.colorsUsed, position: ['top', 'middle', 'bottom'][pi], offset: r.offset, width: r.width, height: r.height });
     // the whole design for the preview: every part in place, one after the other
-    for (const c of r.cmds) if (c[2] !== END) all.cmds.push([c[0] / 10 + r.offset[0], c[1] / 10 + r.offset[1], c[2]]);
+    for (const c of r.cmds) if (c[2] !== END) all.cmds.push([c[0] / 10 + r.offset[0], c[1] / 10 + r.offset[1], c[2], c[3]]);
     const last = all.cmds[all.cmds.length - 1];
     if (last) all.cmds.push([last[0], last[1], k < plan.use.length - 1 ? COLOR_CHANGE : END]);
     allThreads.push(...r.threads); allUsed.push(...r.colorsUsed);
@@ -2492,7 +2505,7 @@ function finish(b, threads, summary) {
   let minx = Infinity, miny = Infinity;
   for (const c of b.cmds) { if (c[0] < minx) minx = c[0]; if (c[1] < miny) miny = c[1]; }
   if (!isFinite(minx)) { minx = 0; miny = 0; }
-  const cmds = b.cmds.map(c => [Math.round((c[0] - minx) * 10), Math.round((c[1] - miny) * 10), c[2]]);
+  const cmds = b.cmds.map(c => c[3] ? [Math.round((c[0] - minx) * 10), Math.round((c[1] - miny) * 10), c[2], c[3]] : [Math.round((c[0] - minx) * 10), Math.round((c[1] - miny) * 10), c[2]]);
   let maxx = 0, maxy = 0, stitches = 0, colorChanges = 0, jumps = 0;
   for (const c of cmds) {
     if (c[0] > maxx) maxx = c[0]; if (c[1] > maxy) maxy = c[1];
@@ -2764,9 +2777,9 @@ function mergeDesigns(parts, opts) {
       // keep every stitch short enough for the machine (only matters for enlarged designs)
       if (c[2] === STITCH && prev) {
         const d = hyp(prev, c);
-        if (d > 12) { const n = Math.ceil(d / 7); for (let k = 1; k < n; k++) out.push([prev[0] + (c[0] - prev[0]) * k / n, prev[1] + (c[1] - prev[1]) * k / n, STITCH]); }
+        if (d > 12) { const n = Math.ceil(d / 7); for (let k = 1; k < n; k++) out.push([prev[0] + (c[0] - prev[0]) * k / n, prev[1] + (c[1] - prev[1]) * k / n, STITCH, c[3] || pt.k || null]); }
       }
-      out.push(c);
+      out.push(c[3] || !pt.k ? c : [c[0], c[1], c[2], pt.k]);
       prev = c;
     }
     threads.push(...pt.threads);
@@ -2781,7 +2794,7 @@ function mergeDesigns(parts, opts) {
     for (const c of out) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
     const m = 2.5;
     const bb = new Builder();
-    bb.points(runPath([[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m], [x0 - m, y0 - m]], 4.0));
+    bb.points(tagK(runPath([[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m], [x0 - m, y0 - m]], 4.0), 'basting'));
     bb.colorChange();
     out = bb.cmds.concat(out);
     threads.unshift(0xa8a8a8); groups.unshift({ kind: 'basting', name: '', n: 1 });
@@ -2843,13 +2856,18 @@ const SewSim = (() => {
   const STITCH = 0, JUMP = 1, COLOR_CHANGE = 5;
   const SPEEDS = [25, 100, 300, 1000, 3000];         // stitches per second on screen
   const MACHINE_SPM = 600;                            // the readout's estimate: 600 stitches a minute
+  // the kinds of stitch the digitizer marks each stitch with, and the colour each is shown in
+  // when the page shows stitch types (designs opened from a .pes file have no marks: 'other')
+  const KINDS = ['fill', 'satin', 'run', 'underlay', 'tie', 'travel', 'basting', 'other'];
+  const KIND_COLORS = { fill: '#2563eb', satin: '#ea7a0c', run: '#16a34a', underlay: '#a8a29e', tie: '#dc2626', travel: '#a8a29e', basting: '#78716c', other: '#7c3aed' };
+  const kindIndex = k => { const i = KINDS.indexOf(k || 'other'); return i < 0 ? KINDS.length - 1 : i; };
 
   function model(r) {
-    const seg = [], col = [], jumps = [], starts = [0];
+    const seg = [], col = [], kd = [], jumps = [], starts = [0];
     let last = null, ci = 0;
-    for (const [x, y, c] of r.cmds) {
+    for (const [x, y, c, k] of r.cmds) {
       if (c === STITCH) {
-        if (last) { seg.push(last[0], last[1], x, y); col.push(ci); }
+        if (last) { seg.push(last[0], last[1], x, y); col.push(ci); kd.push(kindIndex(k)); }
         last = [x, y];
       } else if (c === JUMP) {
         // a jump longer than 1 mm leaves a thread across the top that has to be cut
@@ -2857,7 +2875,7 @@ const SewSim = (() => {
         last = [x, y];
       } else if (c === COLOR_CHANGE) { ci++; starts.push(col.length); }
     }
-    return { seg: Float32Array.from(seg), col: Uint16Array.from(col), jumps, starts, n: col.length, colors: ci + 1 };
+    return { seg: Float32Array.from(seg), col: Uint16Array.from(col), kd: Uint8Array.from(kd), jumps, starts, n: col.length, colors: ci + 1 };
   }
 
   function create(o) {
@@ -2887,7 +2905,8 @@ const SewSim = (() => {
       if (!M || !active) { o.info.textContent = M && M.n ? o.t('simIdle') : ''; return; }
       const k = Math.floor(n), b = block(Math.min(k, M.n - 1));
       const left = Math.max(0, Math.ceil((M.n - k) / MACHINE_SPM + (M.colors - 1 - b)));
-      o.info.textContent = banner || o.t('simInfo', b + 1, M.colors, o.name(b), k, M.n, left);
+      const kind = KINDS[M.kd[Math.max(0, Math.min(k, M.n) - 1)]];
+      o.info.textContent = banner || o.t('simInfo', b + 1, M.colors, o.name(b), k, M.n, left) + (k > 0 && k < M.n ? ' · ' + o.t('kindNow', o.t('kind_' + kind)) : '');
     }
     function frame() {
       o.render(active ? Math.floor(n) : null, { model: M, needle: active ? needle(Math.floor(n)) : null, banner: active ? banner : null });
@@ -2953,7 +2972,7 @@ const SewSim = (() => {
       }
     };
   }
-  return { model, create, SPEEDS };
+  return { model, create, SPEEDS, KINDS, KIND_COLORS, kindIndex };
 })();
 
 </script>
@@ -3001,6 +3020,13 @@ const T = {
     preview: 'Stitch preview', busy: 'Making stitches…', fits: h => `Fits the ${h} hoop`, tooBig: h => `Too big for the ${h} hoop`,
     nothing: 'Turn on at least one color to stitch', rSize: '↕ height × ↔ width (mm)', rSt: 'stitches', rCc: 'thread changes',
     rTr: 'jump threads to cut', rMin: 'minutes to sew (about)',
+    showTypes: 'Show stitch types', typesHint: 'Each stitch is colored by its type instead of its thread.',
+    kindNow: k => `now: ${k}`, kind_fill: 'fill stitch', kind_satin: 'satin stitch', kind_run: 'running stitch', kind_underlay: 'underlay (sewn first, hidden under the top stitches)',
+    kind_tie: 'lock stitches (tie-in / tie-off)', kind_travel: 'travel stitch (hidden under later stitches)', kind_basting: 'basting / placement line (pulled out later)', kind_other: 'stitch from an opened .pes file',
+    key_fill: 'Fill', key_satin: 'Satin', key_run: 'Running', key_underlay: 'Underlay', key_tie: 'Lock', key_travel: 'Travel', key_basting: 'Basting', key_other: 'From .pes file',
+    key_fillT: 'Rows of short stitches that cover a wide area', key_satinT: 'Long side-to-side stitches for columns and outlines: smooth and shiny', key_runT: 'A single line of stitches for very thin lines',
+    key_underlayT: 'Sewn first under satin and fill to hold the fabric; hidden in the end', key_tieT: 'Tiny stitches that lock the thread at starts and ends', key_travelT: 'Moves between parts, hidden under later stitches',
+    key_bastingT: 'Holds or places the fabric; pulled out afterwards', key_otherT: 'From a .pes file you opened (its stitch types are not known)',
     simWatch: '▶ Watch it sew', simPause: '❚❚ Pause', simResume: '▶ Keep going', simAgain: '↻ Watch again', simAll: 'Show finished',
     simSlow: 'Slow', simMed: 'Medium', simFast: 'Fast', simFaster: 'Faster', simFastest: 'Fastest', simBasting: 'basting box',
     simIdle: 'Press Watch it sew to see the order the machine sews in, one stitch at a time. Drag the slider to jump to any point.',
@@ -3054,6 +3080,13 @@ const T = {
     preview: 'Vista previa de puntadas', busy: 'Creando puntadas…', fits: h => `Cabe en el bastidor de ${h}`, tooBig: h => `Demasiado grande para el bastidor de ${h}`,
     nothing: 'Activa al menos un color para bordar', rSize: '↕ alto × ↔ ancho (mm)', rSt: 'puntadas', rCc: 'cambios de hilo',
     rTr: 'hilos de salto para cortar', rMin: 'minutos de bordado (aprox.)',
+    showTypes: 'Ver tipos de puntada', typesHint: 'Cada puntada se colorea según su tipo en vez de su hilo.',
+    kindNow: k => `ahora: ${k}`, kind_fill: 'puntada de relleno', kind_satin: 'puntada satín', kind_run: 'puntada recta', kind_underlay: 'base (se borda primero, queda debajo)',
+    kind_tie: 'puntadas de remate', kind_travel: 'puntada de traslado (queda debajo de otras)', kind_basting: 'hilván / línea de colocación (se saca después)', kind_other: 'puntada de un archivo .pes abierto',
+    key_fill: 'Relleno', key_satin: 'Satín', key_run: 'Recta', key_underlay: 'Base', key_tie: 'Remate', key_travel: 'Traslado', key_basting: 'Hilván', key_other: 'De archivo .pes',
+    key_fillT: 'Filas de puntadas cortas que cubren un área ancha', key_satinT: 'Puntadas largas de lado a lado para columnas y contornos: lisas y brillantes', key_runT: 'Una sola línea de puntadas para líneas muy finas',
+    key_underlayT: 'Se borda primero bajo el satín y el relleno para sujetar la tela; al final no se ve', key_tieT: 'Puntadas diminutas que rematan el hilo al empezar y terminar', key_travelT: 'Traslados entre partes, quedan debajo de otras puntadas',
+    key_bastingT: 'Sujeta o coloca la tela; se saca después', key_otherT: 'De un archivo .pes que abriste (no se sabe su tipo de puntada)',
     simWatch: '▶ Ver cómo se borda', simPause: '❚❚ Pausa', simResume: '▶ Seguir', simAgain: '↻ Ver otra vez', simAll: 'Ver terminado',
     simSlow: 'Lento', simMed: 'Medio', simFast: 'Rápido', simFaster: 'Más rápido', simFastest: 'Rapidísimo', simBasting: 'caja de hilván',
     simIdle: 'Pulsa Ver cómo se borda para ver el orden en que la máquina borda, puntada por puntada. Arrastra la barra para ir a cualquier punto.',
@@ -3076,6 +3109,7 @@ const Emb = window.Emb;
 // [sewing width, height, name, distance between positions of a multi-position hoop]
 const HOOPS = { '100x100': [100, 100, '4×4 in'], '100x172': [100, 172, '4×6¾ in', 36], '130x180': [130, 180, '5×7 in'], '160x260': [160, 260, '6×10 in'] };
 const state = {
+  types: false,
   img: null, name: 'logo', aspect: 1, analysis: null, kChoice: 'auto', colors: [], order: [],
   wmm: 90, hmm: 90, hoop: '100x100', angle: 45, lines: 3.3, satin: 4.5, satinOn: true, fabric: '#efece6', fabricKey: 'cotton', basting: false, bold: false, bgFamily: [],
   result: null, busy: false, jobId: 0, pending: false,
@@ -3094,6 +3128,7 @@ function applyLang() {
   $('fabricTip').textContent = t('tip_' + state.fabricKey);
   if (!state.img) { setStatus('idle', t('start')); drawPreview(); }
   if (sim) sim.relabel();
+  if (typeof renderTypeKey === 'function') renderTypeKey();
   $('dlnote').textContent = downloadsCap === false ? t('dlNoteDirect') : t('dlNote');
 }
 $('lang-en').onclick = () => { lang = 'en'; applyLang(); };
@@ -3436,14 +3471,24 @@ function drawPreview() {
   const k = s / 10;                                 // commands are in 0.1 mm
   const blocks = [];
   let path = new Path2D(), last = null, ci = 0;
-  for (const [x, y, c] of r.cmds) {
+  // with Show stitch types, one path per kind of stitch instead of per thread
+  const byKind = state.types ? SewSim.KINDS.map(() => new Path2D()) : null;
+  for (const [x, y, c, kind] of r.cmds) {
     const px = ox + x * k, py = oy + y * k;
-    if (c === Emb.STITCH) { if (last) { path.moveTo(last[0], last[1]); path.lineTo(px, py); } last = [px, py]; }
+    if (c === Emb.STITCH) { if (last) { const pp = byKind ? byKind[SewSim.kindIndex(kind)] : path; pp.moveTo(last[0], last[1]); pp.lineTo(px, py); } last = [px, py]; }
     else if (c === Emb.JUMP) { last = [px, py]; }
     else if (c === Emb.COLOR_CHANGE) { blocks.push([path, ci]); path = new Path2D(); ci++; }
   }
   blocks.push([path, ci]);
   ctx.lineCap = 'round';
+  if (byKind) {
+    // underneath first, so satin and fill show on top
+    for (const kn of ['underlay', 'travel', 'basting', 'fill', 'other', 'satin', 'run', 'tie']) {
+      const i = SewSim.KINDS.indexOf(kn);
+      ctx.strokeStyle = SewSim.KIND_COLORS[kn]; ctx.lineWidth = Math.max(0.8, (kn === 'tie' ? 0.6 : 0.34) * s); ctx.stroke(byKind[i]);
+    }
+    return;
+  }
   for (const [p, i] of blocks) {
     const col = liveThread(i, r.threads[i]);
     const rgb = [(col >> 16) & 255, (col >> 8) & 255, col & 255];
@@ -3453,6 +3498,24 @@ function drawPreview() {
     ctx.lineWidth = Math.max(0.6, 0.32 * s); ctx.stroke(p);
   }
 }
+/* ---------------- stitch types: a key of the kinds of stitch in the design */
+function renderTypeKey(r) {
+  const box = $('typeKey');
+  r = r || state.result;
+  if (!state.types || !r || !r.cmds) { box.hidden = true; return; }
+  const n = {};
+  for (const c of r.cmds) if (c[2] === Emb.STITCH) { const kn = SewSim.KINDS[SewSim.kindIndex(c[3])]; n[kn] = (n[kn] || 0) + 1; }
+  box.innerHTML = '';
+  for (const kn of SewSim.KINDS) {
+    if (!n[kn]) continue;
+    const el = document.createElement('span'); el.className = 'k'; el.title = t('key_' + kn + 'T');
+    const sw = document.createElement('i'); sw.className = 'sw'; sw.style.background = SewSim.KIND_COLORS[kn];
+    const cnt = document.createElement('span'); cnt.className = 'n'; cnt.textContent = n[kn].toLocaleString(lang === 'es' ? 'es-CO' : 'en-US');
+    el.append(sw, t('key_' + kn) + ' ', cnt);
+    box.appendChild(el);
+  }
+  box.hidden = false;
+}
 /* ---------------- sew-out simulation (only when Watch it sew is pressed) */
 const simLayer = document.createElement('canvas');
 let simKey = '', simDrawn = 0;
@@ -3461,7 +3524,7 @@ function drawSimFrame(ctx, r, ox, oy, s) {
   const f = sim.frameInfo(), M = f.model, n = sim.count() || 0, k = s / 10;
   if (!M) return;
   // stitches sewn so far are kept on a layer and only the new ones are added each frame
-  const key = [ctx.canvas.width, ctx.canvas.height, ox, oy, s, r.cmds.length, r.threads.map((_, i) => liveThread(i, 0)).join()].join('|');
+  const key = [ctx.canvas.width, ctx.canvas.height, ox, oy, s, r.cmds.length, state.types, r.threads.map((_, i) => liveThread(i, 0)).join()].join('|');
   if (key !== simKey || n < simDrawn) {
     simKey = key; simDrawn = 0;
     simLayer.width = ctx.canvas.width; simLayer.height = ctx.canvas.height;
@@ -3469,11 +3532,16 @@ function drawSimFrame(ctx, r, ox, oy, s) {
   const lc = simLayer.getContext('2d');
   lc.lineCap = 'round';
   let i = simDrawn;
+  const G = state.types ? M.kd : M.col;            // group by stitch kind or by thread
   while (i < n) {
-    const ci = M.col[i];
+    const ci = G[i];
     let j = i;
     const p = new Path2D();
-    while (j < n && M.col[j] === ci) { const q = j * 4; p.moveTo(ox + M.seg[q] * k, oy + M.seg[q + 1] * k); p.lineTo(ox + M.seg[q + 2] * k, oy + M.seg[q + 3] * k); j++; }
+    while (j < n && G[j] === ci) { const q = j * 4; p.moveTo(ox + M.seg[q] * k, oy + M.seg[q + 1] * k); p.lineTo(ox + M.seg[q + 2] * k, oy + M.seg[q + 3] * k); j++; }
+    if (state.types) {
+      lc.strokeStyle = SewSim.KIND_COLORS[SewSim.KINDS[ci]]; lc.lineWidth = Math.max(0.8, 0.34 * s); lc.stroke(p);
+      i = j; continue;
+    }
     const rgb = threadRGB(ci);
     lc.strokeStyle = `rgb(${rgb.map(v => Math.round(v * 0.58)).join(',')})`; lc.lineWidth = Math.max(1, 0.46 * s); lc.stroke(p);
     lc.strokeStyle = `rgb(${rgb.join(',')})`; lc.lineWidth = Math.max(0.6, 0.32 * s); lc.stroke(p);
@@ -3522,6 +3590,7 @@ var sim = SewSim.create({   // var: drawPreview can run before this line on firs
   },
   render: () => drawPreview()
 });
+$('simTypes').onchange = e => { state.types = e.target.checked; renderTypeKey(); drawPreview(); };
 function liveThread(i, fallback) {
   const stitched = state.order.filter(j => state.colors[j] && state.colors[j].stitch);
   const ci = state.result && state.result.colorsUsed ? state.result.colorsUsed[i] : stitched[i];
@@ -3540,6 +3609,7 @@ function renderReadout() {
   $('r-cc').textContent = nf(r.colorChanges);
   $('r-tr').textContent = nf(r.trims);
   $('r-min').textContent = nf(Math.max(1, Math.ceil(r.stitches / 600 + r.colorChanges)));
+  renderTypeKey(r);
   const pi = $('partsInfo');
   if (r.parts && r.parts.length > 1) {
     pi.hidden = false;

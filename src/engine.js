@@ -691,7 +691,7 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       const list = adj.get(f.u);
       if (f.i >= list.length) {
         stack.pop();
-        if (f.back) out.push(...(f.back.run ? runLine(f.back.xy, opt.runLen || 1.8) : satinPath(f.back.xy, f.back.w, opt.pull, opt.satinSpacing, !!opt.thread)));
+        if (f.back) out.push(...(f.back.run ? tagK(runLine(f.back.xy, opt.runLen || 1.8), 'run') : tagK(satinPath(f.back.xy, f.back.w, opt.pull, opt.satinSpacing, !!opt.thread), 'satin')));
         continue;
       }
       const ei = list[f.i++];
@@ -701,10 +701,10 @@ function networkBlocks(sk, D, W, H, mmpx, opt) {
       let v, fxy, fw;
       if (e.a === f.u) { v = e.b; fxy = e.xy; fw = e.w; }
       else { v = e.a; fxy = e.xy.slice().reverse(); fw = e.w.slice().reverse(); }
-      out.push(...(e.run ? runLine(fxy, opt.runLen || 1.8) : underlayPath(fxy, fw, opt.underlay)));
+      out.push(...(e.run ? tagK(runLine(fxy, opt.runLen || 1.8), 'run') : tagK(underlayPath(fxy, fw, opt.underlay), 'underlay')));
       const back = { xy: fxy.slice().reverse(), w: fw.slice().reverse(), run: e.run };
       if (!vis.has(v)) { vis.add(v); stack.push({ u: v, i: 0, back }); }
-      else out.push(...(e.run ? runLine(back.xy, opt.runLen || 1.8) : satinPath(back.xy, back.w, opt.pull, opt.satinSpacing, !!opt.thread)));
+      else out.push(...(e.run ? tagK(runLine(back.xy, opt.runLen || 1.8), 'run') : tagK(satinPath(back.xy, back.w, opt.pull, opt.satinSpacing, !!opt.thread), 'satin')));
     }
     return out;
   }
@@ -984,7 +984,7 @@ function fillComponent(fillMask, W0, H0, comp0, lab, mmpx, opt, cur0, laterMask)
   const sx = ox * mmpx, sy = oy * mmpx;
   const cur = cur0 ? [cur0[0] - sx, cur0[1] - sy] : null;
   const r = fillLocal(cm, W, H, comp, mmpx, opt, cur, lm);
-  const shift = q => [q[0] + sx, q[1] + sy];
+  const shift = q => { const o = [q[0] + sx, q[1] + sy]; if (q.k) o.k = q.k; return o; };
   return { seq: r.seq.map(([k, q]) => [k, shift(q)]), cur: r.cur ? shift(r.cur) : cur0 };
 }
 function fillLocal(cm, W, H, comp, mmpx, opt, cur, lm) {
@@ -1001,7 +1001,7 @@ function fillLocal(cm, W, H, comp, mmpx, opt, cur, lm) {
     pts.forEach((p, i) => { const d = cur ? hyp(p, cur) : 0; if (d < bd) { bd = d; bi = i; } });
     const ring = pts.slice(bi, pts.length - 1).concat(pts.slice(0, bi + 1));
     seq.push(['j', ring[0]]);
-    for (const z of runPath(ring, 2.0).slice(1)) seq.push(['s', z]);
+    for (const z of runPath(ring, 2.0).slice(1)) { z.k = 'underlay'; seq.push(['s', z]); }
     cur = ring[ring.length - 1];
   }
   // 2. sparse underlay across the fill direction
@@ -1010,19 +1010,21 @@ function fillLocal(cm, W, H, comp, mmpx, opt, cur, lm) {
   const layers = opt.underlay === 'light' ? [[90, 2.6]] : opt.underlay === 'heavy' ? [[90, 1.6], [0, 2.4]] : [[90, 1.8]];
   if (any) for (const [da, sp] of layers) {
     const r = tatami(ul, W, H, comp, mmpx, opt.angle + da, sp, 3.0, cur, grid, false);
-    for (const it of r.seq) seq.push(it);
+    for (const it of r.seq) { it[1] = it[1].slice(); it[1].k = 'underlay'; seq.push(it); }
     if (r.seq.length) cur = r.cur;
   }
   // 3. top fill
   const r = tatami(cm, W, H, comp, mmpx, opt.angle, opt.density, opt.stitchLen, cur, grid, true, opt.pullMM);
-  for (const it of r.seq) seq.push(it);
+  for (const it of r.seq) { it[1] = it[1].slice(); it[1].k = 'fill'; seq.push(it); }
   return { seq, cur: r.seq.length ? r.cur : cur };
 }
 
 /* ------------------------------------------------------------ stitch builder */
 class Builder {
   constructor() { this.cmds = []; this.cur = null; this.prev = null; this.needTie = true; this.trims = 0; this.hidden = 0; this.travel = null; }
-  abs(c, q) { this.cmds.push([q[0], q[1], c]); }
+  // each command carries the kind of stitch it is (fill, satin, run, underlay, tie...) as a
+  // 4th value, for the preview; the .pes file doesn't keep it
+  abs(c, q, k) { this.cmds.push(k ? [q[0], q[1], c, k] : [q[0], q[1], c]); }
   cmd(c) { this.abs(c, this.cur || [0, 0]); }
   tie(q, toward) {
     let v = [0.5, 0];
@@ -1032,7 +1034,7 @@ class Builder {
       if (L > 1e-6) v = [dx / L * 0.5, dy / L * 0.5];
     }
     const b = [q[0] + v[0], q[1] + v[1]];
-    for (const z of [q, b, q, b, q]) this.abs(STITCH, z);
+    for (const z of [q, b, q, b, q]) this.abs(STITCH, z, 'tie');
   }
   canTravel(q) {
     // a straight run is fine if it stays inside this colour or under a colour stitched later
@@ -1054,7 +1056,7 @@ class Builder {
   }
   jump(q) {
     if (this.cur && hyp(q, this.cur) < 1.5) { this.stitch(q); return; }
-    if (this.canTravel(q)) { for (const z of runPath([this.cur, q], 2.5).slice(1)) this.stitch(z); this.hidden++; return; }
+    if (this.canTravel(q)) { for (const z of runPath([this.cur, q], 2.5).slice(1)) { z.k = 'travel'; this.stitch(z); } this.hidden++; return; }
     if (this.cur && !this.needTie) { this.tie(this.cur); this.cmd(TRIM); this.trims++; }
     this.abs(JUMP, q);
     this.cur = q; this.prev = null; this.needTie = true;
@@ -1063,7 +1065,8 @@ class Builder {
     if (!this.cur) this.jump(q);
     if (this.needTie) { this.needTie = false; this.tie(this.cur, q); }
     if (hyp(q, this.cur) < 0.3) return;
-    for (const z of runPath([this.cur, q], 7.0).slice(1)) this.abs(STITCH, z);
+    const k = q.k || this.kind || 'run';
+    for (const z of runPath([this.cur, q], 7.0).slice(1)) this.abs(STITCH, z, k);
     this.prev = this.cur; this.cur = q;
   }
   seq(items) { for (const [k, q] of items) { if (k === 'j') this.jump(q); else this.stitch(q); } }
@@ -1071,6 +1074,8 @@ class Builder {
   colorChange() { if (this.cur) this.tie(this.cur); this.cmd(COLOR_CHANGE); this.needTie = true; }
   end() { if (this.cur) this.tie(this.cur); this.cmd(TRIM); this.cmd(END); }
 }
+
+function tagK(pts, k) { for (const q of pts) if (q) q.k = k; return pts; }
 
 /* ------------------------------------------------------------ colours */
 function lcg(seed) { let s = seed >>> 0; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
@@ -1978,7 +1983,7 @@ function digitize(p, progress) {
           if (p.fine && alone && area > 0.25 && area < 3.5) {
             const px = [];
             for (let y = c.miny; y <= c.maxy; y++) for (let x = c.minx; x <= c.maxx; x++) if (rc.lab[y * W + x] === c.id) px.push(y * W + x);
-            b.points(dotStitches(px, W, mmpx)); cur = b.cur;
+            b.points(tagK(dotStitches(px, W, mmpx), 'satin')); cur = b.cur;
           } else if ((alone && area > (p.fine ? 0.3 : 0.6)) || (p.fine && onFill[c.id] && area > 0.3) || (p.fine && area > 0.5 && restW[c.id] * mmpx >= 0.3)) add.add(c.id);
         }
         if (add.size) for (let i = 0; i < N; i++) if (rest[i] && add.has(rc.lab[i])) fillMask[i] = 1;
@@ -2006,7 +2011,7 @@ function digitize(p, progress) {
       for (const c of b.cmds) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
       const m = 2.5;
       x0 -= m; y0 -= m; x1 += m; y1 += m;
-      bb.points(runPath([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]], 4.0));
+      bb.points(tagK(runPath([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]], 4.0), 'basting'));
     }
     // placement lines for one part of a split design: two basting lines down the sides of
     // its sewing field. They make the part's outline exactly that field, so the machine
@@ -2014,8 +2019,8 @@ function digitize(p, progress) {
     // lines of one part lie on the same track as the next part's, a check that it lines up
     if (p.marks) {
       const { cx, cy, half } = p.marks;
-      bb.points(runPath([[cx - half, cy - half], [cx - half, cy + half]], 4.0));
-      bb.points(runPath([[cx + half, cy + half], [cx + half, cy - half]], 4.0));
+      bb.points(tagK(runPath([[cx - half, cy - half], [cx - half, cy + half]], 4.0), 'basting'));
+      bb.points(tagK(runPath([[cx + half, cy + half], [cx + half, cy - half]], 4.0), 'basting'));
     }
     bb.colorChange();
     b.cmds = bb.cmds.concat(b.cmds);
@@ -2103,7 +2108,7 @@ function digitizeSplit(p, labels, stitched, say) {
     const r = digitize(Object.assign({}, p, { labels: L, split: null, marks: plan.use.length > 1 ? { cx, cy: cy + pos[pi], half } : null }), say);
     parts.push({ cmds: r.cmds, threads: r.threads, stitches: r.stitches, colorsUsed: r.colorsUsed, position: ['top', 'middle', 'bottom'][pi], offset: r.offset, width: r.width, height: r.height });
     // the whole design for the preview: every part in place, one after the other
-    for (const c of r.cmds) if (c[2] !== END) all.cmds.push([c[0] / 10 + r.offset[0], c[1] / 10 + r.offset[1], c[2]]);
+    for (const c of r.cmds) if (c[2] !== END) all.cmds.push([c[0] / 10 + r.offset[0], c[1] / 10 + r.offset[1], c[2], c[3]]);
     const last = all.cmds[all.cmds.length - 1];
     if (last) all.cmds.push([last[0], last[1], k < plan.use.length - 1 ? COLOR_CHANGE : END]);
     allThreads.push(...r.threads); allUsed.push(...r.colorsUsed);
@@ -2168,7 +2173,7 @@ function finish(b, threads, summary) {
   let minx = Infinity, miny = Infinity;
   for (const c of b.cmds) { if (c[0] < minx) minx = c[0]; if (c[1] < miny) miny = c[1]; }
   if (!isFinite(minx)) { minx = 0; miny = 0; }
-  const cmds = b.cmds.map(c => [Math.round((c[0] - minx) * 10), Math.round((c[1] - miny) * 10), c[2]]);
+  const cmds = b.cmds.map(c => c[3] ? [Math.round((c[0] - minx) * 10), Math.round((c[1] - miny) * 10), c[2], c[3]] : [Math.round((c[0] - minx) * 10), Math.round((c[1] - miny) * 10), c[2]]);
   let maxx = 0, maxy = 0, stitches = 0, colorChanges = 0, jumps = 0;
   for (const c of cmds) {
     if (c[0] > maxx) maxx = c[0]; if (c[1] > maxy) maxy = c[1];
@@ -2440,9 +2445,9 @@ function mergeDesigns(parts, opts) {
       // keep every stitch short enough for the machine (only matters for enlarged designs)
       if (c[2] === STITCH && prev) {
         const d = hyp(prev, c);
-        if (d > 12) { const n = Math.ceil(d / 7); for (let k = 1; k < n; k++) out.push([prev[0] + (c[0] - prev[0]) * k / n, prev[1] + (c[1] - prev[1]) * k / n, STITCH]); }
+        if (d > 12) { const n = Math.ceil(d / 7); for (let k = 1; k < n; k++) out.push([prev[0] + (c[0] - prev[0]) * k / n, prev[1] + (c[1] - prev[1]) * k / n, STITCH, c[3] || pt.k || null]); }
       }
-      out.push(c);
+      out.push(c[3] || !pt.k ? c : [c[0], c[1], c[2], pt.k]);
       prev = c;
     }
     threads.push(...pt.threads);
@@ -2457,7 +2462,7 @@ function mergeDesigns(parts, opts) {
     for (const c of out) if (c[2] === STITCH) { x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]); x1 = Math.max(x1, c[0]); y1 = Math.max(y1, c[1]); }
     const m = 2.5;
     const bb = new Builder();
-    bb.points(runPath([[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m], [x0 - m, y0 - m]], 4.0));
+    bb.points(tagK(runPath([[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m], [x0 - m, y0 - m]], 4.0), 'basting'));
     bb.colorChange();
     out = bb.cmds.concat(out);
     threads.unshift(0xa8a8a8); groups.unshift({ kind: 'basting', name: '', n: 1 });

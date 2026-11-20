@@ -62,3 +62,16 @@ Pick **4 × 6¾ in multi-position (SA434)** as the hoop, on either page. Designs
 3. Move the hoop to the next position and sew the next file, in number order.
 4. Each part starts with two gray placement lines down its sides. They make the machine place the part exactly, and each part's lines run along the last part's lines as a check. Pull them out at the end.
 
+## Stitch types
+
+Tick **Show stitch types** under the preview (on either page) to color every stitch by its type instead of its thread, with a key and stitch counts:
+
+- **Fill** (blue): rows of short stitches for wide areas.
+- **Satin** (orange): long side-to-side stitches for columns, outlines and small dots.
+- **Running** (green): a single line of stitches, used for lines thinner than about 0.5 mm.
+- **Underlay** (gray): sewn first under satin and fill to hold the fabric; hidden in the end.
+- **Lock** (red): tiny stitches that lock the thread where it starts and stops.
+- **Basting** (dark gray): basting box and placement lines, pulled out afterwards.
+
+While **Watch it sew** plays, the line under the preview also says which type is being sewn. Designs opened from a .pes file don't carry stitch types, so they show as "From .pes file".
+

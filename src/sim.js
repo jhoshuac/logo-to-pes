@@ -12,13 +12,18 @@ const SewSim = (() => {
   const STITCH = 0, JUMP = 1, COLOR_CHANGE = 5;
   const SPEEDS = [25, 100, 300, 1000, 3000];         // stitches per second on screen
   const MACHINE_SPM = 600;                            // the readout's estimate: 600 stitches a minute
+  // the kinds of stitch the digitizer marks each stitch with, and the colour each is shown in
+  // when the page shows stitch types (designs opened from a .pes file have no marks: 'other')
+  const KINDS = ['fill', 'satin', 'run', 'underlay', 'tie', 'travel', 'basting', 'other'];
+  const KIND_COLORS = { fill: '#2563eb', satin: '#ea7a0c', run: '#16a34a', underlay: '#a8a29e', tie: '#dc2626', travel: '#a8a29e', basting: '#78716c', other: '#7c3aed' };
+  const kindIndex = k => { const i = KINDS.indexOf(k || 'other'); return i < 0 ? KINDS.length - 1 : i; };
 
   function model(r) {
-    const seg = [], col = [], jumps = [], starts = [0];
+    const seg = [], col = [], kd = [], jumps = [], starts = [0];
     let last = null, ci = 0;
-    for (const [x, y, c] of r.cmds) {
+    for (const [x, y, c, k] of r.cmds) {
       if (c === STITCH) {
-        if (last) { seg.push(last[0], last[1], x, y); col.push(ci); }
+        if (last) { seg.push(last[0], last[1], x, y); col.push(ci); kd.push(kindIndex(k)); }
         last = [x, y];
       } else if (c === JUMP) {
         // a jump longer than 1 mm leaves a thread across the top that has to be cut
@@ -26,7 +31,7 @@ const SewSim = (() => {
         last = [x, y];
       } else if (c === COLOR_CHANGE) { ci++; starts.push(col.length); }
     }
-    return { seg: Float32Array.from(seg), col: Uint16Array.from(col), jumps, starts, n: col.length, colors: ci + 1 };
+    return { seg: Float32Array.from(seg), col: Uint16Array.from(col), kd: Uint8Array.from(kd), jumps, starts, n: col.length, colors: ci + 1 };
   }
 
   function create(o) {
@@ -56,7 +61,8 @@ const SewSim = (() => {
       if (!M || !active) { o.info.textContent = M && M.n ? o.t('simIdle') : ''; return; }
       const k = Math.floor(n), b = block(Math.min(k, M.n - 1));
       const left = Math.max(0, Math.ceil((M.n - k) / MACHINE_SPM + (M.colors - 1 - b)));
-      o.info.textContent = banner || o.t('simInfo', b + 1, M.colors, o.name(b), k, M.n, left);
+      const kind = KINDS[M.kd[Math.max(0, Math.min(k, M.n) - 1)]];
+      o.info.textContent = banner || o.t('simInfo', b + 1, M.colors, o.name(b), k, M.n, left) + (k > 0 && k < M.n ? ' · ' + o.t('kindNow', o.t('kind_' + kind)) : '');
     }
     function frame() {
       o.render(active ? Math.floor(n) : null, { model: M, needle: active ? needle(Math.floor(n)) : null, banner: active ? banner : null });
@@ -122,5 +128,5 @@ const SewSim = (() => {
       }
     };
   }
-  return { model, create, SPEEDS };
+  return { model, create, SPEEDS, KINDS, KIND_COLORS, kindIndex };
 })();
